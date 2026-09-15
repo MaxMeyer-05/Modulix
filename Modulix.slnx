@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="readme.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Server/Server.csproj" />
+  </Folder>
+</Solution>
