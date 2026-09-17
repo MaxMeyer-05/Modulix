@@ -18,7 +18,7 @@ public class RefreshToken
     /// <summary>
     /// Defines the user identifier associated with the refresh token.
     /// </summary>
-    public string UserId { get; set; } = string.Empty;
+    public Guid UserId { get; set; }
 
     /// <summary>
     /// Defines the expiration date and time (in UTC) of the refresh token.
