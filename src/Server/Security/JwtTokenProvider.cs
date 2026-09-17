@@ -104,6 +104,7 @@ public class JwtTokenProvider : IJwtTokenProvider
     public RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime = 1)
         => GenerateRefreshToken(userId, daysLifetime, GetCurrentUtcSecond());
 
+    /// <inheritdoc cref="GenerateRefreshToken(Guid, int)"/>
     private RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime, DateTime issuedAtUtc)
     {
         if (daysLifetime <= 0)
@@ -127,6 +128,9 @@ public class JwtTokenProvider : IJwtTokenProvider
         };
     }
 
+    /// <summary>
+    /// Gets the current UTC time rounded to the nearest second.
+    /// </summary>
     private DateTime GetCurrentUtcSecond() =>
         DateTimeOffset.FromUnixTimeSeconds(_timeProvider.GetUtcNow().ToUnixTimeSeconds()).UtcDateTime;
 }
