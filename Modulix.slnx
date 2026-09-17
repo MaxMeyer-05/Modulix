@@ -7,4 +7,7 @@
   <Folder Name="/src/">
     <Project Path="src/Server/Server.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Server/Server.csproj" />
+  </Folder>
 </Solution>
