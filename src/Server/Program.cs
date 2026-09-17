@@ -3,11 +3,18 @@ using System.Text;
 
 using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+using Server.Models;
+using Server.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
+
+builder.Services.AddScoped<UserSessionDataDto>();
+builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
 
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
@@ -25,7 +32,39 @@ builder.Services.AddSwaggerGen(options =>
     );
 });
 
-builder.Services.AddAuthentication();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] 
+                ?? throw new InvalidOperationException("Issuer configuration is missing."),
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"]
+                ?? throw new InvalidOperationException("Audience configuration is missing."),
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"] 
+                ?? throw new InvalidOperationException("SecretKey configuration is missing."))),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                if (context.Principal != null)
+                {
+                    var sessionDto = context.HttpContext.RequestServices.GetRequiredService<UserSessionDataDto>();
+                    context.Principal.PopulateSessionData(sessionDto);
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+    });
+
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 

@@ -1,0 +1,48 @@
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
+
+using Server.Models;
+
+namespace Server.Security;
+
+/// <summary>
+/// Populates the given UserSessionDataDto with information from the ClaimsPrincipal.
+/// </summary>
+public static class ClaimsPrincipalExtensions
+{
+    /// <summary>
+    /// Populates the UserSessionDataDto with the user's ID, role, scopes, and claims from the ClaimsPrincipal.
+    /// </summary>
+    /// <param name="principal">The ClaimsPrincipal containing the user's claims.</param>
+    /// <param name="session">The UserSessionDataDto to populate with the user's session data.</param>
+    public static void PopulateSessionData(this ClaimsPrincipal principal, UserSessionDataDto session)
+    {
+        var sub = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value 
+                  ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (Guid.TryParse(sub, out var parsedGuid))
+        {
+            session.UserId = parsedGuid;
+        }
+
+        var roleClaim = principal.FindFirst(ClaimTypes.Role)?.Value 
+                        ?? principal.FindFirst("role")?.Value;
+
+        if (Enum.TryParse<Roles>(roleClaim, ignoreCase: true, out var parsedRole))
+        {
+            session.Role = parsedRole;
+        }
+
+        session.Scopes = principal.FindAll("scope")
+            .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Distinct()
+            .ToList();
+
+        session.Claims = principal.Claims
+            .GroupBy(c => c.Type)
+            .ToDictionary(
+                g => g.Key, 
+                g => string.Join(", ", g.Select(c => c.Value))
+            );
+    }
+}
