@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 using Server.Models;
@@ -18,6 +19,7 @@ public class JwtTokenProvider : IJwtTokenProvider
 {
     private readonly JwtSecurityTokenHandler _jwtTokenHandler;
     private readonly SymmetricSecurityKey _signingKey;
+    private readonly TimeProvider _timeProvider;
 
     private readonly string _issuer;
     private readonly string _audience;
@@ -26,58 +28,48 @@ public class JwtTokenProvider : IJwtTokenProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="JwtTokenProvider"/> class.
     /// </summary>
-    /// <param name="configuration">The application configuration.</param>
-    /// <param name="logger">The logger instance.</param>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when any required JWT configuration is missing or invalid.
-    /// </exception>
+    /// <param name="options">The validated JWT configuration.</param>
+    /// <param name="timeProvider">The clock used for token timestamps.</param>
     public JwtTokenProvider(
-        IConfiguration configuration,
-        ILogger<JwtTokenProvider> logger)
+        IOptions<JwtOptions> options,
+        TimeProvider timeProvider)
     {
         _jwtTokenHandler = new JwtSecurityTokenHandler();
+        _timeProvider = timeProvider;
 
-        _issuer = configuration["Jwt:Issuer"]
-            ?? throw new InvalidOperationException("JWT issuer is not configured.");
-        _audience = configuration["Jwt:Audience"]
-            ?? throw new InvalidOperationException("JWT audience is not configured.");
-        var accessTokenLifetimeValue = configuration["Jwt:AccessTokenLifetimeMinutes"]
-            ?? throw new InvalidOperationException("JWT access token lifetime is not configured.");
-        if (!int.TryParse(accessTokenLifetimeValue, out _accessTokenLifetimeMinutes)
-            || _accessTokenLifetimeMinutes <= 0)
-        {
-            throw new InvalidOperationException("JWT access token lifetime must be a positive integer.");
-        }
+        var jwtOptions = options.Value;
+        _issuer = jwtOptions.Issuer;
+        _audience = jwtOptions.Audience;
+        _accessTokenLifetimeMinutes = jwtOptions.AccessTokenLifetimeMinutes;
 
-        var secretKey = configuration["Jwt:SecretKey"]
-            ?? throw new InvalidOperationException("JWT secret key is not configured.");
-        var signingKeyBytes = Encoding.UTF8.GetBytes(secretKey);
-        if (signingKeyBytes.Length < 32)
-        {
-            throw new InvalidOperationException("JWT secret key must be at least 32 bytes long.");
-        }
-
-        _signingKey = new SymmetricSecurityKey(signingKeyBytes);
+        _signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey));
     }
 
     /// <inheritdoc/>
     public TokenResultDto CreateTokenPair(Guid userId, Roles role, IEnumerable<string>? scopes = null)
     {
-        var refreshToken = GenerateRefreshToken(userId);
-        var accessToken = GenerateAccessToken(userId, role, scopes);
-        var accessTokenExpiresAtUtc = DateTime.UtcNow.AddMinutes(_accessTokenLifetimeMinutes);
+        var issuedAtUtc = GetCurrentUtcSecond();
+        var refreshToken = GenerateRefreshToken(userId, 1, issuedAtUtc);
+        var accessToken = GenerateAccessToken(userId, role, scopes, issuedAtUtc);
 
         return new TokenResultDto
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken.Token,
-            AccessTokenExpiresAtUtc = accessTokenExpiresAtUtc,
+            AccessTokenExpiresAtUtc = issuedAtUtc.AddMinutes(_accessTokenLifetimeMinutes),
             RefreshTokenExpiresAtUtc = refreshToken.ExpiresAtUtc
         };
     }
 
     /// <inheritdoc/>
     public string GenerateAccessToken(Guid userId, Roles role, IEnumerable<string>? scopes = null)
+        => GenerateAccessToken(userId, role, scopes, GetCurrentUtcSecond());
+
+    private string GenerateAccessToken(
+        Guid userId,
+        Roles role,
+        IEnumerable<string>? scopes,
+        DateTime issuedAtUtc)
     {
         var claims = new List<Claim>
         {
@@ -92,14 +84,13 @@ public class JwtTokenProvider : IJwtTokenProvider
                 .Select(scope => new Claim("scope", scope.Trim())));
         }
 
-        var now = DateTime.UtcNow;
-        var expires = now.AddMinutes(_accessTokenLifetimeMinutes);
+        var expires = issuedAtUtc.AddMinutes(_accessTokenLifetimeMinutes);
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
             Expires = expires,
-            NotBefore = now,
+            NotBefore = issuedAtUtc,
             Issuer = _issuer,
             Audience = _audience,
             SigningCredentials = new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256)
@@ -111,6 +102,9 @@ public class JwtTokenProvider : IJwtTokenProvider
 
     /// <inheritdoc/>
     public RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime = 1)
+        => GenerateRefreshToken(userId, daysLifetime, GetCurrentUtcSecond());
+
+    private RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime, DateTime issuedAtUtc)
     {
         if (daysLifetime <= 0)
         {
@@ -121,7 +115,7 @@ public class JwtTokenProvider : IJwtTokenProvider
 
         var randomBytes = RandomNumberGenerator.GetBytes(64);
         var token = Convert.ToBase64String(randomBytes);
-        var expiresAtUtc = DateTime.UtcNow.AddDays(daysLifetime);
+        var expiresAtUtc = issuedAtUtc.AddDays(daysLifetime);
 
         return new RefreshToken
         {
@@ -129,7 +123,10 @@ public class JwtTokenProvider : IJwtTokenProvider
             UserId = userId,
             ExpiresAtUtc = expiresAtUtc,
             IsRevoked = false,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = issuedAtUtc
         };
     }
+
+    private DateTime GetCurrentUtcSecond() =>
+        DateTimeOffset.FromUnixTimeSeconds(_timeProvider.GetUtcNow().ToUnixTimeSeconds()).UtcDateTime;
 }

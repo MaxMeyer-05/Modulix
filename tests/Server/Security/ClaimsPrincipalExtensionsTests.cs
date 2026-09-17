@@ -75,6 +75,47 @@ public class ClaimsPrincipalExtensionsTests
         Assert.Equal(expectedId, session.UserId);
     }
 
+    [Theory]
+    [InlineData(null, nameof(Roles.Admin))]
+    [InlineData("not-a-guid", nameof(Roles.Admin))]
+    [InlineData("11111111-1111-1111-1111-111111111111", null)]
+    [InlineData("11111111-1111-1111-1111-111111111111", "99")]
+    [Trait("Feature", "SessionClaimValidation")]
+    public void HasValidSessionClaims_MissingOrInvalidSubjectOrRole_ReturnsFalse(string? subject, string? role)
+    {
+        // Arrange
+        var claims = new List<Claim>();
+        if (subject != null)
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.Sub, subject));
+        }
+
+        if (role != null)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        var principal = CreatePrincipal(claims);
+
+        // Act & Assert
+        Assert.False(principal.HasValidSessionClaims());
+    }
+
+    [Fact]
+    [Trait("Feature", "SessionClaimValidation")]
+    public void HasValidSessionClaims_ValidSubjectAndRole_ReturnsTrue()
+    {
+        // Arrange
+        var principal = CreatePrincipal(
+        [
+            new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Role, nameof(Roles.User))
+        ]);
+
+        // Act & Assert
+        Assert.True(principal.HasValidSessionClaims());
+    }
+
     #endregion
 
     #region Role Extraction Tests

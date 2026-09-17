@@ -4,8 +4,7 @@ using System.Text;
 using System.Security.Claims;
 
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Server.TestData;
 
@@ -28,16 +27,14 @@ public class JwtTokenProviderTests
     [Theory]
     [ClassData(typeof(MissingJwtConfigurationTestData))]
     [Trait("Feature", "ConfigurationValidation")]
-    public void Constructor_MissingRequiredConfigurationKey_ThrowsInvalidOperationException(string keyToRemove)
+    public void JwtOptionsValidator_MissingRequiredConfigurationKey_ReturnsFailure(string keyToRemove)
     {
         // Arrange
-        var configValues = CreateDefaultConfigDictionary();
-        configValues.Remove(keyToRemove);
-        var configuration = BuildConfiguration(configValues);
-        var logger = NullLogger<JwtTokenProvider>.Instance;
+        var options = CreateDefaultJwtOptions();
+        SetOptionValue(options, keyToRemove, string.Empty);
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => new JwtTokenProvider(configuration, logger));
+        Assert.False(new JwtOptionsValidator().Validate(null, options).Succeeded);
     }
 
     [Fact]
@@ -45,45 +42,37 @@ public class JwtTokenProviderTests
     public void Constructor_AllConfigurationKeysPresent_InitializesSuccessfully()
     {
         // Arrange
-        var configuration = BuildConfiguration(CreateDefaultConfigDictionary());
-        var logger = NullLogger<JwtTokenProvider>.Instance;
-
         // Act
-        var provider = new JwtTokenProvider(configuration, logger);
+        var provider = CreateDefaultTokenProvider();
 
         // Assert
         Assert.NotNull(provider);
     }
 
     [Theory]
-    [InlineData("invalid")]
-    [InlineData("0")]
-    [InlineData("-1")]
+    [InlineData(0)]
+    [InlineData(-1)]
     [Trait("Feature", "ConfigurationValidation")]
-    public void Constructor_InvalidAccessTokenLifetime_ThrowsInvalidOperationException(string lifetime)
+    public void JwtOptionsValidator_InvalidAccessTokenLifetime_ReturnsFailure(int lifetime)
     {
         // Arrange
-        var configValues = CreateDefaultConfigDictionary();
-        configValues["Jwt:AccessTokenLifetimeMinutes"] = lifetime;
-        var configuration = BuildConfiguration(configValues);
+        var options = CreateDefaultJwtOptions();
+        options.AccessTokenLifetimeMinutes = lifetime;
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() =>
-            new JwtTokenProvider(configuration, NullLogger<JwtTokenProvider>.Instance));
+        Assert.False(new JwtOptionsValidator().Validate(null, options).Succeeded);
     }
 
     [Fact]
     [Trait("Feature", "ConfigurationValidation")]
-    public void Constructor_SecretKeyShorterThan32Bytes_ThrowsInvalidOperationException()
+    public void JwtOptionsValidator_SecretKeyShorterThan32Bytes_ReturnsFailure()
     {
         // Arrange
-        var configValues = CreateDefaultConfigDictionary();
-        configValues["Jwt:SecretKey"] = "too-short";
-        var configuration = BuildConfiguration(configValues);
+        var options = CreateDefaultJwtOptions();
+        options.SecretKey = "too-short";
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() =>
-            new JwtTokenProvider(configuration, NullLogger<JwtTokenProvider>.Instance));
+        Assert.False(new JwtOptionsValidator().Validate(null, options).Succeeded);
     }
 
     #endregion
@@ -218,6 +207,30 @@ public class JwtTokenProviderTests
             handler.ValidateToken(tokenString, validationParameters, out _));
     }
 
+    [Fact]
+    [Trait("Feature", "AccessTokenValidation")]
+    public void CreateTokenValidationParameters_HmacSha384Token_ThrowsSecurityTokenException()
+    {
+        // Arrange
+        var options = CreateDefaultJwtOptions();
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString())]),
+            Expires = DateTime.UtcNow.AddMinutes(1),
+            Issuer = options.Issuer,
+            Audience = options.Audience,
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SecretKey)),
+                SecurityAlgorithms.HmacSha384)
+        };
+        var handler = new JwtSecurityTokenHandler();
+        var tokenString = handler.WriteToken(handler.CreateToken(tokenDescriptor));
+
+        // Act & Assert
+        Assert.ThrowsAny<SecurityTokenException>(() =>
+            handler.ValidateToken(tokenString, options.CreateTokenValidationParameters(), out _));
+    }
+
     #endregion
 
     #region Refresh Token Generation Tests
@@ -311,28 +324,63 @@ public class JwtTokenProviderTests
         Assert.True(tokenPair.RefreshTokenExpiresAtUtc > tokenPair.AccessTokenExpiresAtUtc);
     }
 
+    [Fact]
+    [Trait("Feature", "TokenPairGeneration")]
+    public void CreateTokenPair_UsesTheAccessTokenExpiryForTheResult()
+    {
+        // Arrange
+        var issuedAtUtc = new DateTimeOffset(2026, 9, 17, 12, 0, 0, TimeSpan.Zero);
+        var provider = CreateDefaultTokenProvider(new FixedTimeProvider(issuedAtUtc));
+        var handler = new JwtSecurityTokenHandler();
+
+        // Act
+        var tokenPair = provider.CreateTokenPair(Guid.NewGuid(), Roles.User);
+        var accessToken = handler.ReadJwtToken(tokenPair.AccessToken);
+
+        // Assert
+        Assert.Equal(accessToken.ValidTo, tokenPair.AccessTokenExpiresAtUtc);
+        Assert.Equal(issuedAtUtc.UtcDateTime.AddDays(1), tokenPair.RefreshTokenExpiresAtUtc);
+    }
+
     #endregion
 
     #region Test Helper Methods
 
-    private static Dictionary<string, string?> CreateDefaultConfigDictionary() =>
+    private static JwtOptions CreateDefaultJwtOptions() =>
         new()
         {
-            ["Jwt:Issuer"] = ValidIssuer,
-            ["Jwt:Audience"] = ValidAudience,
-            ["Jwt:AccessTokenLifetimeMinutes"] = ValidLifetimeMinutes.ToString(),
-            ["Jwt:SecretKey"] = ValidSecretKey
+            Issuer = ValidIssuer,
+            Audience = ValidAudience,
+            AccessTokenLifetimeMinutes = ValidLifetimeMinutes,
+            SecretKey = ValidSecretKey
         };
 
-    private static IConfiguration BuildConfiguration(Dictionary<string, string?> values) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
-
-    private static JwtTokenProvider CreateDefaultTokenProvider()
+    private static void SetOptionValue(JwtOptions options, string key, string value)
     {
-        var configuration = BuildConfiguration(CreateDefaultConfigDictionary());
-        return new JwtTokenProvider(configuration, NullLogger<JwtTokenProvider>.Instance);
+        switch (key)
+        {
+            case "Jwt:Issuer":
+                options.Issuer = value;
+                break;
+            case "Jwt:Audience":
+                options.Audience = value;
+                break;
+            case "Jwt:AccessTokenLifetimeMinutes":
+                options.AccessTokenLifetimeMinutes = 0;
+                break;
+            case "Jwt:SecretKey":
+                options.SecretKey = value;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(key));
+        }
+    }
+
+    private static JwtTokenProvider CreateDefaultTokenProvider(TimeProvider? timeProvider = null)
+    {
+        return new JwtTokenProvider(
+            Options.Create(CreateDefaultJwtOptions()),
+            timeProvider ?? TimeProvider.System);
     }
 
     private static TokenValidationParameters CreateTokenValidationParameters() =>
@@ -344,9 +392,15 @@ public class JwtTokenProviderTests
             ValidAudience = ValidAudience,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidSecretKey)),
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 
     #endregion
 }

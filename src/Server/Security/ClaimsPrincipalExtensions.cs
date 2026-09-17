@@ -46,4 +46,24 @@ public static class ClaimsPrincipalExtensions
                 g => string.Join(", ", g.Select(c => c.Value))
             );
     }
+
+    /// <summary>
+    /// Determines whether the principal contains the required JWT session claims.
+    /// </summary>
+    /// <param name="principal">The principal to validate.</param>
+    /// <returns><see langword="true"/> when the subject and role are valid.</returns>
+    public static bool HasValidSessionClaims(this ClaimsPrincipal principal)
+    {
+        var subject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        if (!Guid.TryParse(subject, out _))
+        {
+            return false;
+        }
+
+        var roleClaim = principal.FindFirst(ClaimTypes.Role)?.Value
+            ?? principal.FindFirst("role")?.Value;
+
+        return Enum.TryParse<Roles>(roleClaim, ignoreCase: true, out var role)
+            && Enum.IsDefined(role);
+    }
 }

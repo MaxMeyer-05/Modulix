@@ -1,9 +1,8 @@
 using Serilog;
-using System.Text;
 
 using Microsoft.OpenApi;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 
 using Server.Models;
 using Server.Security;
@@ -14,6 +13,11 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
 
 builder.Services.AddScoped<UserSessionDataDto>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
+builder.Services.AddOptions<JwtOptions>()
+    .BindConfiguration(JwtOptions.SectionName)
+    .ValidateOnStart();
 builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
 
 builder.Services.AddOpenApi();
@@ -33,32 +37,25 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer();
+
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((options, jwtOptions) =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] 
-                ?? throw new InvalidOperationException("Issuer configuration is missing."),
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"]
-                ?? throw new InvalidOperationException("Audience configuration is missing."),
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"] 
-                ?? throw new InvalidOperationException("SecretKey configuration is missing."))),
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
-        };
+        options.TokenValidationParameters = jwtOptions.Value.CreateTokenValidationParameters();
 
         options.Events = new JwtBearerEvents
         {
             OnTokenValidated = context =>
             {
-                if (context.Principal != null)
+                if (context.Principal?.HasValidSessionClaims() != true)
                 {
-                    var sessionDto = context.HttpContext.RequestServices.GetRequiredService<UserSessionDataDto>();
-                    context.Principal.PopulateSessionData(sessionDto);
+                    context.Fail("The token does not contain a valid subject and role.");
+                    return Task.CompletedTask;
                 }
+
+                var sessionDto = context.HttpContext.RequestServices.GetRequiredService<UserSessionDataDto>();
+                context.Principal.PopulateSessionData(sessionDto);
 
                 return Task.CompletedTask;
             }
