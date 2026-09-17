@@ -28,7 +28,8 @@ public static class ClaimsPrincipalExtensions
         var roleClaim = principal.FindFirst(ClaimTypes.Role)?.Value 
                         ?? principal.FindFirst("role")?.Value;
 
-        if (Enum.TryParse<Roles>(roleClaim, ignoreCase: true, out var parsedRole))
+        if (Enum.TryParse<Roles>(roleClaim, ignoreCase: true, out var parsedRole)
+            && Enum.IsDefined(parsedRole))
         {
             session.Role = parsedRole;
         }

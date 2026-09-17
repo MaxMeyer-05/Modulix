@@ -117,6 +117,22 @@ public class ClaimsPrincipalExtensionsTests
 
     [Fact]
     [Trait("Feature", "RoleExtraction")]
+    public void PopulateSessionData_UndefinedNumericRoleClaim_LeavesRoleDefault()
+    {
+        // Arrange
+        var claims = new List<Claim> { new(ClaimTypes.Role, "99") };
+        var principal = CreatePrincipal(claims);
+        var session = new UserSessionDataDto();
+
+        // Act
+        principal.PopulateSessionData(session);
+
+        // Assert
+        Assert.Equal(default, session.Role);
+    }
+
+    [Fact]
+    [Trait("Feature", "RoleExtraction")]
     public void PopulateSessionData_ClaimTypesRoleAndRoleClaimBothPresent_PrefersClaimTypesRole()
     {
         // Arrange

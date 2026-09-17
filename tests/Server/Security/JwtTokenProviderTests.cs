@@ -1,5 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 
+using System.Text;
+using System.Security.Claims;
+
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -52,6 +55,37 @@ public class JwtTokenProviderTests
         Assert.NotNull(provider);
     }
 
+    [Theory]
+    [InlineData("invalid")]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [Trait("Feature", "ConfigurationValidation")]
+    public void Constructor_InvalidAccessTokenLifetime_ThrowsInvalidOperationException(string lifetime)
+    {
+        // Arrange
+        var configValues = CreateDefaultConfigDictionary();
+        configValues["Jwt:AccessTokenLifetimeMinutes"] = lifetime;
+        var configuration = BuildConfiguration(configValues);
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() =>
+            new JwtTokenProvider(configuration, NullLogger<JwtTokenProvider>.Instance));
+    }
+
+    [Fact]
+    [Trait("Feature", "ConfigurationValidation")]
+    public void Constructor_SecretKeyShorterThan32Bytes_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var configValues = CreateDefaultConfigDictionary();
+        configValues["Jwt:SecretKey"] = "too-short";
+        var configuration = BuildConfiguration(configValues);
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() =>
+            new JwtTokenProvider(configuration, NullLogger<JwtTokenProvider>.Instance));
+    }
+
     #endregion
 
     #region Access Token Generation Tests
@@ -98,6 +132,90 @@ public class JwtTokenProviderTests
         var expectedExpiry = DateTime.UtcNow.AddMinutes(ValidLifetimeMinutes);
         Assert.True(jwtToken.ValidTo <= expectedExpiry.AddSeconds(5));
         Assert.True(jwtToken.ValidTo >= expectedExpiry.AddSeconds(-5));
+    }
+
+    [Fact]
+    [Trait("Feature", "AccessTokenGeneration")]
+    public void GenerateAccessToken_WhitespaceAndEmptyScopes_ExcludesEmptyScopes()
+    {
+        // Arrange
+        var provider = CreateDefaultTokenProvider();
+        var handler = new JwtSecurityTokenHandler();
+
+        // Act
+        var tokenString = provider.GenerateAccessToken(
+            Guid.NewGuid(),
+            Roles.User,
+            ["reports.read", " ", string.Empty, " orders.write "]);
+        var tokenScopes = handler.ReadJwtToken(tokenString).Claims
+            .Where(claim => claim.Type == "scope")
+            .Select(claim => claim.Value)
+            .ToList();
+
+        // Assert
+        Assert.Equal(["reports.read", "orders.write"], tokenScopes);
+    }
+
+    [Fact]
+    [Trait("Feature", "AccessTokenValidation")]
+    public void GenerateAccessToken_ValidToken_PassesSignatureAndMetadataValidation()
+    {
+        // Arrange
+        var provider = CreateDefaultTokenProvider();
+        var userId = Guid.NewGuid();
+        var handler = new JwtSecurityTokenHandler();
+
+        // Act
+        var tokenString = provider.GenerateAccessToken(userId, Roles.Admin);
+        var principal = handler.ValidateToken(tokenString, CreateTokenValidationParameters(), out _);
+
+        // Assert
+        var subject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+            ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        Assert.Equal(userId.ToString(), subject);
+    }
+
+    [Fact]
+    [Trait("Feature", "AccessTokenValidation")]
+    public void GenerateAccessToken_TamperedToken_ThrowsSecurityTokenException()
+    {
+        // Arrange
+        var provider = CreateDefaultTokenProvider();
+        var tokenString = provider.GenerateAccessToken(Guid.NewGuid(), Roles.User);
+        var signatureStart = tokenString.LastIndexOf('.') + 1;
+        var replacement = tokenString[signatureStart] == 'a' ? 'b' : 'a';
+        var tamperedToken = tokenString[..signatureStart] + replacement + tokenString[(signatureStart + 1)..];
+        var handler = new JwtSecurityTokenHandler();
+
+        // Act & Assert
+        Assert.ThrowsAny<SecurityTokenException>(() =>
+            handler.ValidateToken(tamperedToken, CreateTokenValidationParameters(), out _));
+    }
+
+    [Theory]
+    [InlineData("issuer")]
+    [InlineData("audience")]
+    [Trait("Feature", "AccessTokenValidation")]
+    public void GenerateAccessToken_InvalidIssuerOrAudience_ThrowsSecurityTokenException(string invalidSetting)
+    {
+        // Arrange
+        var provider = CreateDefaultTokenProvider();
+        var tokenString = provider.GenerateAccessToken(Guid.NewGuid(), Roles.User);
+        var validationParameters = CreateTokenValidationParameters();
+        if (invalidSetting == "issuer")
+        {
+            validationParameters.ValidIssuer = "incorrect-issuer";
+        }
+        else
+        {
+            validationParameters.ValidAudience = "incorrect-audience";
+        }
+
+        var handler = new JwtSecurityTokenHandler();
+
+        // Act & Assert
+        Assert.ThrowsAny<SecurityTokenException>(() =>
+            handler.ValidateToken(tokenString, validationParameters, out _));
     }
 
     #endregion
@@ -151,6 +269,20 @@ public class JwtTokenProviderTests
         Assert.True(refreshToken.ExpiresAtUtc <= expectedExpiry.AddSeconds(5));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [Trait("Feature", "RefreshTokenGeneration")]
+    public void GenerateRefreshToken_NonPositiveLifetime_ThrowsArgumentOutOfRangeException(int daysLifetime)
+    {
+        // Arrange
+        var provider = CreateDefaultTokenProvider();
+
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            provider.GenerateRefreshToken(Guid.NewGuid(), daysLifetime));
+    }
+
     #endregion
 
     #region Token Pair Generation Tests
@@ -202,6 +334,19 @@ public class JwtTokenProviderTests
         var configuration = BuildConfiguration(CreateDefaultConfigDictionary());
         return new JwtTokenProvider(configuration, NullLogger<JwtTokenProvider>.Instance);
     }
+
+    private static TokenValidationParameters CreateTokenValidationParameters() =>
+        new()
+        {
+            ValidateIssuer = true,
+            ValidIssuer = ValidIssuer,
+            ValidateAudience = true,
+            ValidAudience = ValidAudience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidSecretKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
 
     #endregion
 }

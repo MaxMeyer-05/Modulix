@@ -16,7 +16,6 @@ namespace Server.Security;
 /// </summary>
 public class JwtTokenProvider : IJwtTokenProvider
 {
-    private readonly IConfiguration _configuration;
     private readonly JwtSecurityTokenHandler _jwtTokenHandler;
     private readonly SymmetricSecurityKey _signingKey;
 
@@ -24,32 +23,41 @@ public class JwtTokenProvider : IJwtTokenProvider
     private readonly string _audience;
     private readonly int _accessTokenLifetimeMinutes;
 
-    private readonly ILogger<JwtTokenProvider> _logger;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="JwtTokenProvider"/> class.
     /// </summary>
     /// <param name="configuration">The application configuration.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when any required JWT configuration is missing or invalid.
+    /// </exception>
     public JwtTokenProvider(
-        IConfiguration configuration, 
+        IConfiguration configuration,
         ILogger<JwtTokenProvider> logger)
     {
-        _configuration = configuration;
         _jwtTokenHandler = new JwtSecurityTokenHandler();
 
-        _issuer = _configuration["Jwt:Issuer"] 
+        _issuer = configuration["Jwt:Issuer"]
             ?? throw new InvalidOperationException("JWT issuer is not configured.");
-        _audience = _configuration["Jwt:Audience"] 
+        _audience = configuration["Jwt:Audience"]
             ?? throw new InvalidOperationException("JWT audience is not configured.");
-        _accessTokenLifetimeMinutes = int.Parse(_configuration["Jwt:AccessTokenLifetimeMinutes"] 
-            ?? throw new InvalidOperationException("JWT access token lifetime is not configured."));
+        var accessTokenLifetimeValue = configuration["Jwt:AccessTokenLifetimeMinutes"]
+            ?? throw new InvalidOperationException("JWT access token lifetime is not configured.");
+        if (!int.TryParse(accessTokenLifetimeValue, out _accessTokenLifetimeMinutes)
+            || _accessTokenLifetimeMinutes <= 0)
+        {
+            throw new InvalidOperationException("JWT access token lifetime must be a positive integer.");
+        }
 
-        var secretKey = _configuration["Jwt:SecretKey"] 
+        var secretKey = configuration["Jwt:SecretKey"]
             ?? throw new InvalidOperationException("JWT secret key is not configured.");
-        _signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+        var signingKeyBytes = Encoding.UTF8.GetBytes(secretKey);
+        if (signingKeyBytes.Length < 32)
+        {
+            throw new InvalidOperationException("JWT secret key must be at least 32 bytes long.");
+        }
 
-        _logger = logger;
+        _signingKey = new SymmetricSecurityKey(signingKeyBytes);
     }
 
     /// <inheritdoc/>
@@ -79,7 +87,9 @@ public class JwtTokenProvider : IJwtTokenProvider
 
         if (scopes != null)
         {
-            claims.AddRange(scopes.Select(scope => new Claim("scope", scope.Trim())));
+            claims.AddRange(scopes
+                .Where(scope => !string.IsNullOrWhiteSpace(scope))
+                .Select(scope => new Claim("scope", scope.Trim())));
         }
 
         var now = DateTime.UtcNow;
@@ -102,6 +112,13 @@ public class JwtTokenProvider : IJwtTokenProvider
     /// <inheritdoc/>
     public RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime = 1)
     {
+        if (daysLifetime <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(daysLifetime),
+                "Refresh token lifetime must be greater than zero.");
+        }
+
         var randomBytes = RandomNumberGenerator.GetBytes(64);
         var token = Convert.ToBase64String(randomBytes);
         var expiresAtUtc = DateTime.UtcNow.AddDays(daysLifetime);

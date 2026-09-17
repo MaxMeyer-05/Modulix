@@ -32,5 +32,8 @@ public interface IJwtTokenProvider
     /// <param name="userId">The user identifier.</param>
     /// <param name="daysLifetime">The refresh token lifetime in days.</param>
     /// <returns>The generated refresh token entity.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when the specified refresh token lifetime is less than or equal to zero.
+    /// </exception>
     RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime = 1);
 }
