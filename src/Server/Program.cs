@@ -2,8 +2,10 @@ using Serilog;
 
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
+using Server.Database.DbContexts;
 using Server.Models;
 using Server.Security;
 
@@ -19,6 +21,9 @@ builder.Services.AddOptions<JwtOptions>()
     .BindConfiguration(JwtOptions.SectionName)
     .ValidateOnStart();
 builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
+
+builder.Services.AddDbContext<ServerContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
 
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
@@ -66,6 +71,12 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ServerContext>();
+    dbContext.Database.Migrate();
+}
 
 if (app.Environment.IsDevelopment())
 {
