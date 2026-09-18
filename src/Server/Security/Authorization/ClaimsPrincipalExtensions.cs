@@ -1,9 +1,10 @@
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 
-using Server.Models;
+using Server.Models.Dtos;
+using Server.Models.Enums;
 
-namespace Server.Security;
+namespace Server.Security.Authorization;
 
 /// <summary>
 /// Populates the given UserSessionDataDto with information from the ClaimsPrincipal.

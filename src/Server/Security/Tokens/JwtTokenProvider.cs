@@ -7,10 +7,12 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-using Server.Models;
+using Server.Models.Dtos;
+using Server.Models.Enums;
+using Server.Security.Configuration;
 using Server.Database.Entities;
 
-namespace Server.Security;
+namespace Server.Security.Tokens;
 
 /// <summary>
 /// Provides functionality for generating and validating JWT tokens.

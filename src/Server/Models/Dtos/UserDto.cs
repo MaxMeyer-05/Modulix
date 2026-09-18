@@ -1,43 +1,30 @@
-using Microsoft.EntityFrameworkCore;
-
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
 using Server.Models.Enums;
 
-namespace Server.Database.Entities;
+namespace Server.Models.Dtos;
 
 /// <summary>
-/// Represents a user entity in the database.
+/// Represents a data transfer object for a user.
 /// </summary>
-[Table("users")]
-[Index(nameof(UserEmail), IsUnique = true)]
-public class User
+public class UserDto
 {
     /// <summary>
     /// Defines the unique identifier for the user.
     /// </summary>
-    [Key]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; }
 
     /// <summary>
     /// Defines the email of the user.
     /// </summary>
-    [Required]
-    [EmailAddress]
     public string UserEmail { get; set; } = null!;
 
     /// <summary>
     /// Defines the hashed password of the user.
     /// </summary>
-    [Required]    
     public string PasswordHash { get; set; } = null!;
 
     /// <summary>
     /// Defines the role of the user.
     /// </summary>
-    [Required]
     public Roles Role { get; set; }
 
     /// <summary>
@@ -48,17 +35,10 @@ public class User
     /// <summary>
     /// Defines whether the user is active.
     /// </summary>
-    [Required]
     public bool IsActive { get; set; } = true;
 
     /// <summary>
     /// Defines the date and time when the user was created.
     /// </summary>
-    [Required]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    /// <summary>
-    /// Defines the refresh tokens associated with the user.
-    /// </summary>
-    public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }

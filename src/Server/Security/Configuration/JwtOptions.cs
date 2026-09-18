@@ -2,7 +2,7 @@ using System.Text;
 
 using Microsoft.IdentityModel.Tokens;
 
-namespace Server.Security;
+namespace Server.Security.Configuration;
 
 /// <summary>
 /// Defines the configuration values used to issue and validate JWTs.

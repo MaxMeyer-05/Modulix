@@ -1,7 +1,8 @@
-using Server.Models;
+using Server.Models.Dtos;
+using Server.Models.Enums;
 using Server.Database.Entities;
 
-namespace Server.Security;
+namespace Server.Security.Tokens;
 
 /// <summary>
 /// Provides an interface for generating and validating JWT tokens.

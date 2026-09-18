@@ -1,6 +1,6 @@
-using Server.Security;
+using Server.Models.Enums;
 
-namespace Server.Models;
+namespace Server.Models.Dtos;
 
 /// <summary>
 /// Represents the session data for a user.

@@ -1,0 +1,68 @@
+using Server.Models.Dtos;
+using Server.Models.Enums;
+
+namespace Server.TestData;
+
+#region Password Input Test Data
+
+/// <summary>
+/// Provides reusable valid passwords with varying complexity, lengths, and character sets.
+/// </summary>
+public class ValidPasswordTestData : TheoryData<string>
+{
+    public ValidPasswordTestData()
+    {
+        Add("StandardPassword123!");
+        Add("P@$$w0rd_With_Specials#2026");
+        Add("VeryLongPasswordPhraseThatSpansMultipleWordsAndCharacters1234567890!");
+        Add("Unicode_Päthwörd_Üñîçødé_🔑");
+        Add("   PasswordWithLeadingAndTrailingSpaces   ");
+    }
+}
+
+/// <summary>
+/// Provides combinations of correct passwords and incorrect attempt inputs.
+/// </summary>
+public class MismatchedPasswordTestData : TheoryData<string, string>
+{
+    public MismatchedPasswordTestData()
+    {
+        Add("CorrectPassword123!", "WrongPassword123!");
+        Add("CaseSensitiveCheck", "casesensitivecheck");
+        Add("TrailingSpaceMatters", "TrailingSpaceMatters ");
+        Add("SpecialCharacterCheck!", "SpecialCharacterCheck?");
+    }
+}
+
+/// <summary>
+/// Provides malformed and corrupted hash values.
+/// </summary>
+public class CorruptedHashTestData : TheoryData<string>
+{
+    public CorruptedHashTestData()
+    {
+        Add("not_a_valid_base64_hash");
+        Add("AQAAAAIAAAAAEA=="); // Truncated base64 payload
+        Add(string.Empty);
+    }
+}
+
+#endregion
+
+#region User Dto Fixture Helper
+
+/// <summary>
+/// Provides reusable factory methods for generating user fixtures.
+/// </summary>
+public static class UserDtoTestFixture
+{
+    public static UserDto CreateTestUser(string username = "testuser", Roles role = Roles.User) =>
+        new()
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Role = role,
+            AllowedScopes = ["profile.read"]
+        };
+}
+
+#endregion

@@ -1,7 +1,11 @@
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 
-using Server.Models;
+using Server.Models.Dtos;
+using Server.Models.Enums;
+
+using Server.Security.Authorization;
+
 using Server.TestData;
 
 namespace Server.Security;

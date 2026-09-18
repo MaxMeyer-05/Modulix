@@ -1,5 +1,5 @@
-using Server.Models;
-using Server.Security;
+using Server.Models.Dtos;
+using Server.Models.Enums;
 
 namespace Server.TestData;
 
