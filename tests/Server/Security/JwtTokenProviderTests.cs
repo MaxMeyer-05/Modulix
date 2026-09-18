@@ -92,7 +92,7 @@ public class JwtTokenProviderTests
         var handler = new JwtSecurityTokenHandler();
 
         // Act
-        var tokenString = provider.GenerateAccessToken(userId, role, scopes);
+        var tokenString = provider.GenerateAccessToken(userId, role, scopes, DateTime.UtcNow);
         var jwtToken = handler.ReadJwtToken(tokenString);
 
         // Assert - Structural integrity
@@ -135,7 +135,8 @@ public class JwtTokenProviderTests
         var tokenString = provider.GenerateAccessToken(
             Guid.NewGuid(),
             Roles.User,
-            ["reports.read", " ", string.Empty, " orders.write "]);
+            ["reports.read", " ", string.Empty, " orders.write "],
+            DateTime.UtcNow);
         var tokenScopes = handler.ReadJwtToken(tokenString).Claims
             .Where(claim => claim.Type == "scope")
             .Select(claim => claim.Value)
@@ -155,7 +156,7 @@ public class JwtTokenProviderTests
         var handler = new JwtSecurityTokenHandler();
 
         // Act
-        var tokenString = provider.GenerateAccessToken(userId, Roles.Admin);
+        var tokenString = provider.GenerateAccessToken(userId, Roles.Admin, null, DateTime.UtcNow);
         var principal = handler.ValidateToken(tokenString, CreateTokenValidationParameters(), out _);
 
         // Assert
@@ -170,7 +171,7 @@ public class JwtTokenProviderTests
     {
         // Arrange
         var provider = CreateDefaultTokenProvider();
-        var tokenString = provider.GenerateAccessToken(Guid.NewGuid(), Roles.User);
+        var tokenString = provider.GenerateAccessToken(Guid.NewGuid(), Roles.User, null, DateTime.UtcNow);
         var signatureStart = tokenString.LastIndexOf('.') + 1;
         var replacement = tokenString[signatureStart] == 'a' ? 'b' : 'a';
         var tamperedToken = tokenString[..signatureStart] + replacement + tokenString[(signatureStart + 1)..];
@@ -189,7 +190,7 @@ public class JwtTokenProviderTests
     {
         // Arrange
         var provider = CreateDefaultTokenProvider();
-        var tokenString = provider.GenerateAccessToken(Guid.NewGuid(), Roles.User);
+        var tokenString = provider.GenerateAccessToken(Guid.NewGuid(), Roles.User, null, DateTime.UtcNow);
         var validationParameters = CreateTokenValidationParameters();
         if (invalidSetting == "issuer")
         {
@@ -246,7 +247,7 @@ public class JwtTokenProviderTests
         var utcBefore = DateTime.UtcNow;
 
         // Act
-        var refreshToken = provider.GenerateRefreshToken(userId, daysLifetime);
+        var refreshToken = provider.GenerateRefreshToken(userId, daysLifetime, DateTime.UtcNow);
 
         // Assert - Values & Status
         Assert.NotNull(refreshToken);
@@ -274,7 +275,7 @@ public class JwtTokenProviderTests
         var utcBefore = DateTime.UtcNow;
 
         // Act
-        var refreshToken = provider.GenerateRefreshToken(userId);
+        var refreshToken = provider.GenerateRefreshToken(userId, 1, DateTime.UtcNow);
 
         // Assert
         var expectedExpiry = utcBefore.AddDays(1);
@@ -293,7 +294,7 @@ public class JwtTokenProviderTests
 
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            provider.GenerateRefreshToken(Guid.NewGuid(), daysLifetime));
+            provider.GenerateRefreshToken(Guid.NewGuid(), daysLifetime, DateTime.UtcNow));
     }
 
     #endregion

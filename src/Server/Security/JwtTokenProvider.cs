@@ -17,12 +17,34 @@ namespace Server.Security;
 /// </summary>
 public class JwtTokenProvider : IJwtTokenProvider
 {
+    /// <summary>
+    /// The JWT security token handler used for creating and validating tokens.
+    /// </summary>
     private readonly JwtSecurityTokenHandler _jwtTokenHandler;
+
+    /// <summary>
+    /// The symmetric security key used for signing JWT tokens.
+    /// </summary>
     private readonly SymmetricSecurityKey _signingKey;
+
+    /// <summary>
+    /// The time provider used for obtaining the current time.
+    /// </summary>
     private readonly TimeProvider _timeProvider;
 
+    /// <summary>
+    /// The issuer of the JWT tokens.
+    /// </summary>
     private readonly string _issuer;
+    
+    /// <summary>
+    /// The audience of the JWT tokens.
+    /// </summary>
     private readonly string _audience;
+
+    /// <summary>
+    /// The lifetime of the access token in minutes.
+    /// </summary>
     private readonly int _accessTokenLifetimeMinutes;
 
     /// <summary>
@@ -62,10 +84,7 @@ public class JwtTokenProvider : IJwtTokenProvider
     }
 
     /// <inheritdoc/>
-    public string GenerateAccessToken(Guid userId, Roles role, IEnumerable<string>? scopes = null)
-        => GenerateAccessToken(userId, role, scopes, GetCurrentUtcSecond());
-
-    private string GenerateAccessToken(
+    public string GenerateAccessToken(
         Guid userId,
         Roles role,
         IEnumerable<string>? scopes,
@@ -101,11 +120,7 @@ public class JwtTokenProvider : IJwtTokenProvider
     }
 
     /// <inheritdoc/>
-    public RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime = 1)
-        => GenerateRefreshToken(userId, daysLifetime, GetCurrentUtcSecond());
-
-    /// <inheritdoc cref="GenerateRefreshToken(Guid, int)"/>
-    private RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime, DateTime issuedAtUtc)
+    public RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime, DateTime issuedAtUtc)
     {
         if (daysLifetime <= 0)
         {
