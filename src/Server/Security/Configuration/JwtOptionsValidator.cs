@@ -1,7 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Options;
 
-namespace Server.Security;
+namespace Server.Security.Configuration;
 
 /// <summary>
 /// Validates JWT settings when the application starts.

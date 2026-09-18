@@ -1,4 +1,4 @@
-using Server.Security;
+using Server.Models.Enums;
 
 namespace Server.TestData;
 

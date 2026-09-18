@@ -1,4 +1,4 @@
-namespace Server.Security;
+namespace Server.Models.Enums;
 
 /// <summary>
 /// Defines the roles available in the system.

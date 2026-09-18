@@ -1,4 +1,4 @@
-using Server.Models;
+using Server.Models.Dtos;
 
 namespace Server.Models;
 

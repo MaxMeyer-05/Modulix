@@ -6,8 +6,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 using Server.Database.DbContexts;
-using Server.Models;
-using Server.Security;
+using Server.Models.Dtos;
+using Server.Security.Authorization;
+using Server.Security.Configuration;
+using Server.Security.Password;
+using Server.Security.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 

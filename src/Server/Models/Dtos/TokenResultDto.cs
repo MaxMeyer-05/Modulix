@@ -1,4 +1,4 @@
-namespace Server.Models;
+namespace Server.Models.Dtos;
 
 /// <summary>
 /// Represents the result of a token operation.

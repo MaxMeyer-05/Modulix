@@ -1,6 +1,6 @@
-using Server.Models;
+using Server.Models.Dtos;
 
-namespace Server.Security;
+namespace Server.Security.Tokens;
 
 /// <summary>
 /// Represents the result of a token validation operation.
