@@ -26,4 +26,19 @@ public class ServerContext : DbContext
         : base(options)
     {
     }
+
+    /// <summary>
+    /// Configures the model for the database context, including relationships and cascading deletes.
+    /// </summary>
+    /// <param name="modelBuilder">The model builder used to configure the entities.</param>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<User>()
+            .HasMany(u => u.RefreshTokens)
+            .WithOne(rt => rt.User)
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
 }
