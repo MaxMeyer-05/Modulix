@@ -80,7 +80,7 @@ public class AuthService : IAuthService
     public async Task LogoutAsync(Guid userId, string refreshToken, CancellationToken ct = default)
     {
         var refreshTokenEntity = await _context.RefreshTokens.SingleOrDefaultAsync(
-            token => token.UserId == userId && token.Token == refreshToken && !token.IsRevoked,
+            token => token.UserId == userId && token.Token == refreshToken && !token.IsRevoked && token.ExpiresAtUtc > DateTime.UtcNow,
             ct);
         if (refreshTokenEntity is null)
             throw new UnauthorizedAccessException("Provided refresh token is invalid.");
