@@ -21,11 +21,13 @@ public interface IAuthService
     /// </summary>
     /// <param name="loginDto">The login details of the user.</param>
     /// <returns>A tuple containing the user information and the token result.</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown when the login attempt fails due to invalid credentials.</exception>
     Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto);
     
     /// <summary>
     /// Logs out the user with the specified user ID.
     /// </summary>
     /// <param name="userId">The ID of the user to log out.</param>
+    /// <exception cref="InvalidOperationException">Thrown when the user is not currently logged in.</exception>
     Task LogoutAsync(Guid userId);
 }

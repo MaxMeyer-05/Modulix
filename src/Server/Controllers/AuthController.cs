@@ -35,10 +35,19 @@ public class AuthController : ControllerBase
     /// <returns>A tuple containing the user information and the token result.</returns>
     [AllowAnonymous]
     [HttpPost("login")]
+    [ProducesResponseType(typeof((UserDto, TokenResultDto)), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<(UserDto, TokenResultDto)>> Login([FromBody] LoginDto loginDto)
     {
-        var result = await _authService.LoginAsync(loginDto);
-        return Ok(result);
+        try
+        {
+            var result = await _authService.LoginAsync(loginDto);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -47,10 +56,24 @@ public class AuthController : ControllerBase
     /// <param name="registerDto">The registration details of the new user.</param>
     [AllowAnonymous]
     [HttpPost("register")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
     {
-        await _authService.RegisterAsync(registerDto);
-        return NoContent();
+        try
+        {
+            await _authService.RegisterAsync(registerDto);
+            return NoContent();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -59,9 +82,18 @@ public class AuthController : ControllerBase
     /// <param name="userId">The ID of the user to log out.</param>
     [Authorize]
     [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Logout([FromBody] Guid userId)
     {
-        await _authService.LogoutAsync(userId);
-        return NoContent();
+        try
+        {
+            await _authService.LogoutAsync(userId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

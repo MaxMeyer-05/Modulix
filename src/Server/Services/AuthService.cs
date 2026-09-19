@@ -56,10 +56,10 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users.SingleOrDefaultAsync(user => user.UserEmail == loginDto.UserEmail);
         if (user == null)
-            throw new InvalidOperationException("User not found.");
+            throw new UnauthorizedAccessException("Provided login credentials are invalid.");
         
         if (!_passwordHasher.VerifyPassword(user, loginDto.UserPassword, user.PasswordHash))
-            throw new InvalidOperationException("Invalid password.");
+            throw new UnauthorizedAccessException("Provided login credentials are invalid.");
 
         var tokenResult = _tokenService.CreateTokenPair(user.Id, user.Role, user.AllowedScopes);
         var userDto = user.ToUserDto();
@@ -73,7 +73,7 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
-            throw new InvalidOperationException("User not found.");
+            throw new InvalidOperationException("Provided logout credentials are invalid.");
 
         var refreshTokens = await _context.RefreshTokens
             .Where(refreshToken => refreshToken.UserId == userId)
