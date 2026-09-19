@@ -50,6 +50,11 @@ public class JwtTokenProvider : IJwtTokenProvider
     private readonly int _accessTokenLifetimeMinutes;
 
     /// <summary>
+    /// The lifetime of the refresh token in minutes.
+    /// </summary>
+    private readonly int _refreshTokenLifetimeMinutes;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="JwtTokenProvider"/> class.
     /// </summary>
     /// <param name="options">The validated JWT configuration.</param>
@@ -65,6 +70,7 @@ public class JwtTokenProvider : IJwtTokenProvider
         _issuer = jwtOptions.Issuer;
         _audience = jwtOptions.Audience;
         _accessTokenLifetimeMinutes = jwtOptions.AccessTokenLifetimeMinutes;
+        _refreshTokenLifetimeMinutes = jwtOptions.RefreshTokenLifetimeMinutes;
 
         _signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey));
     }
@@ -73,7 +79,7 @@ public class JwtTokenProvider : IJwtTokenProvider
     public TokenResultDto CreateTokenPair(Guid userId, Roles role, IEnumerable<string>? scopes = null)
     {
         var issuedAtUtc = GetCurrentUtcSecond();
-        var refreshToken = GenerateRefreshToken(userId, 1, issuedAtUtc);
+        var refreshToken = GenerateRefreshToken(userId, _refreshTokenLifetimeMinutes, issuedAtUtc);
         var accessToken = GenerateAccessToken(userId, role, scopes, issuedAtUtc);
 
         return new TokenResultDto
@@ -122,18 +128,18 @@ public class JwtTokenProvider : IJwtTokenProvider
     }
 
     /// <inheritdoc/>
-    public RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime, DateTime issuedAtUtc)
+    public RefreshToken GenerateRefreshToken(Guid userId, int minutesLifetime, DateTime issuedAtUtc)
     {
-        if (daysLifetime <= 0)
+        if (minutesLifetime <= 0)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(daysLifetime),
+                nameof(minutesLifetime),
                 "Refresh token lifetime must be greater than zero.");
         }
 
         var randomBytes = RandomNumberGenerator.GetBytes(64);
         var token = Convert.ToBase64String(randomBytes);
-        var expiresAtUtc = issuedAtUtc.AddDays(daysLifetime);
+        var expiresAtUtc = issuedAtUtc.AddMinutes(minutesLifetime);
 
         return new RefreshToken
         {

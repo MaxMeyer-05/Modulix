@@ -39,15 +39,15 @@ public class TokenGenerationScenariosTestData : TheoryData<Guid, Roles, List<str
 #region Refresh Token Lifetime Inputs
 
 /// <summary>
-/// Provides different refresh token lifetime inputs in days.
+/// Provides different refresh token lifetime inputs in minutes.
 /// </summary>
 public class RefreshTokenLifetimeTestData : TheoryData<int>
 {
     public RefreshTokenLifetimeTestData()
     {
         Add(1);
-        Add(7);
-        Add(30);
+        Add(60);
+        Add(24 * 60);
     }
 }
 
@@ -65,6 +65,7 @@ public class MissingJwtConfigurationTestData : TheoryData<string>
         Add("Jwt:Issuer");
         Add("Jwt:Audience");
         Add("Jwt:AccessTokenLifetimeMinutes");
+        Add("Jwt:RefreshTokenLifetimeMinutes");
         Add("Jwt:SecretKey");
     }
 }

@@ -26,6 +26,7 @@ public class JwtTokenProviderTests
     private const string ValidIssuer = "ModulixTestIssuer";
     private const string ValidAudience = "ModulixTestAudience";
     private const int ValidLifetimeMinutes = 15;
+    private const int ValidRefreshTokenLifetimeMinutes = 24 * 60;
 
     #region Constructor & Configuration Tests
 
@@ -244,7 +245,7 @@ public class JwtTokenProviderTests
     [Theory]
     [ClassData(typeof(RefreshTokenLifetimeTestData))]
     [Trait("Feature", "RefreshTokenGeneration")]
-    public void GenerateRefreshToken_GivenLifetime_ReturnsCryptographicallyStrongToken(int daysLifetime)
+    public void GenerateRefreshToken_GivenLifetime_ReturnsCryptographicallyStrongToken(int minutesLifetime)
     {
         // Arrange
         var provider = CreateDefaultTokenProvider();
@@ -252,7 +253,7 @@ public class JwtTokenProviderTests
         var utcBefore = DateTime.UtcNow;
 
         // Act
-        var refreshToken = provider.GenerateRefreshToken(userId, daysLifetime, DateTime.UtcNow);
+        var refreshToken = provider.GenerateRefreshToken(userId, minutesLifetime, DateTime.UtcNow);
 
         // Assert - Values & Status
         Assert.NotNull(refreshToken);
@@ -265,14 +266,14 @@ public class JwtTokenProviderTests
         Assert.Equal(64, tokenBytes.Length);
 
         // Assert - Expiration Calculation
-        var expectedExpiry = utcBefore.AddDays(daysLifetime);
+        var expectedExpiry = utcBefore.AddMinutes(minutesLifetime);
         Assert.True(refreshToken.ExpiresAtUtc >= expectedExpiry.AddSeconds(-5));
         Assert.True(refreshToken.ExpiresAtUtc <= expectedExpiry.AddSeconds(5));
     }
 
     [Fact]
     [Trait("Feature", "RefreshTokenGeneration")]
-    public void GenerateRefreshToken_DefaultLifetime_DefaultsToOneDay()
+    public void GenerateRefreshToken_OneDayLifetime_ExpiresAfterOneDay()
     {
         // Arrange
         var provider = CreateDefaultTokenProvider();
@@ -280,10 +281,10 @@ public class JwtTokenProviderTests
         var utcBefore = DateTime.UtcNow;
 
         // Act
-        var refreshToken = provider.GenerateRefreshToken(userId, 1, DateTime.UtcNow);
+        var refreshToken = provider.GenerateRefreshToken(userId, ValidRefreshTokenLifetimeMinutes, DateTime.UtcNow);
 
         // Assert
-        var expectedExpiry = utcBefore.AddDays(1);
+        var expectedExpiry = utcBefore.AddMinutes(ValidRefreshTokenLifetimeMinutes);
         Assert.True(refreshToken.ExpiresAtUtc >= expectedExpiry.AddSeconds(-5));
         Assert.True(refreshToken.ExpiresAtUtc <= expectedExpiry.AddSeconds(5));
     }
@@ -292,14 +293,14 @@ public class JwtTokenProviderTests
     [InlineData(0)]
     [InlineData(-1)]
     [Trait("Feature", "RefreshTokenGeneration")]
-    public void GenerateRefreshToken_NonPositiveLifetime_ThrowsArgumentOutOfRangeException(int daysLifetime)
+    public void GenerateRefreshToken_NonPositiveLifetime_ThrowsArgumentOutOfRangeException(int minutesLifetime)
     {
         // Arrange
         var provider = CreateDefaultTokenProvider();
 
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            provider.GenerateRefreshToken(Guid.NewGuid(), daysLifetime, DateTime.UtcNow));
+            provider.GenerateRefreshToken(Guid.NewGuid(), minutesLifetime, DateTime.UtcNow));
     }
 
     #endregion
@@ -336,7 +337,7 @@ public class JwtTokenProviderTests
     {
         // Arrange
         var issuedAtUtc = new DateTimeOffset(2026, 9, 17, 12, 0, 0, TimeSpan.Zero);
-        var provider = CreateDefaultTokenProvider(new FixedTimeProvider(issuedAtUtc));
+        IJwtTokenProvider provider = CreateDefaultTokenProvider(new FixedTimeProvider(issuedAtUtc));
         var handler = new JwtSecurityTokenHandler();
 
         // Act
@@ -345,7 +346,9 @@ public class JwtTokenProviderTests
 
         // Assert
         Assert.Equal(accessToken.ValidTo, tokenPair.AccessTokenExpiresAtUtc);
-        Assert.Equal(issuedAtUtc.UtcDateTime.AddDays(1), tokenPair.RefreshTokenExpiresAtUtc);
+        Assert.Equal(
+            issuedAtUtc.UtcDateTime.AddMinutes(ValidRefreshTokenLifetimeMinutes),
+            tokenPair.RefreshTokenExpiresAtUtc);
     }
 
     #endregion
@@ -358,6 +361,7 @@ public class JwtTokenProviderTests
             Issuer = ValidIssuer,
             Audience = ValidAudience,
             AccessTokenLifetimeMinutes = ValidLifetimeMinutes,
+            RefreshTokenLifetimeMinutes = ValidRefreshTokenLifetimeMinutes,
             SecretKey = ValidSecretKey
         };
 
@@ -373,6 +377,9 @@ public class JwtTokenProviderTests
                 break;
             case "Jwt:AccessTokenLifetimeMinutes":
                 options.AccessTokenLifetimeMinutes = 0;
+                break;
+            case "Jwt:RefreshTokenLifetimeMinutes":
+                options.RefreshTokenLifetimeMinutes = 0;
                 break;
             case "Jwt:SecretKey":
                 options.SecretKey = value;

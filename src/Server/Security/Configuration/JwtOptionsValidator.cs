@@ -28,6 +28,11 @@ public sealed class JwtOptionsValidator : IValidateOptions<JwtOptions>
             failures.Add("JWT access token lifetime must be a positive integer.");
         }
 
+        if (options.RefreshTokenLifetimeMinutes <= 0)
+        {
+            failures.Add("JWT refresh token lifetime must be a positive integer.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.SecretKey))
         {
             failures.Add("JWT secret key must be configured.");
