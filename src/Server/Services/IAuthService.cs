@@ -15,7 +15,7 @@ public interface IAuthService
     /// <param name="ct">The cancellation token.</param>
     /// <exception cref="ArgumentException">Thrown when the passwords do not match.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the email is already registered.</exception>
-    Task RegisterAsync(RegisterDto registerDto, CancellationToken ct);
+    Task RegisterAsync(RegisterDto registerDto, CancellationToken ct = default);
     
     /// <summary>
     /// Logs in a user with the provided login details.
@@ -24,13 +24,14 @@ public interface IAuthService
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A tuple containing the user information and the token result.</returns>
     /// <exception cref="UnauthorizedAccessException">Thrown when the login attempt fails due to invalid credentials.</exception>
-    Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto, CancellationToken ct);
+    Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto, CancellationToken ct = default);
     
     /// <summary>
-    /// Logs out the user with the specified user ID.
+    /// Revokes a refresh token for the specified user.
     /// </summary>
     /// <param name="userId">The ID of the user to log out.</param>
+    /// <param name="refreshToken">The refresh token for the session to revoke.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <exception cref="InvalidOperationException">Thrown when the user is not currently logged in.</exception>
-    Task LogoutAsync(Guid userId, CancellationToken ct);
+    /// <exception cref="UnauthorizedAccessException">Thrown if the refresh token is not valid for the user.</exception>
+    Task LogoutAsync(Guid userId, string refreshToken, CancellationToken ct = default);
 }

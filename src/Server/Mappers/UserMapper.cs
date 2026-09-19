@@ -34,7 +34,29 @@ public static class UserMapper
     public static void UpdateUserFromDto(this User user, UpdateUserDto userDto)
     {
         user.UserEmail = userDto.UserEmail ?? user.UserEmail;
-        user.Role = userDto.Role ?? user.Role;
-        user.AllowedScopes = userDto.RequestedScopes ?? user.AllowedScopes;
+    }
+
+    /// <summary>
+    /// Updates a <see cref="User"/> entity with the values from an <see cref="UpdateUserRoleDto"/>.
+    /// </summary>
+    /// <param name="user">The user entity to update.</param>
+    /// <param name="userRoleDto">The DTO containing the updated user role information.</param>
+    public static void UpdateUserRoleFromDto(this User user, UpdateUserRoleDto userRoleDto)
+    {
+        user.Role = userRoleDto.Role ?? user.Role;
+    }
+
+    /// <summary>
+    /// Updates a <see cref="User"/> entity with allowed scopes assigned by an administrator.
+    /// </summary>
+    /// <param name="user">The user entity to update.</param>
+    /// <param name="userScopesDto">The DTO containing the allowed scopes.</param>
+    public static void UpdateUserScopesFromDto(this User user, UpdateUserScopesDto userScopesDto)
+    {
+        user.AllowedScopes = userScopesDto.AllowedScopes
+            .Where(scope => !string.IsNullOrWhiteSpace(scope))
+            .Select(scope => scope.Trim())
+            .Distinct()
+            .ToList();
     }
 }

@@ -17,8 +17,7 @@ public static class AuthMapper
     {
         return new User
         {
-            UserEmail = userDto.UserEmail,
-            AllowedScopes = userDto.RequestedScopes
+            UserEmail = userDto.UserEmail
         };
     }
 }

@@ -52,7 +52,7 @@ public class AuthService : IAuthService
     }
 
     /// <inheritdoc/>
-    public async Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto, CancellationToken ct)
+    public async Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto, CancellationToken ct = default)
     {
         var user = await _context.Users.SingleOrDefaultAsync(user => user.UserEmail == loginDto.UserEmail, ct);
         if (user is null)
@@ -64,27 +64,33 @@ public class AuthService : IAuthService
         var tokenResult = _tokenService.CreateTokenPair(user.Id, user.Role, user.AllowedScopes);
         var userDto = user.ToUserDto();
 
+        _context.RefreshTokens.Add(new()
+        {
+            Token = tokenResult.RefreshToken,
+            UserId = user.Id,
+            ExpiresAtUtc = tokenResult.RefreshTokenExpiresAtUtc
+        });
+        await _context.SaveChangesAsync(ct);
+
         _logger.LogDebug("Login completed for user {UserId}.", user.Id);
         return (userDto, tokenResult);
     }
 
     /// <inheritdoc/>
-    public async Task LogoutAsync(Guid userId, CancellationToken ct)
+    public async Task LogoutAsync(Guid userId, string refreshToken, CancellationToken ct = default)
     {
-        var user = await _context.Users.FindAsync(userId, ct);
-        if (user is null)
-            throw new InvalidOperationException("Provided logout credentials are invalid.");
+        var refreshTokenEntity = await _context.RefreshTokens.SingleOrDefaultAsync(
+            token => token.UserId == userId && token.Token == refreshToken && !token.IsRevoked,
+            ct);
+        if (refreshTokenEntity is null)
+            throw new UnauthorizedAccessException("Provided refresh token is invalid.");
 
-        var refreshTokens = await _context.RefreshTokens
-            .Where(refreshToken => refreshToken.UserId == userId)
-            .ToListAsync(ct);
-        _context.RefreshTokens.RemoveRange(refreshTokens);
-
+        refreshTokenEntity.IsRevoked = true;
         await _context.SaveChangesAsync(ct);
     }
 
     /// <inheritdoc/>
-    public async Task RegisterAsync(RegisterDto registerDto, CancellationToken ct)
+    public async Task RegisterAsync(RegisterDto registerDto, CancellationToken ct = default)
     {
         if (registerDto.UserPassword != registerDto.Confirm_UserPassword)
             throw new ArgumentException("Passwords do not match.");
@@ -93,9 +99,6 @@ public class AuthService : IAuthService
             .SingleOrDefaultAsync(user => user.UserEmail == registerDto.UserEmail, ct);
         if (existingUser is not null)
             throw new InvalidOperationException("Email is already registered.");
-
-        if (registerDto.RequestedScopes is not null)
-            registerDto.RequestedScopes = registerDto.RequestedScopes.Distinct().ToList();
 
         var user = registerDto.ToUserEntity();
         user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.UserPassword);

@@ -20,12 +20,19 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
 
     /// <summary>
+    /// The authenticated user's session data.
+    /// </summary>
+    private readonly UserSessionDataDto _userSession;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AuthController"/> class.
     /// </summary>
     /// <param name="authService">The authentication service.</param>
-    public AuthController(IAuthService authService)
+    /// <param name="userSession">The authenticated user's session data.</param>
+    public AuthController(IAuthService authService, UserSessionDataDto userSession)
     {
         _authService = authService;
+        _userSession = userSession;
     }
 
     /// <summary>
@@ -39,15 +46,8 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<(UserDto, TokenResultDto)>> Login([FromBody] LoginDto loginDto)
     {
-        try
-        {
-            var result = await _authService.LoginAsync(loginDto);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
+        var result = await _authService.LoginAsync(loginDto, HttpContext.RequestAborted);
+        return Ok(result);
     }
 
     /// <summary>
@@ -61,39 +61,21 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
     {
-        try
-        {
-            await _authService.RegisterAsync(registerDto);
-            return NoContent();
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
+        await _authService.RegisterAsync(registerDto, HttpContext.RequestAborted);
+        return NoContent();
     }
 
     /// <summary>
     /// Handles user logout requests.
     /// </summary>
-    /// <param name="userId">The ID of the user to log out.</param>
+    /// <param name="logoutDto">The refresh token for the session to end.</param>
     [Authorize]
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Logout([FromBody] Guid userId)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Logout([FromBody] LogoutDto logoutDto)
     {
-        try
-        {
-            await _authService.LogoutAsync(userId);
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await _authService.LogoutAsync(_userSession.UserId, logoutDto.RefreshToken, HttpContext.RequestAborted);
+        return NoContent();
     }
 }

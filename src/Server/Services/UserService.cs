@@ -52,13 +52,13 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc/>
-    public async Task DeleteUserAsync(Guid userId, string password, CancellationToken ct)
+    public async Task DeleteUserAsync(Guid userId, string? password, CancellationToken ct = default)
     {
         var user = await _context.Users.FindAsync(userId, ct);
         if (user is null)
             throw new KeyNotFoundException($"User with ID '{userId}' not found.");
 
-        if (!_passwordHasher.VerifyPassword(user, password, user.PasswordHash))
+        if (password is not null && !_passwordHasher.VerifyPassword(user, password, user.PasswordHash))
             throw new UnauthorizedAccessException("Provided password is invalid.");
 
         _context.Users.Remove(user);
@@ -67,9 +67,13 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<UserDto>> GetAllUsersAsync(CancellationToken ct)
+    public async Task<IEnumerable<UserDto>> GetAllUsersAsync(CancellationToken ct = default)
     {
-        var users = await _context.Users.ToListAsync(ct);
+        var users = await _context.Users
+            .AsNoTracking()
+            .OrderBy(user => user.UserEmail)
+            .ThenBy(user => user.Id)
+            .ToListAsync(ct);
         var userDtos = users.Select(user => user.ToUserDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} users from the database.", userDtos.Count);
@@ -77,7 +81,7 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc/>
-    public async Task<UserDto> GetUserByIdAsync(Guid userId, CancellationToken ct)
+    public async Task<UserDto> GetUserByIdAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await _context.Users.FindAsync(userId, ct);
         if (user is null)
@@ -88,10 +92,12 @@ public class UserService : IUserService
     }
 
     /// <inheritdoc/>
-    public async Task<TokenResultDto> RefreshTokenAsync(string refreshToken, CancellationToken ct)
+    public async Task<TokenResultDto> RefreshTokenAsync(string refreshToken, CancellationToken ct = default)
     {
         var refreshTokenEntity = await _context.RefreshTokens
-            .SingleOrDefaultAsync(rt => rt.Token == refreshToken, ct);
+            .SingleOrDefaultAsync(
+                rt => rt.Token == refreshToken && !rt.IsRevoked && rt.ExpiresAtUtc > DateTime.UtcNow,
+                ct);
         if (refreshTokenEntity is null)
             throw new UnauthorizedAccessException("Invalid refresh token.");
 
@@ -100,33 +106,117 @@ public class UserService : IUserService
             throw new KeyNotFoundException($"User with ID '{refreshTokenEntity.UserId}' not found.");
 
         var tokenResult = _tokenService.CreateTokenPair(user.Id, user.Role, user.AllowedScopes);
+        refreshTokenEntity.IsRevoked = true;
+        _context.RefreshTokens.Add(new()
+        {
+            Token = tokenResult.RefreshToken,
+            UserId = user.Id,
+            ExpiresAtUtc = tokenResult.RefreshTokenExpiresAtUtc
+        });
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogDebug("Rotated refresh token for user with ID '{UserId}'.", user.Id);
         return tokenResult;
     }
 
     /// <inheritdoc/>
-    public async Task UpdateUserAsync(Guid userId, UpdateUserDto userDto, CancellationToken ct)
+    public async Task<TokenResultDto?> UpdateUserAsync(Guid userId, UpdateUserDto userDto, CancellationToken ct = default)
     {
         var user = await _context.Users.FindAsync(userId, ct);
         if (user is null)
             throw new KeyNotFoundException($"User with ID '{userId}' not found.");
 
-        if (!string.IsNullOrEmpty(userDto.New_UserPassword) 
-            && !string.IsNullOrEmpty(userDto.Current_UserPassword)
-            && userDto.New_UserPassword == userDto.Confirm_New_UserPassword)
-        {
-            if (!_passwordHasher.VerifyPassword(user, userDto.Current_UserPassword, user.PasswordHash))
-                throw new UnauthorizedAccessException("Current password is invalid.");
-
-            user.PasswordHash = _passwordHasher.HashPassword(user, userDto.New_UserPassword);
-        }
-
         user.UpdateUserFromDto(userDto);
+
+        _context.ChangeTracker.DetectChanges();
+        if (_context.Entry(user).State == EntityState.Unchanged)
+            return null;
+
+        var tokenResult = _tokenService.CreateTokenPair(user.Id, user.Role, user.AllowedScopes);
+
+        var refreshTokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == user.Id)
+            .ToListAsync(ct);
+        _context.RefreshTokens.RemoveRange(refreshTokens);
+        _context.RefreshTokens.Add(new()
+        {
+            Token = tokenResult.RefreshToken,
+            UserId = user.Id,
+            ExpiresAtUtc = tokenResult.RefreshTokenExpiresAtUtc
+        });
+
+        await _context.SaveChangesAsync(ct);
+        _logger.LogDebug("Updated user with ID '{UserId}' in the database.", userId);
+
+        return tokenResult;
+    }
+
+    /// <inheritdoc/>
+    public async Task<TokenResultDto> UpdatePasswordAsync(Guid userId, UpdatePasswordDto passwordDto, CancellationToken ct = default)
+    {
+        if (passwordDto.NewPassword != passwordDto.ConfirmNewPassword)
+            throw new ArgumentException("New password and password confirmation do not match.");
+
+        var user = await _context.Users.FindAsync(userId, ct);
+        if (user is null)
+            throw new KeyNotFoundException($"User with ID '{userId}' not found.");
+
+        if (!_passwordHasher.VerifyPassword(user, passwordDto.CurrentPassword, user.PasswordHash))
+            throw new UnauthorizedAccessException("Current password is invalid.");
+
+        user.PasswordHash = _passwordHasher.HashPassword(user, passwordDto.NewPassword);
+
+        var tokenResult = _tokenService.CreateTokenPair(user.Id, user.Role, user.AllowedScopes);
+        var refreshTokens = await _context.RefreshTokens
+            .Where(refreshToken => refreshToken.UserId == user.Id)
+            .ToListAsync(ct);
+        _context.RefreshTokens.RemoveRange(refreshTokens);
+        _context.RefreshTokens.Add(new()
+        {
+            Token = tokenResult.RefreshToken,
+            UserId = user.Id,
+            ExpiresAtUtc = tokenResult.RefreshTokenExpiresAtUtc
+        });
+
+        await _context.SaveChangesAsync(ct);
+        _logger.LogDebug("Updated password for user with ID '{UserId}'.", userId);
+
+        return tokenResult;
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateUserScopesAsync(Guid userId, UpdateUserScopesDto userScopesDto, CancellationToken ct = default)
+    {
+        var user = await _context.Users.FindAsync(userId, ct);
+        if (user is null)
+            throw new KeyNotFoundException($"User with ID '{userId}' not found.");
+
+        user.UpdateUserScopesFromDto(userScopesDto);
 
         _context.ChangeTracker.DetectChanges();
         if (_context.Entry(user).State == EntityState.Unchanged)
             return;
 
         await _context.SaveChangesAsync(ct);
-        _logger.LogDebug("Updated user with ID '{UserId}' in the database.", userId);
+        _logger.LogDebug("Updated scopes for user with ID '{UserId}' in the database.", userId);
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateUserRoleAsync(Guid userId, UpdateUserRoleDto userRoleDto, CancellationToken ct = default)
+    {
+        var user = await _context.Users.FindAsync(userId, ct);
+        if (user is null)
+            throw new KeyNotFoundException($"User with ID '{userId}' not found.");
+
+        user.UpdateUserRoleFromDto(userRoleDto);
+
+        _context.ChangeTracker.DetectChanges();
+        if (_context.Entry(user).State == EntityState.Unchanged)
+            return;
+
+        await _context.SaveChangesAsync(ct);
+        _logger.LogDebug("Updated role for user with ID '{UserId}' in the database.", userId);
+
+        return;
     }
 }

@@ -1,17 +1,19 @@
 using Serilog;
 
 using Microsoft.OpenApi;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
-using Server.Database.DbContexts;
+using Server.Services;
 using Server.Models.Dtos;
+using Server.Infrastructure;
+using Server.Database.DbContexts;
+
+using Server.Security.Tokens;
+using Server.Security.Password;
 using Server.Security.Authorization;
 using Server.Security.Configuration;
-using Server.Security.Password;
-using Server.Security.Tokens;
-using Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +22,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
 builder.Services.AddScoped<UserSessionDataDto>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 
 builder.Services.AddSingleton(TimeProvider.System);
@@ -76,6 +79,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddControllers();
 
 var app = builder.Build();
@@ -88,13 +93,13 @@ using (var scope = app.Services.CreateScope())
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
     app.MapOpenApi();
 
     app.MapSwagger();
     app.MapSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 
