@@ -9,24 +9,6 @@ namespace Server.Mappers;
 public static class AuthMapper
 {
     /// <summary>
-    /// Maps a <see cref="User"/> entity to a <see cref="UserDto"/>.
-    /// </summary>
-    /// <param name="user">The user entity.</param>
-    /// <returns>A <see cref="UserDto"/> representing the user.</returns>
-    public static UserDto ToUserDto(this User user)
-    {
-        return new UserDto
-        {
-            Id = user.Id,
-            UserEmail = user.UserEmail,
-            Role = user.Role,
-            AllowedScopes = user.AllowedScopes,
-            IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
-        };
-    }
-
-    /// <summary>
     /// Maps a <see cref="RegisterDto"/> to a <see cref="User"/> entity.
     /// </summary>
     /// <param name="userDto">The registration DTO.</param>

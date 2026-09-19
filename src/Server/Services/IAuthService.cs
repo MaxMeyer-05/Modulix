@@ -3,7 +3,7 @@ using Server.Models.Dtos;
 namespace Server.Services;
 
 /// <summary>
-/// Provides an interface for authentication-related operations, 
+/// Provides actions for authentication-related operations, 
 /// including registration, login, and logout.
 /// </summary>
 public interface IAuthService
