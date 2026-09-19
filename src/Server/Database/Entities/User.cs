@@ -38,13 +38,12 @@ public class User
     /// Defines the role of the user.
     /// </summary>
     [Required]
-    public Roles Role { get; set; }
+    public Roles Role { get; set; } = Roles.User;
 
     /// <summary>
     /// Defines the scopes allowed for the user.
     /// </summary>
-    public IEnumerable<string> AllowedScopes { get; set; } = [];
-
+    public IEnumerable<string>? AllowedScopes { get; set; }
     /// <summary>
     /// Defines whether the user is active.
     /// </summary>

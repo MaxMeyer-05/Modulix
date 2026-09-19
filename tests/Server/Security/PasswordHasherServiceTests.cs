@@ -1,4 +1,4 @@
-using Server.Models.Dtos;
+using Server.Database.Entities;
 using Server.Security.Password;
 
 using Server.TestData;
@@ -13,7 +13,7 @@ namespace Server.Security;
 public class PasswordHasherServiceTests
 {
     private readonly PasswordHasherService _sut = new();
-    private readonly UserDto _defaultUser = UserDtoTestFixture.CreateTestUser();
+    private readonly User _defaultUser = UserTestFixture.CreateTestUser();
 
     #region Password Hashing Tests
 
@@ -70,8 +70,8 @@ public class PasswordHasherServiceTests
     {
         // Arrange
         const string password = "MultiUserVerificationPassword123!";
-        var registrationUser = UserDtoTestFixture.CreateTestUser();
-        var loginUser = UserDtoTestFixture.CreateTestUser();
+        var registrationUser = UserTestFixture.CreateTestUser();
+        var loginUser = UserTestFixture.CreateTestUser();
         var hash = _sut.HashPassword(registrationUser, password);
 
         // Act

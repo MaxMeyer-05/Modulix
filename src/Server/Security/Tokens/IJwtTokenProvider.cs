@@ -16,7 +16,7 @@ public interface IJwtTokenProvider
     /// <param name="role">The user's role.</param>
     /// <param name="scopes">The optional scopes to include in the access token.</param>
     /// <returns>The token pair and its expiration times.</returns>
-    TokenResultDto CreateTokenPair(Guid userId, Roles role, IEnumerable<string>? scopes);
+    TokenResultDto CreateTokenPair(Guid userId, Roles role, IEnumerable<string>? scopes = null);
 
     /// <summary>
     /// Generates an access token for the specified user.
@@ -32,11 +32,11 @@ public interface IJwtTokenProvider
     /// Generates a refresh token for the specified user.
     /// </summary>
     /// <param name="userId">The user identifier.</param>
-    /// <param name="daysLifetime">The refresh token lifetime in days.</param>
+    /// <param name="minutesLifetime">The refresh token lifetime in minutes.</param>
     /// <param name="issuedAtUtc">The UTC time when the refresh token is issued.</param>
     /// <returns>The generated refresh token entity.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when the specified refresh token lifetime is less than or equal to zero.
     /// </exception>
-    RefreshToken GenerateRefreshToken(Guid userId, int daysLifetime, DateTime issuedAtUtc);
+    RefreshToken GenerateRefreshToken(Guid userId, int minutesLifetime, DateTime issuedAtUtc);
 }

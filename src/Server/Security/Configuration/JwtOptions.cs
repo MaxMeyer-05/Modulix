@@ -35,6 +35,11 @@ public sealed class JwtOptions
     public int AccessTokenLifetimeMinutes { get; set; }
 
     /// <summary>
+    /// Gets or sets the refresh-token lifetime in minutes.
+    /// </summary>
+    public int RefreshTokenLifetimeMinutes { get; set; }
+
+    /// <summary>
     /// Creates validation parameters matching the configured token issuer.
     /// </summary>
     public TokenValidationParameters CreateTokenValidationParameters() =>
