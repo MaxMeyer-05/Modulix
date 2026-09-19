@@ -15,7 +15,7 @@ namespace Server.Controllers;
 public class AuthController : ControllerBase
 {
     /// <summary>
-    /// The authentication service used by the controller.
+    /// The authentication service.
     /// </summary>
     private readonly IAuthService _authService;
 

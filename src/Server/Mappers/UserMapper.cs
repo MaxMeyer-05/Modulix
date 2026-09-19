@@ -25,4 +25,16 @@ public static class UserMapper
             CreatedAt = user.CreatedAt
         };
     }
+
+    /// <summary>
+    /// Updates a <see cref="User"/> entity with the values from an <see cref="UpdateUserDto"/>.
+    /// </summary>
+    /// <param name="user">The user entity to update.</param>
+    /// <param name="userDto">The DTO containing the updated user information.</param>
+    public static void UpdateUserFromDto(this User user, UpdateUserDto userDto)
+    {
+        user.UserEmail = userDto.UserEmail ?? user.UserEmail;
+        user.Role = userDto.Role ?? user.Role;
+        user.AllowedScopes = userDto.RequestedScopes ?? user.AllowedScopes;
+    }
 }

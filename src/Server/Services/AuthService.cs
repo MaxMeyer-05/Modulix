@@ -52,10 +52,10 @@ public class AuthService : IAuthService
     }
 
     /// <inheritdoc/>
-    public async Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto)
+    public async Task<(UserDto, TokenResultDto)> LoginAsync(LoginDto loginDto, CancellationToken ct)
     {
-        var user = await _context.Users.SingleOrDefaultAsync(user => user.UserEmail == loginDto.UserEmail);
-        if (user == null)
+        var user = await _context.Users.SingleOrDefaultAsync(user => user.UserEmail == loginDto.UserEmail, ct);
+        if (user is null)
             throw new UnauthorizedAccessException("Provided login credentials are invalid.");
         
         if (!_passwordHasher.VerifyPassword(user, loginDto.UserPassword, user.PasswordHash))
@@ -69,38 +69,38 @@ public class AuthService : IAuthService
     }
 
     /// <inheritdoc/>
-    public async Task LogoutAsync(Guid userId)
+    public async Task LogoutAsync(Guid userId, CancellationToken ct)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
+        var user = await _context.Users.FindAsync(userId, ct);
+        if (user is null)
             throw new InvalidOperationException("Provided logout credentials are invalid.");
 
         var refreshTokens = await _context.RefreshTokens
             .Where(refreshToken => refreshToken.UserId == userId)
-            .ToListAsync();
+            .ToListAsync(ct);
         _context.RefreshTokens.RemoveRange(refreshTokens);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(ct);
     }
 
     /// <inheritdoc/>
-    public async Task RegisterAsync(RegisterDto registerDto)
+    public async Task RegisterAsync(RegisterDto registerDto, CancellationToken ct)
     {
         if (registerDto.UserPassword != registerDto.Confirm_UserPassword)
             throw new ArgumentException("Passwords do not match.");
 
         var existingUser = await _context.Users
-            .SingleOrDefaultAsync(user => user.UserEmail == registerDto.UserEmail);
-        if (existingUser != null)
+            .SingleOrDefaultAsync(user => user.UserEmail == registerDto.UserEmail, ct);
+        if (existingUser is not null)
             throw new InvalidOperationException("Email is already registered.");
 
-        if (registerDto.RequestedScopes != null)
+        if (registerDto.RequestedScopes is not null)
             registerDto.RequestedScopes = registerDto.RequestedScopes.Distinct().ToList();
 
         var user = registerDto.ToUserEntity();
         user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.UserPassword);
 
         _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(ct);
     }
 }
