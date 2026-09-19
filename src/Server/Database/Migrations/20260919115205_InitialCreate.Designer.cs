@@ -11,7 +11,7 @@ using Server.Database.DbContexts;
 namespace Server.Database.Migrations
 {
     [DbContext(typeof(ServerContext))]
-    [Migration("20260918132929_InitialCreate")]
+    [Migration("20260919115205_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -59,7 +59,6 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.PrimitiveCollection<string>("AllowedScopes")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")

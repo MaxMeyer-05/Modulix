@@ -1,4 +1,4 @@
-using Server.Models.Dtos;
+using Server.Database.Entities;
 using Server.Models.Enums;
 
 namespace Server.TestData;
@@ -49,17 +49,19 @@ public class CorruptedHashTestData : TheoryData<string>
 
 #endregion
 
-#region User Dto Fixture Helper
+#region User Fixture Helper
 
 /// <summary>
-/// Provides reusable factory methods for generating user fixtures.
+/// Provides reusable factory methods for generating user entity fixtures.
 /// </summary>
-public static class UserDtoTestFixture
+public static class UserTestFixture
 {
-    public static UserDto CreateTestUser(string username = "testuser", Roles role = Roles.User) =>
+    public static User CreateTestUser(string username = "testuser", Roles role = Roles.User) =>
         new()
         {
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            UserEmail = $"{username}@example.com",
+            PasswordHash = "fixture-password-hash",
             Role = role,
             AllowedScopes = ["profile.read"]
         };

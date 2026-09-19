@@ -18,11 +18,6 @@ public class UserDto
     public string UserEmail { get; set; } = null!;
 
     /// <summary>
-    /// Defines the hashed password of the user.
-    /// </summary>
-    public string PasswordHash { get; set; } = null!;
-
-    /// <summary>
     /// Defines the role of the user.
     /// </summary>
     public Roles Role { get; set; }
@@ -30,7 +25,7 @@ public class UserDto
     /// <summary>
     /// Defines the scopes allowed for the user.
     /// </summary>
-    public IEnumerable<string> AllowedScopes { get; set; } = [];
+    public IEnumerable<string>? AllowedScopes { get; set; }
 
     /// <summary>
     /// Defines whether the user is active.

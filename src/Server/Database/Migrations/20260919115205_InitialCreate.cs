@@ -19,7 +19,7 @@ namespace Server.Database.Migrations
                     UserEmail = table.Column<string>(type: "TEXT", nullable: false),
                     PasswordHash = table.Column<string>(type: "TEXT", nullable: false),
                     Role = table.Column<int>(type: "INTEGER", nullable: false),
-                    AllowedScopes = table.Column<string>(type: "TEXT", nullable: false),
+                    AllowedScopes = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },

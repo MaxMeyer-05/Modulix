@@ -56,7 +56,6 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.PrimitiveCollection<string>("AllowedScopes")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")

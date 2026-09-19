@@ -11,6 +11,7 @@ using Server.Security.Authorization;
 using Server.Security.Configuration;
 using Server.Security.Password;
 using Server.Security.Tokens;
+using Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,12 +19,16 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
 
 builder.Services.AddScoped<UserSessionDataDto>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
+
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
+builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
+
 builder.Services.AddOptions<JwtOptions>()
     .BindConfiguration(JwtOptions.SectionName)
     .ValidateOnStart();
-builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));

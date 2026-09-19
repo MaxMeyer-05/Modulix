@@ -1,4 +1,4 @@
-using Server.Models.Dtos;
+using Server.Database.Entities;
 
 namespace Server.Security.Password;
 
@@ -13,7 +13,7 @@ public interface IPasswordHasher
     /// <param name="user">The user for whom the password is being hashed.</param>
     /// <param name="password">The password to hash.</param>
     /// <returns>The hashed password.</returns>
-    string HashPassword(UserDto user, string password);
+    string HashPassword(User user, string password);
 
     /// <summary>
     /// Verifies the specified password against the given hash.
@@ -22,5 +22,5 @@ public interface IPasswordHasher
     /// <param name="password">The password to verify.</param>
     /// <param name="hash">The hash to verify against.</param>
     /// <returns><c>true</c> if the password matches the hash; otherwise, <c>false</c>.</returns>
-    bool VerifyPassword(UserDto user, string password, string hash);
+    bool VerifyPassword(User user, string password, string hash);
 }
