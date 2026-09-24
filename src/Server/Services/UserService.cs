@@ -101,6 +101,9 @@ public class UserService : IUserService
         if (refreshTokenEntity is null)
             throw new UnauthorizedAccessException("Invalid refresh token.");
 
+        if (refreshTokenEntity.ExpiresAtUtc <= DateTime.UtcNow)
+            throw new UnauthorizedAccessException("Refresh token has expired.");
+
         var user = await _context.Users.FindAsync(refreshTokenEntity.UserId, ct);
         if (user is null)
             throw new KeyNotFoundException($"User with ID '{refreshTokenEntity.UserId}' not found.");
