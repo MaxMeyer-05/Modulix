@@ -23,6 +23,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddScoped<UserSessionDataDto>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 
 builder.Services.AddSingleton(TimeProvider.System);
