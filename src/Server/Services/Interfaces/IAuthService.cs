@@ -1,6 +1,6 @@
 using Server.Models.Dtos;
 
-namespace Server.Services;
+namespace Server.Services.Interfaces;
 
 /// <summary>
 /// Provides actions for authentication-related operations, 

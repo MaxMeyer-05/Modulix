@@ -6,8 +6,8 @@ using Server.Mappers;
 using Server.Models.Dtos;
 using Server.Models.Enums;
 
-using Server.Database.Entities;
 using Server.Database.DbContexts;
+using Server.Services.Interfaces;
 
 namespace Server.Services;
 

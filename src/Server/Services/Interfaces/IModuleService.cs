@@ -1,7 +1,6 @@
 using Server.Models.Dtos;
-using Server.Models.Enums;
 
-namespace Server.Services;
+namespace Server.Services.Interfaces;
 
 /// <summary>
 /// Provides actions for managing modular containers, uploaded artifacts, and routing configurations.
