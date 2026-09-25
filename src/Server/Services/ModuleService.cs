@@ -193,7 +193,7 @@ public class ModuleService : IModuleService
         {
             await using (var stream = new FileStream(tmpZipPath, FileMode.Create))
             {
-                await file.ModuleFile.CopyToAsync(stream);
+                await file.ModuleFile.CopyToAsync(stream, ct);
             }
 
             ZipFile.ExtractToDirectory(tmpZipPath, module.StoragePath, true);

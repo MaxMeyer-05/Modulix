@@ -104,6 +104,7 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="userId">The ID of the user whose role is to be updated.</param>
     /// <param name="updateUserRoleDto">The updated user role information.</param>
+    /// <returns>No content if the update is successful.</returns>
     [HttpPatch("{userId}/role")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -119,6 +120,7 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="userId">The ID of the user whose scopes are to be updated.</param>
     /// <param name="updateUserScopesDto">The updated user scopes.</param>
+    /// <returns>No content if the update is successful.</returns>
     [HttpPatch("{userId}/scopes")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -133,6 +135,7 @@ public class UserController : ControllerBase
     /// Deletes the authenticated user's account.
     /// </summary>
     /// <param name="deleteUserDto">The current password of the user.</param>
+    /// <returns>No content if the deletion is successful.</returns>
     [HttpDelete("me")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -146,6 +149,7 @@ public class UserController : ControllerBase
     /// Deletes a user's account by their ID. Only accessible by admins.
     /// </summary>
     /// <param name="userId">The ID of the user to delete.</param>
+    /// <returns>No content if the deletion is successful.</returns>
     [HttpDelete("{userId}")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
