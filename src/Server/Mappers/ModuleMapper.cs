@@ -54,6 +54,7 @@ public static class ModuleMapper
         Id = endpoint.Id,
         HttpMethod = endpoint.HttpMethod,
         EndpointPath = endpoint.EndpointPath,
+        Status = endpoint.Status,
         CreatedAtUtc = endpoint.CreatedAtUtc
     };
 

@@ -87,6 +87,11 @@ public class ModuleEndpointDto
     public string EndpointPath { get; set; } = null!;
 
     /// <summary>
+    /// The status of the sub-endpoint.
+    /// </summary>
+    public ModuleEndpointsStatus Status { get; set; }
+
+    /// <summary>
     /// Timestamp when the endpoint was detected/created (UTC).
     /// </summary>
     public DateTime CreatedAtUtc { get; set; }
@@ -131,6 +136,11 @@ public class CreateModuleDto
     /// </summary>
     [Required(ErrorMessage = "Module file is required.")]
     public IFormFile ModuleFile { get; set; } = null!;
+
+    /// <summary>
+    /// The initial endpoints to be created for the module.
+    /// </summary>
+    public IEnumerable<CreateModuleEndpointDto>? InitialEndpoints { get; set; }
 }
 
 /// <summary>
@@ -149,18 +159,6 @@ public class UpdateModuleDto
     /// </summary>
     [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
     public string? Description { get; set; }
-}
-
-/// <summary>
-/// Data transfer object for updating the lifecycle status of a module.
-/// </summary>
-public class UpdateModuleStatusDto
-{
-    /// <summary>
-    /// The new lifecycle status.
-    /// </summary>
-    [Required(ErrorMessage = "Module status is required.")]
-    public ModuleStatus Status { get; set; }
 }
 
 /// <summary>
@@ -206,24 +204,25 @@ public class EndpointDiscrepancyReportDto
     public Guid ModuleId { get; set; }
 
     /// <summary>
-    /// Indicates whether there is a discrepancy between the module's actual endpoints and the expected endpoints.
+    /// Indicates whether there is a discrepancy between the module's actual endpoints 
+    /// and the expected endpoints.
     /// </summary>
     public bool HasDiscrepancy { get; set; }
 
     /// <summary>
     /// The list of endpoints that match the expected configuration.
     /// </summary>
-    public List<CreateModuleEndpointDto> MatchedEndpoints { get; set; } = [];
+    public List<ModuleEndpointDto>? MatchedEndpoints { get; set; }
 
     /// <summary>
     /// The list of extra endpoints that are present.
     /// </summary>
-    public List<CreateModuleEndpointDto> ExtraEndpoints { get; set; } = [];
+    public List<ModuleEndpointDto>? ExtraEndpoints { get; set; }
 
     /// <summary>
     /// The list of missing endpoints that are expected.
     /// </summary>
-    public List<CreateModuleEndpointDto> MissingEndpoints { get; set; } = [];
+    public List<ModuleEndpointDto>? MissingEndpoints { get; set; }
 }
 
 /// <summary>
@@ -251,5 +250,5 @@ public class ConfirmEndpointsDto
     /// The list of endpoints that have been confirmed for the module.
     /// </summary>
     [Required]
-    public List<CreateModuleEndpointDto> ConfirmedEndpoints { get; set; } = [];
+    public List<EndpointDiscrepancyReportDto> ConfirmedEndpoints { get; set; } = [];
 }

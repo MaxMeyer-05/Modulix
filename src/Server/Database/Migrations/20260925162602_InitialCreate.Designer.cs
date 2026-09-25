@@ -11,7 +11,7 @@ using Server.Database.DbContexts;
 namespace Server.Database.Migrations
 {
     [DbContext(typeof(ServerContext))]
-    [Migration("20260923120553_InitialCreate")]
+    [Migration("20260925162602_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -92,6 +92,10 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ModuleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

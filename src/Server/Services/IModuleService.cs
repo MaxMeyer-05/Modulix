@@ -54,16 +54,7 @@ public interface IModuleService
     /// <param name="moduleId">The unique identifier of the module to update.</param>
     /// <param name="dto">The updated module details.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>The updated details of the module.</returns>
-    Task<ModuleDto> UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default);
-
-    /// <summary>
-    /// Updates the operational status of an existing module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module to update.</param>
-    /// <param name="dto">The updated module status.</param>
-    /// <param name="ct">The cancellation token.</param>
-    Task UpdateModuleStatusAsync(Guid moduleId, UpdateModuleStatusDto dto, CancellationToken ct = default);
+    Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default);
 
     /// <summary>
     /// Replaces the binary files of an existing module.
@@ -71,7 +62,7 @@ public interface IModuleService
     /// <param name="moduleId">The unique identifier of the module to update.</param>
     /// <param name="file">The new binary file for the module.</param>
     /// <param name="ct">The cancellation token.</param>
-    Task UpdateModuleFilesAsync(Guid moduleId, IFormFile file, CancellationToken ct = default);
+    Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes a module, cleans up its storage files, and removes all associated records.

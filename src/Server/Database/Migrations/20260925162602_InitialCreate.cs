@@ -55,6 +55,7 @@ namespace Server.Database.Migrations
                     ModuleId = table.Column<Guid>(type: "TEXT", nullable: false),
                     HttpMethod = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
                     EndpointPath = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    Status = table.Column<string>(type: "TEXT", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>

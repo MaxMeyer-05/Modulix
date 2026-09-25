@@ -91,6 +91,10 @@ namespace Server.Database.Migrations
                     b.Property<Guid>("ModuleId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ModuleId", "HttpMethod", "EndpointPath")
