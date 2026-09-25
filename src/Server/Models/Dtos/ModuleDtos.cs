@@ -174,3 +174,82 @@ public class UpdateModuleFilesDto
     [Required(ErrorMessage = "Module file is required.")]
     public IFormFile ModuleFile { get; set; } = null!;
 }
+
+/// <summary>
+/// Represents the data required to create a new module endpoint.
+/// </summary>
+public class CreateModuleEndpointDto
+{
+    /// <summary>
+    /// The HTTP method for the new module endpoint (e.g., GET, POST, PUT, DELETE).
+    /// </summary>
+    [Required(ErrorMessage = "HTTP method is required.")]
+    [MaxLength(10, ErrorMessage = "HTTP method cannot exceed 10 characters.")]
+    public string HttpMethod { get; set; } = null!;
+
+    /// <summary>
+    /// The base endpoint path for the new module.
+    /// </summary>
+    [Required(ErrorMessage = "Base endpoint path is required.")]
+    [MaxLength(200, ErrorMessage = "Base endpoint path cannot exceed 200 characters.")]
+    public string BaseEndpointPath { get; set; } = null!;
+}
+
+/// <summary>
+/// Represents a report detailing discrepancies between a module's actual endpoints and the expected endpoints.
+/// </summary>
+public class EndpointDiscrepancyReportDto
+{
+    /// <summary>
+    /// The unique identifier of the module for which the endpoint discrepancy report is generated.
+    /// </summary>
+    public Guid ModuleId { get; set; }
+
+    /// <summary>
+    /// Indicates whether there is a discrepancy between the module's actual endpoints and the expected endpoints.
+    /// </summary>
+    public bool HasDiscrepancy { get; set; }
+
+    /// <summary>
+    /// The list of endpoints that match the expected configuration.
+    /// </summary>
+    public List<CreateModuleEndpointDto> MatchedEndpoints { get; set; } = [];
+
+    /// <summary>
+    /// The list of extra endpoints that are present.
+    /// </summary>
+    public List<CreateModuleEndpointDto> ExtraEndpoints { get; set; } = [];
+
+    /// <summary>
+    /// The list of missing endpoints that are expected.
+    /// </summary>
+    public List<CreateModuleEndpointDto> MissingEndpoints { get; set; } = [];
+}
+
+/// <summary>
+/// Result returned after an upload or update operation.
+/// </summary>
+public class ModuleCreationResultDto
+{
+    /// <summary>
+    /// The details of the created or updated module.
+    /// </summary>
+    public ModuleDetailDto Module { get; set; } = null!;
+
+    /// <summary>
+    /// The report detailing any discrepancies between the module's actual endpoints and the expected endpoints.
+    /// </summary>
+    public EndpointDiscrepancyReportDto? DiscrepancyReport { get; set; }
+}
+
+/// <summary>
+/// Payload sent to confirm the final list of endpoints for a module in PendingConfirmation state.
+/// </summary>
+public class ConfirmEndpointsDto
+{
+    /// <summary>
+    /// The list of endpoints that have been confirmed for the module.
+    /// </summary>
+    [Required]
+    public List<CreateModuleEndpointDto> ConfirmedEndpoints { get; set; } = [];
+}

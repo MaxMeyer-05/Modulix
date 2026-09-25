@@ -6,6 +6,11 @@ namespace Server.Models.Enums;
 public enum ModuleStatus
 {
     /// <summary>
+    /// The module requires user confirmation regarding endpoint discrepancies.
+    /// </summary>
+    PendingConfirmation,
+    
+    /// <summary>
     /// The module has been created but not yet started.
     /// </summary>
     Created,
