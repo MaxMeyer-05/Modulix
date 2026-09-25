@@ -55,25 +55,36 @@ public class ModuleService : IModuleService
     /// <inheritdoc/>
     public async Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var modules = await _context.Modules.ToListAsync(ct);
+        var moduleDtos = modules.Select(module => module.ToModuleDto()).ToList();
+
+        _logger.LogDebug("Retrieved {Count} modules from the database.", moduleDtos.Count);
+
+        return moduleDtos;
     }
 
     /// <inheritdoc/>
     public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
-    }
-
-    /// <inheritdoc/>
-    public async Task<ModuleDetailDto> GetModuleStatusAsync(Guid moduleId, CancellationToken ct = default)
-    {
-        throw new NotImplementedException();
+        var module = await _context.Modules.FindAsync([moduleId], ct);
+        if (module is null)
+            throw new KeyNotFoundException($"Module with ID '{moduleId}' not found.");
+        
+        return module.ToModuleDetailDto();
     }
 
     /// <inheritdoc/>
     public async Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var module = await _context.Modules.FindAsync([moduleId], ct);
+        if (module is null)
+            throw new KeyNotFoundException($"Module with ID '{moduleId}' not found.");
+
+        var subEndpoints = module.SubEndpoints.Select(se => se.ToEndpointDto()).ToList();
+
+        _logger.LogDebug("Retrieved {Count} sub-endpoints for module with ID '{ModuleId}'.", subEndpoints.Count, moduleId);
+
+        return subEndpoints;
     }
 
     /// <inheritdoc/>

@@ -41,14 +41,6 @@ public interface IModuleService
     Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
-    /// Retrieves the current status of a specific module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>The current status of the module.</returns>
-    Task<ModuleDetailDto> GetModuleStatusAsync(Guid moduleId, CancellationToken ct = default);
-
-    /// <summary>
     /// Retrieves all registered sub-endpoints for a specific module.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
