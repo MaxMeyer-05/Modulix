@@ -6,7 +6,9 @@ using Server.Mappers;
 using Server.Models.Dtos;
 using Server.Models.Enums;
 
+using Server.Database.Entities;
 using Server.Database.DbContexts;
+
 using Server.Services.Interfaces;
 
 namespace Server.Services;
@@ -73,6 +75,8 @@ public class ModuleService : IModuleService
                 _context.ModuleEndpoints.Remove(endpoint);
             }
         }
+
+        module.Status = ModuleStatus.Created;
         
         await _context.SaveChangesAsync(ct);
         return module.ToModuleDetailDto();
@@ -81,7 +85,85 @@ public class ModuleService : IModuleService
     /// <inheritdoc/>
     public async Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        // Normalize the base endpoint path
+        if (string.IsNullOrWhiteSpace(dto.BaseEndpointPath))
+            throw new ArgumentException("Base endpoint path cannot be empty.");
+        var normalizedBasePath = dto.BaseEndpointPath.Trim().TrimEnd('/').TrimStart('/');
+        
+        // Ensure the used container ports are not conflicting
+        var usedPorts = await _context.Modules.Select(m => m.ContainerPort).ToListAsync(ct);
+        int availablePort;
+        if (dto.ContainerPort.HasValue)
+        {
+            if (usedPorts.Contains(dto.ContainerPort.Value))
+                throw new ArgumentException($"Container port '{dto.ContainerPort.Value}' is already in use.");
+
+            availablePort = dto.ContainerPort.Value;
+        }
+        else
+        {            
+            availablePort = Enumerable.Range(1024, 48127).Except(usedPorts).FirstOrDefault();
+        }
+
+        // Ensure the used base endpoint paths are not conflicting
+        var usedBasePaths = await _context.Modules.Select(m => m.BaseEndpointPath).ToListAsync(ct);
+        if (usedBasePaths.Contains(normalizedBasePath))
+            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");
+        else if (usedBasePaths.Any(ubp => ubp.StartsWith(normalizedBasePath)))
+            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with an existing base endpoint path.");
+        else if (usedBasePaths.Any(ubp => normalizedBasePath.StartsWith(ubp)))
+            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path.");
+
+        // Create the module entity and set the available container port
+        var module = dto.ToModuleEntity();
+        module.BaseEndpointPath = normalizedBasePath;
+        module.ContainerPort = availablePort;
+
+        // Prepare the target path for extracting the module file
+        var targetPath = Path.Combine(_storageBasePath, module.Id.ToString());
+        var file = dto.ModuleFile;
+        if (file.Length == 0)
+            throw new ArgumentException("Module file cannot be empty.");
+        if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Module file must be a .zip archive.");
+            
+        if (Directory.Exists(targetPath))
+            Directory.Delete(targetPath, true);
+        Directory.CreateDirectory(targetPath);
+
+        var tmpZipPath = Path.Combine(Path.GetTempPath(), file.FileName);
+        try
+        {
+            using (var stream = new FileStream(tmpZipPath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream, ct);
+            }
+
+            ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
+            _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
+        }
+        finally
+        {
+            if (File.Exists(tmpZipPath))
+                File.Delete(tmpZipPath);
+        }
+
+        // Set the storage path for the module
+        module.StoragePath = targetPath;
+
+        // TODO: Scan the extracted module files for endpoint definitions and other relevant metadata.
+        // And check the enpoints if the user has provided any in the request.
+
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Created module with ID '{ModuleId}' and stored its files at '{StoragePath}'.", module.Id, module.StoragePath);
+
+        return new ModuleCreationResultDto
+        {
+            Module = module.ToModuleDetailDto(),
+            DiscrepancyReport = null // TODO: Generate a discrepancy report after scanning the module files.
+        };
     }
 
     /// <inheritdoc/>
@@ -186,9 +268,19 @@ public class ModuleService : IModuleService
         if (!file.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The module file must be a ZIP archive.");
 
-        Directory.CreateDirectory(module.StoragePath);
+        try
+        {
+            Directory.CreateDirectory(module.StoragePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while creating the storage directory for module with ID '{ModuleId}'.", moduleId);
+            throw;
+        }
 
         var tmpZipPath = Path.Combine(Path.GetTempPath(), file.ModuleFile.FileName);
+        _logger.LogDebug("Temporary ZIP path for module with ID '{ModuleId}': {TmpZipPath}", moduleId, tmpZipPath);
+        
         try
         {
             await using (var stream = new FileStream(tmpZipPath, FileMode.Create))
@@ -201,6 +293,7 @@ public class ModuleService : IModuleService
         catch (Exception ex)
         {
             _logger.LogError(ex, "An error occurred while updating module files for module with ID '{ModuleId}'.", moduleId);
+            throw;
         }
         finally
         {

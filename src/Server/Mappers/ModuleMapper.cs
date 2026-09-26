@@ -65,9 +65,8 @@ public static class ModuleMapper
     /// <returns>The corresponding <see cref="Module"/> entity.</returns>
     public static Module ToModuleEntity(this CreateModuleDto moduleDto) => new()
     {
-        ModuleName = moduleDto.ModuleName,
-        Description = moduleDto.Description,
-        BaseEndpointPath = moduleDto.BaseEndpointPath,
+        ModuleName = moduleDto.ModuleName.Trim(),
+        Description = moduleDto.Description?.Trim() ?? string.Empty
     };
 
     /// <summary>
@@ -77,7 +76,7 @@ public static class ModuleMapper
     /// <param name="moduleDto">The DTO containing the updated module information.</param>
     public static void UpdateModuleDto(this Module module, UpdateModuleDto moduleDto)
     {
-        module.ModuleName = moduleDto.ModuleName ?? module.ModuleName;
-        module.Description = moduleDto.Description ?? module.Description;
+        module.ModuleName = moduleDto.ModuleName?.Trim() ?? module.ModuleName;
+        module.Description = moduleDto.Description?.Trim() ?? module.Description;
     }
 }
