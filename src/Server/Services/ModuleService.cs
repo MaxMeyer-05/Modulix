@@ -198,6 +198,10 @@ public class ModuleService : IModuleService
 
             ZipFile.ExtractToDirectory(tmpZipPath, module.StoragePath, true);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while updating module files for module with ID '{ModuleId}'.", moduleId);
+        }
         finally
         {
             if (File.Exists(tmpZipPath))

@@ -22,6 +22,8 @@ public interface IModuleService
     /// <param name="dto">The confirmed endpoints for the module.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The updated details of the module.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the module is not in PendingConfirmation state.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default);
 
     /// <summary>
@@ -37,6 +39,7 @@ public interface IModuleService
     /// <param name="moduleId">The unique identifier of the module.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The details of the specified module.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
@@ -44,7 +47,8 @@ public interface IModuleService
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>A collection of all registered sub-endpoints for the specified module.</returns>   
+    /// <returns>A collection of all registered sub-endpoints for the specified module.</returns> 
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
@@ -53,6 +57,7 @@ public interface IModuleService
     /// <param name="moduleId">The unique identifier of the module to update.</param>
     /// <param name="dto">The updated module details.</param>
     /// <param name="ct">The cancellation token.</param>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default);
 
     /// <summary>
@@ -61,6 +66,8 @@ public interface IModuleService
     /// <param name="moduleId">The unique identifier of the module to update.</param>
     /// <param name="file">The new binary file for the module.</param>
     /// <param name="ct">The cancellation token.</param>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the module is not in a state that allows file updates.</exception>
     Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
 
     /// <summary>
@@ -68,5 +75,6 @@ public interface IModuleService
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module to delete.</param>
     /// <param name="ct">The cancellation token.</param>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default);
 }
