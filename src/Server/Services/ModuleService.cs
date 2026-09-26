@@ -6,9 +6,7 @@ using Server.Mappers;
 using Server.Models.Dtos;
 using Server.Models.Enums;
 
-using Server.Database.Entities;
 using Server.Database.DbContexts;
-
 using Server.Services.Interfaces;
 
 namespace Server.Services;
@@ -129,7 +127,16 @@ public class ModuleService : IModuleService
             
         if (Directory.Exists(targetPath))
             Directory.Delete(targetPath, true);
-        Directory.CreateDirectory(targetPath);
+        
+        try
+        {
+            Directory.CreateDirectory(targetPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create target directory '{TargetPath}'.", targetPath);
+            throw;
+        }
 
         var tmpZipPath = Path.Combine(Path.GetTempPath(), file.FileName);
         try
@@ -262,23 +269,14 @@ public class ModuleService : IModuleService
         if (module is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
-        if (Directory.Exists(module.StoragePath))
-            Directory.Delete(module.StoragePath, true);
-
         if (!file.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The module file must be a ZIP archive.");
 
-        try
-        {
-            Directory.CreateDirectory(module.StoragePath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "An error occurred while creating the storage directory for module with ID '{ModuleId}'.", moduleId);
-            throw;
-        }
+        var storageDirectory = Path.GetFullPath(module.StoragePath);
+        var storageParentDirectory = Path.GetDirectoryName(storageDirectory)!;
+        var stagingDirectory = Path.Combine(storageParentDirectory, $".{module.Id:N}.{Guid.NewGuid():N}.staging");
+        var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
 
-        var tmpZipPath = Path.Combine(Path.GetTempPath(), file.ModuleFile.FileName);
         _logger.LogDebug("Temporary ZIP path for module with ID '{ModuleId}': {TmpZipPath}", moduleId, tmpZipPath);
         
         try
@@ -288,7 +286,13 @@ public class ModuleService : IModuleService
                 await file.ModuleFile.CopyToAsync(stream, ct);
             }
 
-            ZipFile.ExtractToDirectory(tmpZipPath, module.StoragePath, true);
+            Directory.CreateDirectory(stagingDirectory);
+            ZipFile.ExtractToDirectory(tmpZipPath, stagingDirectory);
+
+            if (Directory.Exists(storageDirectory))
+                Directory.Delete(storageDirectory, true);
+
+            Directory.Move(stagingDirectory, storageDirectory);
         }
         catch (Exception ex)
         {
@@ -299,6 +303,9 @@ public class ModuleService : IModuleService
         {
             if (File.Exists(tmpZipPath))
                 File.Delete(tmpZipPath);
+
+            if (Directory.Exists(stagingDirectory))
+                Directory.Delete(stagingDirectory, true);
         }
 
         // TODO: Update the associated Docker container and check for sub-endpoints.

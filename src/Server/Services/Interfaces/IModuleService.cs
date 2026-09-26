@@ -13,6 +13,7 @@ public interface IModuleService
     /// <param name="dto">The details of the module to create.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The result of the module creation operation.</returns>
+    /// <exception cref="ArgumentException">Thrown if the provided module details are invalid.</exception>
     Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default);
 
     /// <summary>
