@@ -42,9 +42,9 @@ public class ModulesManagementController : ControllerBase
     [HttpPost("create")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status202Accepted)]
-    public async Task<ActionResult<ModuleCreationResultDto>> CreateModuleAsync(CreateModuleDto dto)
+    public async Task<IActionResult> CreateModuleAsync(CreateModuleDto dto)
     {
         if (dto == null)
             return BadRequest();
