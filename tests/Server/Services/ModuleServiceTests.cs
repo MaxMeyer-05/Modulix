@@ -634,6 +634,32 @@ public class ModuleServiceTests : IDisposable
 
     [Fact]
     [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_ArchiveExceedsEntryLimit_PreservesExistingDirectoryContents()
+    {
+        // Arrange
+        var moduleDir = Path.Combine(_testRootDirectory, "module_entry_limit");
+        Directory.CreateDirectory(moduleDir);
+        var existingFilePath = Path.Combine(moduleDir, "current_assembly.dll");
+        File.WriteAllText(existingFilePath, "current module contents");
+
+        var module = CreateTestModuleEntity("Entry Limit", "api/v1/entry-limit", 8012);
+        module.StoragePath = moduleDir;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var oversizedArchive = CreateZipFileWithEntries(1_001);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = oversizedArchive }));
+
+        Assert.Equal("Module archive exceeds the maximum allowed number of entries.", exception.Message);
+        Assert.True(File.Exists(existingFilePath));
+        Assert.Equal("current module contents", await File.ReadAllTextAsync(existingFilePath));
+    }
+
+    [Fact]
+    [Trait("Feature", "UpdateModuleFiles")]
     public async Task UpdateModuleFilesAsync_ValidZip_ReplacesDirectoryContents()
     {
         // Arrange
@@ -737,6 +763,19 @@ public class ModuleServiceTests : IDisposable
 
         memoryStream.Position = 0;
         return new FormFile(memoryStream, 0, memoryStream.Length, "ModuleFile", fileName);
+    }
+
+    private static IFormFile CreateZipFileWithEntries(int entryCount)
+    {
+        var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            for (var entryIndex = 0; entryIndex < entryCount; entryIndex++)
+                archive.CreateEntry($"file-{entryIndex}.txt");
+        }
+
+        memoryStream.Position = 0;
+        return new FormFile(memoryStream, 0, memoryStream.Length, "ModuleFile", "many-files.zip");
     }
 
     private sealed class FakeHostEnvironment(string rootPath) : IHostEnvironment

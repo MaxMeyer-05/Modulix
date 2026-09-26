@@ -14,6 +14,9 @@ namespace Server.Services;
 /// <inheritdoc cref="IModuleService"/>
 public class ModuleService : IModuleService
 {
+    private const int MaximumArchiveEntryCount = 1_000; // 1,000 entries maximum
+    private const long MaximumArchiveUncompressedBytes = 512L * 1024 * 1024; // 512 MB
+
     /// <summary>
     /// The database context used by the service.
     /// </summary>
@@ -146,13 +149,13 @@ public class ModuleService : IModuleService
                 await file.CopyToAsync(stream, ct);
             }
 
+            ValidateModuleArchive(tmpZipPath);
             ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
             _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
         }
         finally
         {
-            if (File.Exists(tmpZipPath))
-                File.Delete(tmpZipPath);
+            DeleteTemporaryFile(tmpZipPath, module.Id);
         }
 
         // Set the storage path for the module
@@ -286,6 +289,7 @@ public class ModuleService : IModuleService
                 await file.ModuleFile.CopyToAsync(stream, ct);
             }
 
+            ValidateModuleArchive(tmpZipPath);
             Directory.CreateDirectory(stagingDirectory);
             ZipFile.ExtractToDirectory(tmpZipPath, stagingDirectory);
 
@@ -301,13 +305,67 @@ public class ModuleService : IModuleService
         }
         finally
         {
-            if (File.Exists(tmpZipPath))
-                File.Delete(tmpZipPath);
-
-            if (Directory.Exists(stagingDirectory))
-                Directory.Delete(stagingDirectory, true);
+            DeleteTemporaryFile(tmpZipPath, moduleId);
+            DeleteStagingDirectory(stagingDirectory, moduleId);
         }
 
         // TODO: Update the associated Docker container and check for sub-endpoints.
+    }
+
+    /// <summary>
+    /// Validates the contents of a module archive.
+    /// </summary>
+    /// <param name="archivePath">The path to the module archive to validate.</param>
+    private static void ValidateModuleArchive(string archivePath)
+    {
+        using var archive = ZipFile.OpenRead(archivePath);
+
+        if (archive.Entries.Count > MaximumArchiveEntryCount)
+            throw new InvalidOperationException("Module archive exceeds the maximum allowed number of entries.");
+
+        var totalUncompressedBytes = 0L;
+        foreach (var entry in archive.Entries)
+        {
+            if (entry.Length > MaximumArchiveUncompressedBytes - totalUncompressedBytes)
+                throw new InvalidOperationException("Module archive exceeds the maximum allowed uncompressed size.");
+
+            totalUncompressedBytes += entry.Length;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a temporary file used during module update.
+    /// </summary>
+    /// <param name="filePath">The path to the temporary file to delete.</param>
+    /// <param name="moduleId">The ID of the module associated with the temporary file.</param>
+    private void DeleteTemporaryFile(string filePath, Guid moduleId)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete temporary ZIP file for module with ID '{ModuleId}'.", moduleId);
+        }
+    }
+
+    /// <summary>
+    /// Deletes a staging directory used during module update.
+    /// </summary>
+    /// <param name="directoryPath">The path to the staging directory to delete.</param>
+    /// <param name="moduleId">The ID of the module associated with the staging directory.</param>
+    private void DeleteStagingDirectory(string directoryPath, Guid moduleId)
+    {
+        try
+        {
+            if (Directory.Exists(directoryPath))
+                Directory.Delete(directoryPath, true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete staging directory for module with ID '{ModuleId}'.", moduleId);
+        }
     }
 }
