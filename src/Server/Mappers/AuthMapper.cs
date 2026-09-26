@@ -13,11 +13,8 @@ public static class AuthMapper
     /// </summary>
     /// <param name="userDto">The registration DTO.</param>
     /// <returns>A <see cref="User"/> entity representing the registration data.</returns>
-    public static User ToUserEntity(this RegisterDto userDto)
+    public static User ToUserEntity(this RegisterDto userDto) => new()
     {
-        return new User
-        {
-            UserEmail = userDto.UserEmail
-        };
-    }
+        UserEmail = userDto.UserEmail
+    };
 }

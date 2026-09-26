@@ -66,5 +66,11 @@ public class ServerContext : DbContext
                 .HasForeignKey(e => e.ModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<ModuleEndpoint>(entity =>
+        {
+            entity.Property(e => e.Status)
+                .HasConversion<string>();
+        });
     }
 }

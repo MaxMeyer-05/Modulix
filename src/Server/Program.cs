@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 using Server.Services;
+using Server.Services.Interfaces;
+
 using Server.Models.Dtos;
 using Server.Infrastructure;
 using Server.Database.DbContexts;
@@ -23,6 +25,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddScoped<UserSessionDataDto>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 
 builder.Services.AddSingleton(TimeProvider.System);

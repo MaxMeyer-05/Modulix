@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
+using Server.Models.Enums;
+
 namespace Server.Database.Entities;
 
 /// <summary>
@@ -38,6 +40,12 @@ public class ModuleEndpoint
     [Required]
     [MaxLength(200)]
     public string EndpointPath { get; set; } = null!;
+
+    /// <summary>
+    /// The status of the module endpoint.
+    /// </summary>
+    [Required]
+    public ModuleEndpointsStatus Status { get; set; } = ModuleEndpointsStatus.Active;
 
     /// <summary>
     /// The creation time of the module endpoint.
