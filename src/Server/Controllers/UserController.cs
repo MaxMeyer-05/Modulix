@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
-using Server.Services;
+using Server.Services.Interfaces;
 
 using Server.Models.Dtos;
 using Server.Models.Enums;
@@ -43,7 +43,9 @@ public class UserController : ControllerBase
     /// <summary>
     /// Retrieves all users.
     /// </summary>
-    /// <returns>A collection of user information.</returns>
+    /// <returns>
+    /// A 200 OK response containing a collection of user information.
+    /// </returns>
     [HttpGet]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(typeof(IEnumerable<UserDto>), StatusCodes.Status200OK)]
@@ -56,7 +58,10 @@ public class UserController : ControllerBase
     /// <summary>
     /// Retrieves the authenticated user's information.
     /// </summary>
-    /// <returns>The authenticated user's information.</returns>
+    /// <returns>
+    /// A 200 OK response containing the authenticated user's information.
+    /// A 404 Not Found response if the authenticated user's information could not be found.
+    /// </returns>
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -70,7 +75,11 @@ public class UserController : ControllerBase
     /// Updates the authenticated user's information.
     /// </summary>
     /// <param name="updateUserDto">The updated user information.</param>
-    /// <returns>The new token result if the update was successful; otherwise, no content.</returns>
+    /// <returns>
+    /// A 200 OK response containing the new token result if the update was successful.
+    /// A 204 No Content response if no update was made.
+    /// A 400 Bad Request response if the update details are invalid.
+    /// </returns>
     [HttpPatch("me")]
     [ProducesResponseType(typeof(TokenResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -87,7 +96,12 @@ public class UserController : ControllerBase
     /// Updates the authenticated user's password.
     /// </summary>
     /// <param name="updatePasswordDto">The current password and new password details.</param>
-    /// <returns>A new token result for the authenticated user.</returns>
+    /// <returns>
+    /// A 200 OK response containing a new token result for the authenticated user.
+    /// A 400 Bad Request response if the password update details are invalid.
+    /// A 401 Unauthorized response if the user is not authenticated.
+    /// A 404 Not Found response if the authenticated user's information could not be found.
+    /// </returns>
     [HttpPatch("me/password")]
     [ProducesResponseType(typeof(TokenResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -104,7 +118,10 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="userId">The ID of the user whose role is to be updated.</param>
     /// <param name="updateUserRoleDto">The updated user role information.</param>
-    /// <returns>No content if the update is successful.</returns>
+    /// <returns>
+    /// A 204 No Content response if the update is successful.
+    /// A 404 Not Found response if the user could not be found.
+    /// </returns>
     [HttpPatch("{userId}/role")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -120,7 +137,10 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="userId">The ID of the user whose scopes are to be updated.</param>
     /// <param name="updateUserScopesDto">The updated user scopes.</param>
-    /// <returns>No content if the update is successful.</returns>
+    /// <returns>
+    /// A 204 No Content response if the update is successful.
+    /// A 404 Not Found response if the user could not be found.
+    /// </returns>
     [HttpPatch("{userId}/scopes")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -135,7 +155,10 @@ public class UserController : ControllerBase
     /// Deletes the authenticated user's account.
     /// </summary>
     /// <param name="deleteUserDto">The current password of the user.</param>
-    /// <returns>No content if the deletion is successful.</returns>
+    /// <returns>
+    /// A 204 No Content response if the deletion is successful.
+    /// A 404 Not Found response if the authenticated user's information could not be found.
+    /// </returns>
     [HttpDelete("me")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -149,7 +172,11 @@ public class UserController : ControllerBase
     /// Deletes a user's account by their ID. Only accessible by admins.
     /// </summary>
     /// <param name="userId">The ID of the user to delete.</param>
-    /// <returns>No content if the deletion is successful.</returns>
+    /// <returns>
+    /// A 204 No Content response if the deletion is successful.
+    /// A 404 Not Found response if the user could not be found.
+    /// A 401 Unauthorized response if the user is not authenticated.
+    /// </returns>
     [HttpDelete("{userId}")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -165,7 +192,11 @@ public class UserController : ControllerBase
     /// Refreshes the JWT token using a valid refresh token.
     /// </summary>
     /// <param name="refreshTokenRequest">The refresh token request.</param>
-    /// <returns>The new JWT token pair if the refresh token is valid.</returns>
+    /// <returns>
+    /// A 200 OK response containing the new JWT token pair if the refresh token is valid.
+    /// A 401 Unauthorized response if the refresh token is invalid.
+    /// A 404 Not Found response if the refresh token could not be found.
+    /// </returns>
     [AllowAnonymous]
     [HttpPost("token/refresh")]
     [ProducesResponseType(typeof(TokenResultDto), StatusCodes.Status200OK)]

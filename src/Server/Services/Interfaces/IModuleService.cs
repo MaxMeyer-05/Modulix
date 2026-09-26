@@ -75,6 +75,5 @@ public interface IModuleService
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module to delete.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default);
 }

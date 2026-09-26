@@ -89,7 +89,7 @@ public class ModuleService : IModuleService
     {
         var module = await _context.Modules.FindAsync([moduleId], ct);
         if (module is null)
-            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
+            return;
 
         // TODO: Deletion of the Docker container or other runtime resources associated with the module.
 

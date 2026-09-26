@@ -67,9 +67,13 @@ public class ModulesManagementController : ControllerBase
     /// <returns>
     /// A 200 OK response with the details of the confirmed module.
     /// A 400 Bad Request response if the input data is invalid.
+    /// A 404 Not Found response if the module could not be found.
+    /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
     [Authorize(Roles = nameof(Roles.Admin))]
     [HttpPost("{moduleId}/confirm-endpoints")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleDetailDto>> ConfirmModuleEndpointsAsync([FromRoute] Guid moduleId, [FromBody] ConfirmEndpointsDto dto)
@@ -101,8 +105,10 @@ public class ModulesManagementController : ControllerBase
     /// <param name="moduleId">The ID of the module.</param>
     /// <returns>
     /// A 200 OK response with the details of the specified module.
+    /// A 404 Not Found response if the module could not be found.
     /// </returns>
     [HttpGet("{moduleId}")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleDetailDto>> GetModuleByIdAsync(Guid moduleId)
     {
@@ -116,8 +122,10 @@ public class ModulesManagementController : ControllerBase
     /// <param name="moduleId">The ID of the module.</param>
     /// <returns>
     /// A 200 OK response with a list of sub-endpoints for the specified module.
+    /// A 404 Not Found response if the module could not be found.
     /// </returns>
     [HttpGet("{moduleId}/sub-endpoints")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(IEnumerable<ModuleEndpointDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleSubEndpointsAsync(Guid moduleId)
     {
@@ -132,9 +140,11 @@ public class ModulesManagementController : ControllerBase
     /// <param name="dto">The module update data transfer object.</param>
     /// <returns>
     /// A 204 No Content response indicating that the module was successfully updated.
+    /// A 404 Not Found response if the module could not be found.
     /// </returns>
     [HttpPut("{moduleId}")]
     [Authorize(Roles = nameof(Roles.Admin))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto)
     {
@@ -148,9 +158,13 @@ public class ModulesManagementController : ControllerBase
     /// <param name="dto">The module files update data transfer object.</param>
     /// <returns>
     /// A 204 No Content response indicating that the module files were successfully updated.
+    /// A 404 Not Found response if the module could not be found.
+    /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
     [HttpPut("{moduleId}/files")]
     [Authorize(Roles = nameof(Roles.Admin))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto dto)
     {

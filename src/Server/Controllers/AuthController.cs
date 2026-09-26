@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
-using Server.Services;
 using Server.Models.Dtos;
+using Server.Services.Interfaces;
 
 namespace Server.Controllers;
 
@@ -39,7 +39,10 @@ public class AuthController : ControllerBase
     /// Handles user login requests.
     /// </summary>
     /// <param name="loginDto">The login details of the user.</param>
-    /// <returns>A tuple containing the user information and the token result.</returns>
+    /// <returns>
+    /// A 200 OK response containing a tuple with the user information and the token result.
+    /// A 401 Unauthorized response if the login credentials are invalid.
+    /// </returns>
     [AllowAnonymous]
     [HttpPost("login")]
     [ProducesResponseType(typeof((UserDto, TokenResultDto)), StatusCodes.Status200OK)]
@@ -54,6 +57,11 @@ public class AuthController : ControllerBase
     /// Handles user registration requests.
     /// </summary>
     /// <param name="registerDto">The registration details of the new user.</param>
+    /// <returns>
+    /// A 204 No Content response if the registration was successful.
+    /// A 400 Bad Request response if the registration details are invalid.
+    /// A 409 Conflict response if the user already exists.
+    /// </returns>
     [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -69,6 +77,10 @@ public class AuthController : ControllerBase
     /// Handles user logout requests.
     /// </summary>
     /// <param name="logoutDto">The refresh token for the session to end.</param>
+    /// <returns>
+    /// A 204 No Content response if the logout was successful.
+    /// A 401 Unauthorized response if the user is not authenticated.
+    /// </returns>
     [Authorize]
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
