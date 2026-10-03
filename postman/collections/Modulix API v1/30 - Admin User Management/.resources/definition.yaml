@@ -1,0 +1,9 @@
+$kind: collection
+description: Requires adminEmail and adminPassword in the active environment and a successful Login as admin request.
+auth:
+  - id: 993fa27f-0e9b-4848-8f60-c67253477b51
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{adminAccessToken}}"
+order: 4000

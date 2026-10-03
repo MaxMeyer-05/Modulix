@@ -1,0 +1,2 @@
+$kind: collection
+description: Functional API checks for Modulix. Configure an environment before running requests. Do not run the manual cleanup folder as part of a normal collection run.

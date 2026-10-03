@@ -1,0 +1,8 @@
+$kind: collection
+auth:
+  - id: 518f8c1d-030f-480e-81fc-6b84520d9656
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{userAccessToken}}"
+order: 3000
