@@ -39,14 +39,10 @@ public class AuthController : ControllerBase
     /// Handles user login requests.
     /// </summary>
     /// <param name="loginDto">The login details of the user.</param>
-<<<<<<< HEAD
     /// <returns>
     /// A 200 OK response containing a tuple with the user information and the token result.
     /// A 401 Unauthorized response if the login credentials are invalid.
     /// </returns>
-=======
-    /// <returns>The authenticated user and a new token pair.</returns>
->>>>>>> develop
     [AllowAnonymous]
     [HttpPost("login")]
     [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
