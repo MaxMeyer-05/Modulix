@@ -1,0 +1,34 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userEmail": "{{testUserEmail}}",
+      "userPassword": "{{testUserPassword}}",
+      "confirm_UserPassword": "{{testUserPassword}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const timestamp = Date.now();
+      if (!pm.environment.get('testUserEmail')) {
+          pm.environment.set('testUserEmail', `postman-${timestamp}@example.test`);
+      }
+      if (!pm.environment.get('updatedUserEmail')) {
+          pm.environment.set('updatedUserEmail', `postman-updated-${timestamp}@example.test`);
+      }
+      if (!pm.environment.get('testUserPassword')) {
+          pm.environment.set('testUserPassword', 'PostmanTest123!');
+      }
+      if (!pm.environment.get('replacementUserPassword')) {
+          pm.environment.set('replacementUserPassword', 'PostmanTest456!');
+      }
+    language: text/javascript
+  - type: afterResponse
+    code: pm.test('Status is 204', () => pm.response.to.have.status(204));
+    language: text/javascript
+order: 1000

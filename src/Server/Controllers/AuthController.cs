@@ -39,15 +39,15 @@ public class AuthController : ControllerBase
     /// Handles user login requests.
     /// </summary>
     /// <param name="loginDto">The login details of the user.</param>
-    /// <returns>A tuple containing the user information and the token result.</returns>
+    /// <returns>The authenticated user and a new token pair.</returns>
     [AllowAnonymous]
     [HttpPost("login")]
-    [ProducesResponseType(typeof((UserDto, TokenResultDto)), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<(UserDto, TokenResultDto)>> Login([FromBody] LoginDto loginDto)
+    public async Task<ActionResult<LoginResponseDto>> Login([FromBody] LoginDto loginDto)
     {
-        var result = await _authService.LoginAsync(loginDto, HttpContext.RequestAborted);
-        return Ok(result);
+        var (user, tokenResult) = await _authService.LoginAsync(loginDto, HttpContext.RequestAborted);
+        return Ok(new LoginResponseDto{ User = user, TokenResult = tokenResult });
     }
 
     /// <summary>

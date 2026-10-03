@@ -14,9 +14,13 @@ appsettings.Staging.json
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
 
 # Postman
 *.postman
+postman/environments/*.private.postman_environment.json
+postman/environments/*.private.environment.yaml
 
 # User-specific files
 *.rsuser
