@@ -1,0 +1,9 @@
+$kind: collection
+description: Run one of these requests manually only. Do not include this folder in normal collection runs.
+auth:
+  - id: 8b0b1757-307f-4368-9f1a-5786aa17b7c0
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{userAccessToken}}"
+order: 6000

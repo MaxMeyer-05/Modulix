@@ -49,6 +49,22 @@ public class LoginDto
 }
 
 /// <summary>
+/// Represents the user and token pair returned after a successful login.
+/// </summary>
+public class LoginResponseDto
+{
+    /// <summary>
+    /// The authenticated user.
+    /// </summary>
+    public UserDto User { get; set; } = null!;
+
+    /// <summary>
+    /// The token result for the authenticated session.
+    /// </summary>
+    public TokenResultDto TokenResult { get; set; } = null!;
+}
+
+/// <summary>
 /// Data transfer object for updating user information.
 /// </summary>
 public class UpdateUserDto
