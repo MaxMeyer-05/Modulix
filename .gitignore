@@ -15,6 +15,9 @@ appsettings.Staging.json
 # Database files
 *.db
 
+# Postman
+*.postman
+
 # User-specific files
 *.rsuser
 *.suo
