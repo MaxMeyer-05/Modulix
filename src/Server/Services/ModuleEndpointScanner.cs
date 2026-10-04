@@ -1,0 +1,282 @@
+using System.Reflection;
+using System.Runtime.Loader;
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
+
+using Server.Models.Dtos;
+using Server.Services.Interfaces;
+
+namespace Server.Services;
+
+/// <inheritdoc cref="IModuleEndpointScanner"/>
+public class ModuleEndpointScanner : IModuleEndpointScanner
+{
+    /// <summary>
+    /// The logger instance.
+    /// </summary>
+    private readonly ILogger<ModuleEndpointScanner> _logger;
+
+    /// <summary>
+    /// A custom assembly load context for loading module assemblies.
+    /// </summary>
+    private sealed class ModuleLoadContext : AssemblyLoadContext
+    {
+        /// <summary>
+        /// The assembly dependency resolver for the module.
+        /// </summary>
+        private readonly AssemblyDependencyResolver _resolver;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ModuleLoadContext"/> class with the specified entry assembly path.
+        /// </summary>
+        /// <param name="entryAssemblyPath">The path to the entry assembly of the module.</param>
+        public ModuleLoadContext(string entryAssemblyPath)
+            : base(isCollectible: true)
+        {
+            _resolver = new AssemblyDependencyResolver(entryAssemblyPath);
+        }
+
+        /// <summary>
+        /// Loads the specified assembly into the context.
+        /// </summary>
+        /// <param name="assemblyName">The name of the assembly to load.</param>
+        /// <returns>The loaded assembly, or null if the assembly could not be loaded.</returns>
+        protected override Assembly? Load(AssemblyName assemblyName)
+        {
+            if (assemblyName.Name?.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal) == true ||
+                assemblyName.Name?.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) == true)
+            {
+                return null;
+            }
+
+            var dependencyPath = _resolver.ResolveAssemblyToPath(assemblyName);
+            return dependencyPath is null ? null : LoadFromAssemblyPath(dependencyPath);
+        }
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ModuleEndpointScanner"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    public ModuleEndpointScanner(ILogger<ModuleEndpointScanner> logger)
+    {
+        _logger = logger;
+    }
+
+    /// <inheritdoc/>
+    public Task<ModuleScanResultDto> ScanDirectoryAsync(string moduleDirectoryPath, CancellationToken ct = default)
+    {
+        if (!Directory.Exists(moduleDirectoryPath))
+            throw new DirectoryNotFoundException($"The specified module directory does not exist: {moduleDirectoryPath}");
+
+        // Find the entry assembly file name within the module directory.
+        string? entryAssemblyFileName = FindEntryAssemblyFileName(moduleDirectoryPath);
+
+        var discoveredEndpoints = new List<DiscoveredEndpointDto>();
+
+        var entryAssemblyPath = Path.Combine(moduleDirectoryPath, entryAssemblyFileName);
+        var loadContext = new ModuleLoadContext(entryAssemblyPath);
+        try
+        {
+            var assembly = loadContext.LoadFromAssemblyPath(entryAssemblyPath);
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Some types from module assembly '{EntryAssembly}' could not be loaded.",
+                    entryAssemblyFileName);
+
+                types = ex.Types.Where(t => t != null).ToArray()!;
+            }
+
+            // Scan for endpoints
+            discoveredEndpoints.AddRange(ScanEndpoint(types, ct));
+        }
+        finally
+        {
+            loadContext.Unload();
+        }
+
+        var distinctEndpoints = discoveredEndpoints
+            .GroupBy(e => new { e.HttpMethod, e.EndpointPath })
+            .Select(g => g.First())
+            .OrderBy(e => e.EndpointPath)
+            .ThenBy(e => e.HttpMethod)
+            .ToList(); 
+
+        var result = new ModuleScanResultDto
+        {
+            EntryAssemblyFileName = entryAssemblyFileName,
+            DiscoveredEndpoints = distinctEndpoints
+        };
+
+        _logger.LogInformation(
+            "Scanned module directory '{ModuleDirectory}'. Entry assembly: '{EntryAssembly}'. Discovered endpoints: {EndpointCount}.",
+            moduleDirectoryPath,
+            entryAssemblyFileName,
+            distinctEndpoints.Count);
+
+        return Task.FromResult(result);
+    }
+
+    /// <summary>
+    /// Finds the entry assembly file name for the module by looking for a corresponding DLL for each runtime config file.
+    /// </summary>
+    /// <param name="moduleDirectoryPath">The path to the module directory.</param>
+    /// <returns>The entry assembly file name.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if no runtime config files or entry assembly DLL is found.</exception>
+    private string FindEntryAssemblyFileName(string moduleDirectoryPath)
+    {
+        var runtimeConfigFiles = Directory.GetFiles(moduleDirectoryPath, "*.runtimeconfig.json", SearchOption.TopDirectoryOnly)
+            .Where(f => !f.EndsWith(".runtimeconfig.dev.json", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (runtimeConfigFiles.Count == 0)
+            throw new FileNotFoundException("No runtime config files found for the module.", moduleDirectoryPath);
+
+        string? entryAssemblyFileName = null;
+        foreach (var runtimeConfigFile in runtimeConfigFiles)
+        {
+            var fileName = Path.GetFileName(runtimeConfigFile);
+            var baseName = fileName.Substring(0, fileName.IndexOf(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase));
+            var dllFileName = $"{baseName}.dll";
+
+            if (File.Exists(Path.Combine(moduleDirectoryPath, dllFileName)))
+            {
+                entryAssemblyFileName = dllFileName;
+                break;
+            }
+        }
+
+        if (entryAssemblyFileName == null)
+            throw new FileNotFoundException("No entry assembly found for the module.", moduleDirectoryPath);
+
+        return entryAssemblyFileName;
+    }
+
+    /// <summary>
+    /// Scans the given types for API endpoints and returns a list of discovered endpoints.
+    /// </summary>
+    /// <param name="types">The array of types to scan.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A list of discovered endpoints.</returns>
+    private static List<DiscoveredEndpointDto> ScanEndpoint(Type[] types, CancellationToken ct)
+    {
+        var discoveredEndpoints = new List<DiscoveredEndpointDto>();
+
+        var controllerTypes = types.Where(t => t.IsClass && !t.IsAbstract &&
+                (typeof(ControllerBase).IsAssignableFrom(t) || t.GetCustomAttribute<ApiControllerAttribute>() != null));
+
+        foreach (var controllerType in controllerTypes)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var baseRouteTemplate = controllerType.GetCustomAttribute<RouteAttribute>()?.Template ?? string.Empty;
+            var methods = controllerType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+
+            foreach (var method in methods)
+            {
+                var httpMethodAttributes = method.GetCustomAttributes().OfType<HttpMethodAttribute>().ToList();
+
+                foreach (var attr in httpMethodAttributes)
+                {
+                    var actionTemplate = attr.Template ?? string.Empty;
+                    var httpMethods = attr.HttpMethods?.Any() == true ? attr.HttpMethods : ["GET"];
+
+                    var resolvedPath = BuildAndResolveRoute(baseRouteTemplate, actionTemplate, controllerType, method);
+
+                    foreach (var httpMethod in httpMethods)
+                    {
+                        discoveredEndpoints.Add(new DiscoveredEndpointDto
+                        {
+                            HttpMethod = httpMethod.Trim().ToUpperInvariant(),
+                            EndpointPath = resolvedPath
+                        });
+                    }
+                }
+            }
+        }
+
+        return discoveredEndpoints;
+    }
+
+    /// <summary>
+    /// Builds and resolves the full route for a given controller and action method.
+    /// </summary>
+    /// <param name="baseRoute">The base route template from the controller.</param>
+    /// <param name="actionRoute">The route template from the action method.</param>
+    /// <param name="controllerType">The type of the controller.</param>
+    /// <param name="method">The action method info.</param>
+    /// <returns>The fully resolved and normalized route.</returns>
+    private static string BuildAndResolveRoute(string baseRoute, string actionRoute, Type controllerType, MethodInfo method)
+    {
+        if (actionRoute.StartsWith('/') || actionRoute.StartsWith("~/"))
+        {
+            var absoluteTemplate = actionRoute.TrimStart('~');
+            return NormalizePath(ResolveRouteTokens(absoluteTemplate, controllerType, method));
+        }
+
+        var resolvedBase = ResolveRouteTokens(baseRoute, controllerType, method).Trim('/');
+        var resolvedAction = ResolveRouteTokens(actionRoute, controllerType, method).Trim('/');
+
+        string fullRoute;
+        if (string.IsNullOrEmpty(resolvedBase))
+            fullRoute = resolvedAction;
+        else if (string.IsNullOrEmpty(resolvedAction))
+            fullRoute = resolvedBase;
+        else
+            fullRoute = $"{resolvedBase}/{resolvedAction}";
+
+        return NormalizePath(fullRoute);
+    }
+
+    /// <summary>
+    /// Resolves route tokens like [controller] and [action] in the given template.
+    /// </summary>
+    /// <param name="template">The route template containing tokens.</param>
+    /// <param name="controllerType">The type of the controller.</param>
+    /// <param name="method">The action method info.</param>
+    /// <returns>The route template with tokens replaced by actual values.</returns>
+    private static string ResolveRouteTokens(string template, Type controllerType, MethodInfo method)
+    {
+        if (string.IsNullOrWhiteSpace(template))
+            return string.Empty;
+
+        var controllerName = controllerType.Name;
+        if (controllerName.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+        {
+            controllerName = controllerName.Substring(0, controllerName.Length - "Controller".Length);
+        }
+
+        var actionName = method.Name;
+        if (actionName.EndsWith("Async", StringComparison.OrdinalIgnoreCase))
+        {
+            actionName = actionName.Substring(0, actionName.Length - "Async".Length);
+        }
+
+        return template
+            .Replace("[controller]", controllerName, StringComparison.OrdinalIgnoreCase)
+            .Replace("[action]", actionName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Normalizes the given path by ensuring it starts with a '/' and does not end with a '/'.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <returns>The normalized path.</returns>
+    private static string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "/";
+
+        var trimmed = path.Trim().TrimEnd('/');
+        return trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
+    }
+}

@@ -148,10 +148,10 @@ public class CreateModuleDto
     public string? Description { get; set; }
 
     /// <summary>
-    /// The unique base endpoint path (e.g. "/api/v1/resource").
+    /// The unique base endpoint path (e.g. "/module/resource").
     /// </summary>
-    /// <value>e.g., /api/v1/resource</value>
-    /// <example>/api/v1/resource</example>
+    /// <value>e.g., /module/resource</value>
+    /// <example>/module/resource</example>
     [Required(ErrorMessage = "Base endpoint path is required.")]
     [MaxLength(200, ErrorMessage = "Base endpoint path cannot exceed 200 characters.")]
     public string BaseEndpointPath { get; set; } = null!;
