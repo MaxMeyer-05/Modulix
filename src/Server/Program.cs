@@ -27,6 +27,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
+builder.Services.AddScoped<IModuleEndpointScanner, ModuleEndpointScanner>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();

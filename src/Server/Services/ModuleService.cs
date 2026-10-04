@@ -6,7 +6,9 @@ using Server.Mappers;
 using Server.Models.Dtos;
 using Server.Models.Enums;
 
+using Server.Database.Entities;
 using Server.Database.DbContexts;
+
 using Server.Services.Interfaces;
 
 namespace Server.Services;
@@ -27,6 +29,8 @@ public class ModuleService : IModuleService
     /// </summary>
     private readonly ILogger<ModuleService> _logger;
 
+    private readonly IModuleEndpointScanner _endpointScanner;
+
     /// <summary>
     /// The base path for storing module-related files.
     /// </summary>
@@ -38,13 +42,16 @@ public class ModuleService : IModuleService
     /// <param name="context">The database context used by the service.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="env">The host environment.</param>
+    /// <param name="endpointScanner">The module endpoint scanner.</param>
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
-        IHostEnvironment env)
+        IHostEnvironment env,
+        IModuleEndpointScanner endpointScanner)
     {
         _context = context;
         _logger = logger;
+        _endpointScanner = endpointScanner;
         _storageBasePath = Path.Combine(env.ContentRootPath, "storage", "modules");
     }
 
@@ -67,11 +74,13 @@ public class ModuleService : IModuleService
 
         foreach (var endpoint in pendingEndpoints)
         {
-            if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me => me.Id == endpoint.Id) == true))
+            if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me =>
+                me.HttpMethod == endpoint.HttpMethod && me.EndpointPath == endpoint.EndpointPath) == true))
             {
                 endpoint.Status = ModuleEndpointsStatus.Active;
             }
-            else if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee => ee.Id == endpoint.Id) == true))
+            else if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee =>
+                ee.HttpMethod == endpoint.HttpMethod && ee.EndpointPath == endpoint.EndpointPath) == true))
             {
                 _context.ModuleEndpoints.Remove(endpoint);
             }
@@ -93,27 +102,11 @@ public class ModuleService : IModuleService
         
         // Ensure the used container ports are not conflicting
         var usedPorts = await _context.Modules.Select(m => m.ContainerPort).ToListAsync(ct);
-        int availablePort;
-        if (dto.ContainerPort.HasValue)
-        {
-            if (usedPorts.Contains(dto.ContainerPort.Value))
-                throw new ArgumentException($"Container port '{dto.ContainerPort.Value}' is already in use.");
-
-            availablePort = dto.ContainerPort.Value;
-        }
-        else
-        {            
-            availablePort = Enumerable.Range(1024, 48127).Except(usedPorts).FirstOrDefault();
-        }
+        var availablePort = GetAvailablePort(usedPorts, dto.ContainerPort ?? 0);
 
         // Ensure the used base endpoint paths are not conflicting
         var usedBasePaths = await _context.Modules.Select(m => m.BaseEndpointPath).ToListAsync(ct);
-        if (usedBasePaths.Contains(normalizedBasePath))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");
-        else if (usedBasePaths.Any(ubp => ubp.StartsWith(normalizedBasePath)))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with an existing base endpoint path.");
-        else if (usedBasePaths.Any(ubp => normalizedBasePath.StartsWith(ubp)))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path.");
+        CheckBaseEndpointPathConflict(usedBasePaths, normalizedBasePath);
 
         // Create the module entity and set the available container port
         var module = dto.ToModuleEntity();
@@ -121,48 +114,29 @@ public class ModuleService : IModuleService
         module.ContainerPort = availablePort;
 
         // Prepare the target path for extracting the module file
-        var targetPath = Path.Combine(_storageBasePath, module.Id.ToString());
-        var file = dto.ModuleFile;
-        if (file.Length == 0)
-            throw new ArgumentException("Module file cannot be empty.");
-        if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Module file must be a .zip archive.");
-            
-        if (Directory.Exists(targetPath))
-            Directory.Delete(targetPath, true);
-        
-        try
-        {
-            Directory.CreateDirectory(targetPath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create target directory '{TargetPath}'.", targetPath);
-            throw;
-        }
-
-        var tmpZipPath = Path.Combine(Path.GetTempPath(), file.FileName);
-        try
-        {
-            using (var stream = new FileStream(tmpZipPath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream, ct);
-            }
-
-            ValidateModuleArchive(tmpZipPath);
-            ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
-            _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
-        }
-        finally
-        {
-            DeleteTemporaryFile(tmpZipPath, module.Id);
-        }
+        var targetPath = await CreateModuleTargetPathAsync(module.Id, dto.ModuleFile, ct);
 
         // Set the storage path for the module
         module.StoragePath = targetPath;
 
-        // TODO: Scan the extracted module files for endpoint definitions and other relevant metadata.
-        // And check the enpoints if the user has provided any in the request.
+        ModuleScanResultDto result;
+        try
+        {
+            result = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
+        }
+        catch
+        {
+            DeleteModuleDirectory(module.StoragePath, module.Id);
+            throw;
+        }
+
+        var discoveredEndpoints = result.DiscoveredEndpoints;
+
+        // Create a discrepancy report
+        var discrepancyReport = CreateEndpointDiscrepancyReport(dto.InitialEndpoints?.ToList(), discoveredEndpoints, module.Id);
+    
+        if (discrepancyReport?.HasDiscrepancy == true)
+            module.Status = ModuleStatus.PendingConfirmation;
 
         _context.Modules.Add(module);
         await _context.SaveChangesAsync(ct);
@@ -172,7 +146,7 @@ public class ModuleService : IModuleService
         return new ModuleCreationResultDto
         {
             Module = module.ToModuleDetailDto(),
-            DiscrepancyReport = null // TODO: Generate a discrepancy report after scanning the module files.
+            DiscrepancyReport = discrepancyReport
         };
     }
 
@@ -306,7 +280,7 @@ public class ModuleService : IModuleService
         finally
         {
             DeleteTemporaryFile(tmpZipPath, moduleId);
-            DeleteStagingDirectory(stagingDirectory, moduleId);
+            DeleteModuleDirectory(stagingDirectory, moduleId);
         }
 
         // TODO: Update the associated Docker container and check for sub-endpoints.
@@ -352,11 +326,11 @@ public class ModuleService : IModuleService
     }
 
     /// <summary>
-    /// Deletes a staging directory used during module update.
+    /// Deletes a directory used to store module files.
     /// </summary>
     /// <param name="directoryPath">The path to the staging directory to delete.</param>
     /// <param name="moduleId">The ID of the module associated with the staging directory.</param>
-    private void DeleteStagingDirectory(string directoryPath, Guid moduleId)
+    private void DeleteModuleDirectory(string directoryPath, Guid moduleId)
     {
         try
         {
@@ -365,7 +339,186 @@ public class ModuleService : IModuleService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to delete staging directory for module with ID '{ModuleId}'.", moduleId);
+            _logger.LogWarning(ex, "Failed to delete module directory for module with ID '{ModuleId}'.", moduleId);
         }
+    }
+
+    /// <summary>
+    /// Gets an available container port, 
+    /// either the selected port if it is not in use, 
+    /// or the first available port in the range 1024-49151.
+    /// </summary>
+    /// <param name="usedPorts">The list of currently used ports.</param>
+    /// <param name="selectedPort">The desired port, or 0 to automatically select an available port.</param>
+    /// <returns>The available port.</returns>
+    private static int GetAvailablePort(IEnumerable<int> usedPorts, int selectedPort)
+    {
+        int availablePort;
+        if (selectedPort > 0)
+        {
+            if (usedPorts.Contains(selectedPort))
+                throw new ArgumentException($"Container port '{selectedPort}' is already in use.");
+
+            availablePort = selectedPort;
+        }
+        else
+        {            
+            availablePort = Enumerable.Range(1024, 48127).Except(usedPorts).FirstOrDefault();
+        }
+
+        return availablePort;
+    }
+
+    /// <summary>
+    /// Checks for conflicts with existing base endpoint paths.
+    /// Throws an ArgumentException if a conflict is found.
+    /// </summary>
+    /// <param name="usedBasePaths">The list of currently used base endpoint paths.</param>
+    /// <param name="normalizedBasePath">The normalized base endpoint path to check.</param>
+    /// <exception cref="ArgumentException">Thrown if a conflict is found with existing base endpoint paths.</exception>
+    private static void CheckBaseEndpointPathConflict(IEnumerable<string> usedBasePaths, string normalizedBasePath)
+    {
+        if (usedBasePaths.Contains(normalizedBasePath))
+            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");
+        else if (usedBasePaths.Any(ubp => ubp.StartsWith(normalizedBasePath)))
+            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with an existing base endpoint path.");
+        else if (usedBasePaths.Any(ubp => normalizedBasePath.StartsWith(ubp)))
+            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path.");
+    }
+
+    /// <summary>
+    /// Creates the target path for a module by extracting its files from the provided .zip archive.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="file">The .zip archive containing the module files.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>The path to the extracted module files.</returns>
+    private async Task<string> CreateModuleTargetPathAsync(Guid moduleId, IFormFile file, CancellationToken ct = default)
+    {
+        var targetPath = Path.Combine(_storageBasePath, moduleId.ToString());
+        if (file.Length == 0)
+            throw new ArgumentException("Module file cannot be empty.");
+        if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Module file must be a .zip archive.");
+            
+        if (Directory.Exists(targetPath))
+            Directory.Delete(targetPath, true);
+        
+        try
+        {
+            Directory.CreateDirectory(targetPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create target directory '{TargetPath}'.", targetPath);
+            throw;
+        }
+
+        var tmpZipPath = Path.Combine(Path.GetTempPath(), file.FileName);
+        try
+        {
+            using (var stream = new FileStream(tmpZipPath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream, ct);
+            }
+
+            ValidateModuleArchive(tmpZipPath);
+            ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
+            _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
+        }
+        catch
+        {
+            DeleteModuleDirectory(targetPath, moduleId);
+            throw;
+        }
+        finally
+        {
+            DeleteTemporaryFile(tmpZipPath, moduleId);
+        }
+
+        return targetPath;
+    }
+
+    /// <summary>
+    /// Creates a report detailing discrepancies between the initial and discovered endpoints for a module.
+    /// </summary>
+    /// <param name="initialEndpoints">The list of initially defined endpoints for the module.</param>
+    /// <param name="discoveredEndpoints">The list of endpoints discovered for the module.</param>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <returns>A report detailing any discrepancies between the initial and discovered endpoints.</returns>
+    private EndpointDiscrepancyReportDto? CreateEndpointDiscrepancyReport(
+        List<CreateModuleEndpointDto>? initialEndpoints, 
+        List<DiscoveredEndpointDto> discoveredEndpoints, 
+        Guid moduleId)
+    {
+        EndpointDiscrepancyReportDto discrepancyReport = new();
+        if (initialEndpoints is null || initialEndpoints.Count == 0)
+        {
+            foreach (var endpoint in discoveredEndpoints)
+            {
+                _context.ModuleEndpoints.Add(new ModuleEndpoint
+                {
+                    ModuleId = moduleId,
+                    HttpMethod = endpoint.HttpMethod,
+                    EndpointPath = endpoint.EndpointPath
+                });
+            }
+        }
+        else
+        {
+            foreach (var endpoint in initialEndpoints)
+            {
+                var discoveredEndpoint = discoveredEndpoints.Find(de =>
+                    de.HttpMethod == endpoint.HttpMethod &&
+                    de.EndpointPath == endpoint.EndpointPath);
+
+                if (discoveredEndpoint is null)
+                {
+                    _context.ModuleEndpoints.Add(new ModuleEndpoint
+                    {
+                        ModuleId = moduleId,
+                        HttpMethod = endpoint.HttpMethod,
+                        EndpointPath = endpoint.EndpointPath,
+                        Status = ModuleEndpointsStatus.PendingConfirmation
+                    });
+
+                    discrepancyReport.MissingEndpoints ??= [];
+                    discrepancyReport.MissingEndpoints.Add(new DiscoveredEndpointDto { HttpMethod = endpoint.HttpMethod, EndpointPath = endpoint.EndpointPath });
+                    discrepancyReport.HasDiscrepancy = true;
+                }
+                else
+                {
+                    _context.ModuleEndpoints.Add(new ModuleEndpoint
+                    {
+                        ModuleId = moduleId,
+                        HttpMethod = endpoint.HttpMethod,
+                        EndpointPath = endpoint.EndpointPath
+                    });
+
+                    discrepancyReport.MatchedEndpoints ??= [];
+                    discrepancyReport.MatchedEndpoints.Add(new DiscoveredEndpointDto { HttpMethod = endpoint.HttpMethod, EndpointPath = endpoint.EndpointPath });
+                }
+            }
+
+            foreach (var endpoint in discoveredEndpoints.Where(discoveredEndpoint =>
+                         !initialEndpoints.Any(initialEndpoint =>
+                             initialEndpoint.HttpMethod == discoveredEndpoint.HttpMethod &&
+                             initialEndpoint.EndpointPath == discoveredEndpoint.EndpointPath)))
+            {
+                _context.ModuleEndpoints.Add(new ModuleEndpoint
+                {
+                    ModuleId = moduleId,
+                    HttpMethod = endpoint.HttpMethod,
+                    EndpointPath = endpoint.EndpointPath,
+                    Status = ModuleEndpointsStatus.PendingConfirmation
+                });
+
+                discrepancyReport.ExtraEndpoints ??= [];
+                discrepancyReport.ExtraEndpoints.Add(endpoint);
+                discrepancyReport.HasDiscrepancy = true;
+            }
+        }
+        
+        return discrepancyReport ?? null;
     }
 }
