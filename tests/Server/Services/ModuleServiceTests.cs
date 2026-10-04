@@ -656,8 +656,8 @@ public class ModuleServiceTests : IDisposable
         Assert.NotNull(result);
         Assert.Equal(module.Id, result.Id);
         Assert.Equal("Metrics", result.ModuleName);
-        Assert.Single(result.SubEndpoints);
-        Assert.Equal("/prometheus", result.SubEndpoints.First().EndpointPath);
+        Assert.Single(result.Endpoints);
+        Assert.Equal("/prometheus", result.Endpoints.First().EndpointPath);
     }
 
     #endregion
