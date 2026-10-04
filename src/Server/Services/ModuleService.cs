@@ -74,11 +74,13 @@ public class ModuleService : IModuleService
 
         foreach (var endpoint in pendingEndpoints)
         {
-            if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me => me.EndpointPath == endpoint.EndpointPath) == true))
+            if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me =>
+                me.HttpMethod == endpoint.HttpMethod && me.EndpointPath == endpoint.EndpointPath) == true))
             {
                 endpoint.Status = ModuleEndpointsStatus.Active;
             }
-            else if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee => ee.EndpointPath == endpoint.EndpointPath) == true))
+            else if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee =>
+                ee.HttpMethod == endpoint.HttpMethod && ee.EndpointPath == endpoint.EndpointPath) == true))
             {
                 _context.ModuleEndpoints.Remove(endpoint);
             }
@@ -117,7 +119,17 @@ public class ModuleService : IModuleService
         // Set the storage path for the module
         module.StoragePath = targetPath;
 
-        var result = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
+        ModuleScanResultDto result;
+        try
+        {
+            result = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
+        }
+        catch
+        {
+            DeleteModuleDirectory(module.StoragePath, module.Id);
+            throw;
+        }
+
         var discoveredEndpoints = result.DiscoveredEndpoints;
 
         // Create a discrepancy report
@@ -268,7 +280,7 @@ public class ModuleService : IModuleService
         finally
         {
             DeleteTemporaryFile(tmpZipPath, moduleId);
-            DeleteStagingDirectory(stagingDirectory, moduleId);
+            DeleteModuleDirectory(stagingDirectory, moduleId);
         }
 
         // TODO: Update the associated Docker container and check for sub-endpoints.
@@ -314,11 +326,11 @@ public class ModuleService : IModuleService
     }
 
     /// <summary>
-    /// Deletes a staging directory used during module update.
+    /// Deletes a directory used to store module files.
     /// </summary>
     /// <param name="directoryPath">The path to the staging directory to delete.</param>
     /// <param name="moduleId">The ID of the module associated with the staging directory.</param>
-    private void DeleteStagingDirectory(string directoryPath, Guid moduleId)
+    private void DeleteModuleDirectory(string directoryPath, Guid moduleId)
     {
         try
         {
@@ -327,7 +339,7 @@ public class ModuleService : IModuleService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to delete staging directory for module with ID '{ModuleId}'.", moduleId);
+            _logger.LogWarning(ex, "Failed to delete module directory for module with ID '{ModuleId}'.", moduleId);
         }
     }
 
@@ -413,6 +425,11 @@ public class ModuleService : IModuleService
             ValidateModuleArchive(tmpZipPath);
             ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
             _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
+        }
+        catch
+        {
+            DeleteModuleDirectory(targetPath, moduleId);
+            throw;
         }
         finally
         {

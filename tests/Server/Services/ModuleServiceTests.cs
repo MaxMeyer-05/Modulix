@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text;
 using System.IO.Compression;
 
@@ -251,6 +252,9 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal(9000, result.Module.ContainerPort);
         Assert.True(Directory.Exists(result.Module.StoragePath));
         Assert.True(File.Exists(Path.Combine(result.Module.StoragePath, entryName)));
+        Assert.Equal(result.Module.StoragePath, _endpointScanner.ScannedDirectory);
+        Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
+        Assert.Equal(ModuleStatus.Created, result.Module.Status);
 
         // Assert - Database state
         var persisted = await _context.Modules.FindAsync(result.Module.Id);
@@ -289,6 +293,104 @@ public class ModuleServiceTests : IDisposable
         Assert.All(persistedEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status));
         Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/health");
         Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/jobs");
+        Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
+        Assert.Equal(ModuleStatus.Created, result.Module.Status);
+    }
+
+    [Fact]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_AllInitialEndpointsMatch_ReturnsMatchedReportAndCreatedModule()
+    {
+        // Arrange
+        _endpointScanner.DiscoveredEndpoints =
+        [
+            new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }
+        ];
+
+        var dto = new CreateModuleDto
+        {
+            ModuleName = "Matched Module",
+            BaseEndpointPath = "api/v1/matched",
+            ModuleFile = CreateDummyZipFile(),
+            InitialEndpoints =
+            [
+                new CreateModuleEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }
+            ]
+        };
+
+        // Act
+        var result = await _sut.CreateModuleAsync(dto);
+
+        // Assert
+        Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
+        Assert.Equal(ModuleStatus.Created, result.Module.Status);
+        Assert.Single(result.DiscrepancyReport.MatchedEndpoints!);
+        Assert.Null(result.DiscrepancyReport.MissingEndpoints);
+        Assert.Null(result.DiscrepancyReport.ExtraEndpoints);
+    }
+
+    [Fact]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ScannerFails_DoesNotPersistModuleOrLeaveStorageDirectory()
+    {
+        // Arrange
+        _endpointScanner.ExceptionToThrow = new InvalidOperationException("Module scan failed.");
+        var dto = new CreateModuleDto
+        {
+            ModuleName = "Invalid Module",
+            BaseEndpointPath = "api/v1/invalid",
+            ModuleFile = CreateDummyZipFile()
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.CreateModuleAsync(dto));
+
+        Assert.Equal("Module scan failed.", exception.Message);
+        Assert.Empty(await _context.Modules.ToListAsync());
+        AssertNoStoredModuleDirectories();
+    }
+
+    [Fact]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ArchiveExceedsEntryLimit_DoesNotPersistModuleOrLeaveStorageDirectory()
+    {
+        // Arrange
+        var dto = new CreateModuleDto
+        {
+            ModuleName = "Oversized Module",
+            BaseEndpointPath = "api/v1/oversized",
+            ModuleFile = CreateZipFileWithEntries(1_001)
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.CreateModuleAsync(dto));
+
+        Assert.Equal("Module archive exceeds the maximum allowed number of entries.", exception.Message);
+        Assert.Empty(await _context.Modules.ToListAsync());
+        AssertNoStoredModuleDirectories();
+    }
+
+    [Fact]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ArchiveExceedsUncompressedSizeLimit_DoesNotPersistModuleOrLeaveStorageDirectory()
+    {
+        // Arrange
+        var dto = new CreateModuleDto
+        {
+            ModuleName = "Oversized Archive Module",
+            BaseEndpointPath = "api/v1/oversized-archive",
+            ModuleFile = CreateZipFileWithClaimedUncompressedSize(512U * 1024 * 1024 + 1)
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.CreateModuleAsync(dto));
+
+        Assert.Equal("Module archive exceeds the maximum allowed uncompressed size.", exception.Message);
+        Assert.Empty(await _context.Modules.ToListAsync());
+        AssertNoStoredModuleDirectories();
     }
 
     [Fact]
@@ -432,6 +534,48 @@ public class ModuleServiceTests : IDisposable
 
         var removedExtra = await _context.ModuleEndpoints.FindAsync(extraEndpoint.Id);
         Assert.Null(removedExtra);
+    }
+
+    [Fact]
+    [Trait("Feature", "ConfirmEndpoints")]
+    public async Task ConfirmEndpointsAsync_SamePathWithDifferentHttpMethod_DoesNotConfirmEndpoint()
+    {
+        // Arrange
+        var module = CreateTestModuleEntity("Pending Module", "api/v1/pending-method", 8082);
+        module.Status = ModuleStatus.PendingConfirmation;
+
+        var pendingEndpoint = new ModuleEndpoint
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        };
+
+        module.SubEndpoints.Add(pendingEndpoint);
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var confirmDto = new ConfirmEndpointsDto
+        {
+            ConfirmedEndpoints =
+            [
+                new EndpointDiscrepancyReportDto
+                {
+                    ModuleId = module.Id,
+                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/health" }]
+                }
+            ]
+        };
+
+        // Act
+        await _sut.ConfirmEndpointsAsync(module.Id, confirmDto);
+
+        // Assert
+        var updatedEndpoint = await _context.ModuleEndpoints.FindAsync(pendingEndpoint.Id);
+        Assert.NotNull(updatedEndpoint);
+        Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, updatedEndpoint.Status);
     }
 
     #endregion
@@ -860,6 +1004,46 @@ public class ModuleServiceTests : IDisposable
         return new FormFile(memoryStream, 0, memoryStream.Length, "ModuleFile", "many-files.zip");
     }
 
+    private static IFormFile CreateZipFileWithClaimedUncompressedSize(uint uncompressedSize)
+    {
+        var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            archive.CreateEntry("payload.bin");
+        }
+
+        var archiveBytes = memoryStream.ToArray();
+        var centralDirectoryOffset = FindCentralDirectoryOffset(archiveBytes);
+        BinaryPrimitives.WriteUInt32LittleEndian(archiveBytes.AsSpan(centralDirectoryOffset + 24, sizeof(uint)), uncompressedSize);
+
+        var archiveStream = new MemoryStream(archiveBytes);
+        return new FormFile(archiveStream, 0, archiveStream.Length, "ModuleFile", "oversized.zip");
+    }
+
+    private static int FindCentralDirectoryOffset(byte[] archiveBytes)
+    {
+        for (var byteIndex = 0; byteIndex <= archiveBytes.Length - 4; byteIndex++)
+        {
+            if (archiveBytes[byteIndex] == 0x50 &&
+                archiveBytes[byteIndex + 1] == 0x4B &&
+                archiveBytes[byteIndex + 2] == 0x01 &&
+                archiveBytes[byteIndex + 3] == 0x02)
+            {
+                return byteIndex;
+            }
+        }
+
+        throw new InvalidOperationException("ZIP archive does not contain a central directory entry.");
+    }
+
+    private void AssertNoStoredModuleDirectories()
+    {
+        var modulesStorageDirectory = Path.Combine(_testRootDirectory, "storage", "modules");
+
+        Assert.True(Directory.Exists(modulesStorageDirectory));
+        Assert.Empty(Directory.EnumerateDirectories(modulesStorageDirectory));
+    }
+
     private sealed class FakeHostEnvironment(string rootPath) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Development";
@@ -872,12 +1056,24 @@ public class ModuleServiceTests : IDisposable
     {
         public List<DiscoveredEndpointDto> DiscoveredEndpoints { get; set; } = [];
 
-        public Task<ModuleScanResultDto> ScanDirectoryAsync(string moduleDirectoryPath, CancellationToken ct = default) =>
-            Task.FromResult(new ModuleScanResultDto
+        public Exception? ExceptionToThrow { get; set; }
+
+        public string? ScannedDirectory { get; private set; }
+
+        public Task<ModuleScanResultDto> ScanDirectoryAsync(string moduleDirectoryPath, CancellationToken ct = default)
+        {
+            ScannedDirectory = moduleDirectoryPath;
+            ct.ThrowIfCancellationRequested();
+
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
+            return Task.FromResult(new ModuleScanResultDto
             {
                 EntryAssemblyFileName = "module.dll",
                 DiscoveredEndpoints = DiscoveredEndpoints
             });
+        }
     }
 
     #endregion

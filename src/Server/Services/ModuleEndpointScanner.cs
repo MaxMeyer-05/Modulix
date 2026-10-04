@@ -198,13 +198,13 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
             {
                 ct.ThrowIfCancellationRequested();
 
-                var httpMethodAttributes = method.GetCustomAttributes().OfType<HttpMethodAttribute>().ToList();
+                var httpMethodAttributes = method.GetCustomAttributes().OfType<IActionHttpMethodProvider>().ToList();
 
                 foreach (var attr in httpMethodAttributes)
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    var actionTemplate = attr.Template ?? string.Empty;
+                    var actionTemplate = (attr as IRouteTemplateProvider)?.Template ?? string.Empty;
                     var httpMethods = attr.HttpMethods?.Any() == true ? attr.HttpMethods : ["GET"];
 
                     foreach (var baseRouteTemplate in baseRouteTemplates)
