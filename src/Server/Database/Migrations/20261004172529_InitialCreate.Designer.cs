@@ -11,7 +11,7 @@ using Server.Database.DbContexts;
 namespace Server.Database.Migrations
 {
     [DbContext(typeof(ServerContext))]
-    [Migration("20260926132006_InitialCreate")]
+    [Migration("20261004172529_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -32,6 +32,7 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ContainerId")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ContainerPort")
@@ -44,6 +45,10 @@ namespace Server.Database.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ModuleEntryAssemblyFileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ModuleName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -54,6 +59,7 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("StoragePath")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");

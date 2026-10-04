@@ -30,8 +30,9 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 builder.Services.AddScoped<IModuleEndpointScanner, ModuleEndpointScanner>();
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
+builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
+builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
 
 builder.Services.AddOptions<JwtOptions>()
     .BindConfiguration(JwtOptions.SectionName)

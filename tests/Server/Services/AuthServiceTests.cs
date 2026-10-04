@@ -179,94 +179,35 @@ public class AuthServiceTests : IDisposable
         Assert.True(updatedToken.IsRevoked);
     }
 
-    [Fact]
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("different-user")]
+    [InlineData("revoked")]
+    [InlineData("expired")]
     [Trait("Feature", "Logout")]
-    public async Task LogoutAsync_TokenDoesNotExist_ThrowsUnauthorizedAccessException()
+    public async Task LogoutAsync_InvalidToken_RejectsRequestWithoutChangingToken(string scenario)
     {
-        // Arrange
-        var userId = Guid.NewGuid();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _sut.LogoutAsync(userId, "non-existent-token"));
-
-        Assert.Equal("Provided refresh token is invalid.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "Logout")]
-    public async Task LogoutAsync_TokenBelongsToDifferentUser_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        var userA = UserTestFixture.CreateTestUser("userA");
-        var userBId = Guid.NewGuid();
-        _context.Users.Add(userA);
-
-        const string tokenValue = "user-a-refresh-token";
-        _context.RefreshTokens.Add(new RefreshToken
-        {
-            UserId = userA.Id,
-            Token = tokenValue,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
-            IsRevoked = false
-        });
-        await _context.SaveChangesAsync();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _sut.LogoutAsync(userBId, tokenValue));
-
-        Assert.Equal("Provided refresh token is invalid.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "Logout")]
-    public async Task LogoutAsync_TokenAlreadyRevoked_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        var user = UserTestFixture.CreateTestUser("revokeduser");
+        var user = UserTestFixture.CreateTestUser("invalidlogout");
         _context.Users.Add(user);
-
-        const string tokenValue = "already-revoked-token";
-        _context.RefreshTokens.Add(new RefreshToken
+        var token = new RefreshToken
         {
             UserId = user.Id,
-            Token = tokenValue,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
-            IsRevoked = true
-        });
+            Token = "existing-refresh-token",
+            ExpiresAtUtc = scenario == "expired" ? DateTime.UtcNow.AddMinutes(-1) : DateTime.UtcNow.AddDays(1),
+            IsRevoked = scenario == "revoked"
+        };
+        _context.RefreshTokens.Add(token);
         await _context.SaveChangesAsync();
+        var requestedUserId = scenario == "different-user" ? Guid.NewGuid() : user.Id;
+        var requestedToken = scenario == "missing" ? "missing-token" : token.Token;
 
-        // Act & Assert
         var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _sut.LogoutAsync(user.Id, tokenValue));
+            _sut.LogoutAsync(requestedUserId, requestedToken));
 
         Assert.Equal("Provided refresh token is invalid.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "Logout")]
-    public async Task LogoutAsync_TokenExpired_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        var user = UserTestFixture.CreateTestUser("expiredlogoutuser");
-        _context.Users.Add(user);
-
-        const string tokenValue = "expired-refresh-token";
-        _context.RefreshTokens.Add(new RefreshToken
-        {
-            UserId = user.Id,
-            Token = tokenValue,
-            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1),
-            IsRevoked = false
-        });
-        await _context.SaveChangesAsync();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _sut.LogoutAsync(user.Id, tokenValue));
-
-        Assert.Equal("Provided refresh token is invalid.", exception.Message);
+        var persisted = await _context.RefreshTokens.AsNoTracking().SingleAsync();
+        Assert.Equal(token.Id, persisted.Id);
+        Assert.Equal(scenario == "revoked", persisted.IsRevoked);
     }
 
     #endregion

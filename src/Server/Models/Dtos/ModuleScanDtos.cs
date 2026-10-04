@@ -34,6 +34,8 @@ public class ModuleScanResultDto
     /// <summary>
     /// The file name of the primary entry-point assembly (e.g., "AnalyticsModule.dll").
     /// </summary>
+    /// <example>AnalyticsModule.dll</example>
+    /// <value>e.g., AnalyticsModule.dll</value>
     [Required]
     public string EntryAssemblyFileName { get; set; } = null!;
 

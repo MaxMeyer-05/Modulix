@@ -5,6 +5,7 @@ using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.FileProviders;
@@ -33,6 +34,8 @@ public class ModuleServiceTests : IDisposable
     private readonly ServerContext _context;
     private readonly string _testRootDirectory;
     private readonly FakeModuleEndpointScanner _endpointScanner;
+    private readonly FakeDockerService _dockerService;
+    private readonly FailingSaveInterceptor _saveInterceptor = new();
     private readonly ModuleService _sut;
 
     #region Setup & Teardown
@@ -44,6 +47,7 @@ public class ModuleServiceTests : IDisposable
 
         var options = new DbContextOptionsBuilder<ServerContext>()
             .UseSqlite(_connection)
+            .AddInterceptors(_saveInterceptor)
             .Options;
 
         _context = new ServerContext(options);
@@ -54,11 +58,13 @@ public class ModuleServiceTests : IDisposable
 
         var fakeEnv = new FakeHostEnvironment(_testRootDirectory);
         _endpointScanner = new FakeModuleEndpointScanner();
+        _dockerService = new FakeDockerService();
 
         _sut = new ModuleService(
             _context,
             NullLogger<ModuleService>.Instance,
             fakeEnv,
+            _dockerService,
             _endpointScanner);
     }
 
@@ -254,7 +260,7 @@ public class ModuleServiceTests : IDisposable
         Assert.True(File.Exists(Path.Combine(result.Module.StoragePath, entryName)));
         Assert.Equal(result.Module.StoragePath, _endpointScanner.ScannedDirectory);
         Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
-        Assert.Equal(ModuleStatus.Created, result.Module.Status);
+        Assert.Equal(ModuleStatus.Running, result.Module.Status);
 
         // Assert - Database state
         var persisted = await _context.Modules.FindAsync(result.Module.Id);
@@ -294,7 +300,97 @@ public class ModuleServiceTests : IDisposable
         Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/health");
         Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/jobs");
         Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
-        Assert.Equal(ModuleStatus.Created, result.Module.Status);
+        Assert.Equal(ModuleStatus.Running, result.Module.Status);
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("absolute")]
+    [InlineData("relative")]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ClientFileName_DoesNotOverwriteOrDeleteExistingFile(string pathKind)
+    {
+        var existingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
+        await File.WriteAllTextAsync(existingPath, "existing file");
+        var fileName = pathKind switch
+        {
+            "absolute" => existingPath,
+            "relative" => Path.Combine("..", Path.GetFileName(Path.TrimEndingDirectorySeparator(Path.GetTempPath())), Path.GetFileName(existingPath)),
+            _ => Path.GetFileName(existingPath)
+        };
+
+        try
+        {
+            var result = await _sut.CreateModuleAsync(new CreateModuleDto
+            {
+                ModuleName = "Safe Upload",
+                BaseEndpointPath = "api/v1/safe-upload",
+                ModuleFile = CreateDummyZipFile(fileName)
+            });
+
+            Assert.Equal(ModuleStatus.Running, result.Module.Status);
+            Assert.Equal("existing file", await File.ReadAllTextAsync(existingPath));
+        }
+        finally
+        {
+            File.Delete(existingPath);
+        }
+    }
+
+    [Theory]
+    [InlineData("running", false)]
+    [InlineData("running", true)]
+    [InlineData("pending", false)]
+    [InlineData("build", false)]
+    [InlineData("start", false)]
+    [InlineData("canceled", false)]
+    [InlineData("canceled", true)]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_SaveFails_CleansCandidateAndPreservesOriginalFailure(string scenario, bool cleanupFails)
+    {
+        using var cancellation = new CancellationTokenSource();
+        Exception failure = scenario == "canceled"
+            ? new OperationCanceledException(cancellation.Token)
+            : new InvalidOperationException("Database save failed.");
+        _saveInterceptor.ExceptionToThrow = failure;
+        if (scenario == "canceled")
+            _saveInterceptor.BeforeSave = cancellation.Cancel;
+        if (cleanupFails)
+            _dockerService.RemoveException = new InvalidOperationException("Cleanup failed.");
+        if (scenario == "build")
+            _dockerService.BuildException = new InvalidOperationException("Build failed.");
+        if (scenario == "start")
+            _dockerService.StartException = new InvalidOperationException("Start failed.");
+        _endpointScanner.DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }];
+
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.CreateModuleAsync(new CreateModuleDto
+            {
+                ModuleName = "Unsaved Module",
+                BaseEndpointPath = "api/v1/unsaved",
+                ModuleFile = CreateDummyZipFile(),
+                InitialEndpoints = scenario == "pending"
+                    ? [new CreateModuleEndpointDto { HttpMethod = "POST", EndpointPath = "/jobs" }]
+                    : null
+            }, cancellation.Token));
+
+        Assert.Same(failure, exception);
+        var expectedCalls = scenario switch
+        {
+            "pending" => Array.Empty<string>(),
+            "build" => ["build"],
+            _ => ["build", "start", "remove:replacement-container"]
+        };
+        Assert.Equal(expectedCalls, _dockerService.Calls);
+        Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
+        Assert.Empty(await _context.ModuleEndpoints.AsNoTracking().ToListAsync());
+        Assert.Equal(cleanupFails, Directory.Exists(_endpointScanner.ScannedDirectory));
+
+        _saveInterceptor.ExceptionToThrow = null;
+        _saveInterceptor.BeforeSave = null;
+        await _context.SaveChangesAsync();
+        Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
+        Assert.Empty(await _context.ModuleEndpoints.AsNoTracking().ToListAsync());
     }
 
     [Fact]
@@ -323,7 +419,7 @@ public class ModuleServiceTests : IDisposable
 
         // Assert
         Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
-        Assert.Equal(ModuleStatus.Created, result.Module.Status);
+        Assert.Equal(ModuleStatus.Running, result.Module.Status);
         Assert.Single(result.DiscrepancyReport.MatchedEndpoints!);
         Assert.Null(result.DiscrepancyReport.MissingEndpoints);
         Assert.Null(result.DiscrepancyReport.ExtraEndpoints);
@@ -351,46 +447,55 @@ public class ModuleServiceTests : IDisposable
         AssertNoStoredModuleDirectories();
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(true, "Module archive exceeds the maximum allowed number of entries.")]
+    [InlineData(false, "Module archive exceeds the maximum allowed uncompressed size.")]
     [Trait("Feature", "CreateModule")]
-    public async Task CreateModuleAsync_ArchiveExceedsEntryLimit_DoesNotPersistModuleOrLeaveStorageDirectory()
+    public async Task CreateModuleAsync_ArchiveExceedsLimits_DoesNotPersistModuleOrLeaveStorageDirectory(
+        bool exceedsEntryCount, string expectedMessage)
     {
-        // Arrange
-        var dto = new CreateModuleDto
-        {
-            ModuleName = "Oversized Module",
-            BaseEndpointPath = "api/v1/oversized",
-            ModuleFile = CreateZipFileWithEntries(1_001)
-        };
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.CreateModuleAsync(dto));
-
-        Assert.Equal("Module archive exceeds the maximum allowed number of entries.", exception.Message);
-        Assert.Empty(await _context.Modules.ToListAsync());
-        AssertNoStoredModuleDirectories();
-    }
-
-    [Fact]
-    [Trait("Feature", "CreateModule")]
-    public async Task CreateModuleAsync_ArchiveExceedsUncompressedSizeLimit_DoesNotPersistModuleOrLeaveStorageDirectory()
-    {
-        // Arrange
         var dto = new CreateModuleDto
         {
             ModuleName = "Oversized Archive Module",
             BaseEndpointPath = "api/v1/oversized-archive",
-            ModuleFile = CreateZipFileWithClaimedUncompressedSize(512U * 1024 * 1024 + 1)
+            ModuleFile = exceedsEntryCount
+                ? CreateZipFileWithEntries(1_001)
+                : CreateZipFileWithClaimedUncompressedSize(512U * 1024 * 1024 + 1)
         };
 
-        // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _sut.CreateModuleAsync(dto));
 
-        Assert.Equal("Module archive exceeds the maximum allowed uncompressed size.", exception.Message);
+        Assert.Equal(expectedMessage, exception.Message);
         Assert.Empty(await _context.Modules.ToListAsync());
         AssertNoStoredModuleDirectories();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ProvisioningFails_PersistsFailedStatus(bool failBuild)
+    {
+        var failure = new InvalidOperationException("Provisioning failed.");
+        if (failBuild)
+            _dockerService.BuildException = failure;
+        else
+            _dockerService.StartException = failure;
+
+        var result = await _sut.CreateModuleAsync(new CreateModuleDto
+        {
+            ModuleName = "Failed Module",
+            BaseEndpointPath = "api/v1/failed",
+            ModuleFile = CreateDummyZipFile()
+        });
+
+        Assert.Equal(ModuleStatus.Failed, result.Module.Status);
+        Assert.Equal(failBuild ? null : "replacement-container", result.Module.ContainerId);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync();
+        Assert.Equal(result.Module.Id, persisted.Id);
+        Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.Equal(failBuild ? ["build"] : new[] { "build", "start" }, _dockerService.Calls);
     }
 
     [Fact]
@@ -422,6 +527,7 @@ public class ModuleServiceTests : IDisposable
         // Assert
         Assert.True(result.DiscrepancyReport!.HasDiscrepancy);
         Assert.Equal(ModuleStatus.PendingConfirmation, result.Module.Status);
+        Assert.Empty(_dockerService.Calls);
         Assert.Contains(result.DiscrepancyReport.MatchedEndpoints!, endpoint => endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/health");
         Assert.Contains(result.DiscrepancyReport.MissingEndpoints!, endpoint => endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/jobs");
         Assert.Contains(result.DiscrepancyReport.ExtraEndpoints!, endpoint => endpoint.HttpMethod == "DELETE" && endpoint.EndpointPath == "/legacy");
@@ -525,7 +631,7 @@ public class ModuleServiceTests : IDisposable
         var result = await _sut.ConfirmEndpointsAsync(module.Id, confirmDto);
 
         // Assert - Return DTO
-        Assert.Equal(ModuleStatus.Created, result.Status);
+        Assert.Equal(ModuleStatus.Running, result.Status);
 
         // Assert - Database state
         var updatedMissing = await _context.ModuleEndpoints.FindAsync(missingEndpoint.Id);
@@ -570,12 +676,190 @@ public class ModuleServiceTests : IDisposable
         };
 
         // Act
-        await _sut.ConfirmEndpointsAsync(module.Id, confirmDto);
+        var result = await _sut.ConfirmEndpointsAsync(module.Id, confirmDto);
 
         // Assert
         var updatedEndpoint = await _context.ModuleEndpoints.FindAsync(pendingEndpoint.Id);
         Assert.NotNull(updatedEndpoint);
         Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, updatedEndpoint.Status);
+        Assert.Equal(ModuleStatus.PendingConfirmation, result.Status);
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [Trait("Feature", "ConfirmEndpoints")]
+    public async Task ConfirmEndpointsAsync_IncompleteConfirmation_StartsOnlyAfterLastDecision(
+        bool confirmMissing, bool confirmExtra)
+    {
+        var module = CreateTestModuleEntity("Partial Confirmation", "api/v1/partial", 8083);
+        module.Status = ModuleStatus.PendingConfirmation;
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "POST",
+            EndpointPath = "/legacy",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var missing = new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" };
+        var extra = new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" };
+        var partial = new ConfirmEndpointsDto
+        {
+            ConfirmedEndpoints = confirmMissing || confirmExtra
+                ? [new EndpointDiscrepancyReportDto
+                {
+                    ModuleId = module.Id,
+                    MissingEndpoints = confirmMissing ? [missing] : null,
+                    ExtraEndpoints = confirmExtra ? [extra] : null
+                }]
+                : []
+        };
+
+        var pendingResult = await _sut.ConfirmEndpointsAsync(module.Id, partial);
+
+        Assert.Equal(ModuleStatus.PendingConfirmation, pendingResult.Status);
+        Assert.Null(pendingResult.ContainerId);
+        Assert.Empty(_dockerService.Calls);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
+        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
+        var endpoints = await _context.ModuleEndpoints.AsNoTracking().Where(item => item.ModuleId == module.Id).ToListAsync();
+        Assert.Equal(confirmExtra ? 1 : 2, endpoints.Count);
+        Assert.Equal(confirmMissing ? ModuleEndpointsStatus.Active : ModuleEndpointsStatus.PendingConfirmation,
+            endpoints.Single(endpoint => endpoint.EndpointPath == "/health").Status);
+
+        var confirmedResult = await _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
+        {
+            ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+            {
+                ModuleId = module.Id,
+                MissingEndpoints = [missing],
+                ExtraEndpoints = [extra]
+            }]
+        });
+
+        Assert.Equal(ModuleStatus.Running, confirmedResult.Status);
+        Assert.Equal(["build", "start"], _dockerService.Calls);
+        Assert.DoesNotContain(confirmedResult.Endpoints, endpoint => endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [Trait("Feature", "ConfirmEndpoints")]
+    public async Task ConfirmEndpointsAsync_ProvisioningFails_PersistsFailedStatus(bool failBuild)
+    {
+        var module = CreateTestModuleEntity("Failed Confirmation", "api/v1/failed-confirmation", 8084);
+        module.Status = ModuleStatus.PendingConfirmation;
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        var failure = new InvalidOperationException("Provisioning failed.");
+        if (failBuild)
+            _dockerService.BuildException = failure;
+        else
+            _dockerService.StartException = failure;
+
+        var result = await _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
+        {
+            ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+            {
+                ModuleId = module.Id,
+                MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+            }]
+        });
+
+        Assert.Equal(ModuleStatus.Failed, result.Status);
+        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(result.Endpoints).Status);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync();
+        Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.Equal(failBuild ? null : "replacement-container", persisted.ContainerId);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [Trait("Feature", "ConfirmEndpoints")]
+    public async Task ConfirmEndpointsAsync_SaveFails_CleansCandidateAndPreservesPendingModule(bool cleanupFails, bool cancelSave)
+    {
+        var module = CreateTestModuleEntity("Unsaved Confirmation", "api/v1/unsaved-confirmation", 8085);
+        module.Status = ModuleStatus.PendingConfirmation;
+        module.StoragePath = Path.Combine(_testRootDirectory, "pending-module");
+        Directory.CreateDirectory(module.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(module.StoragePath, "module.dll"), "original");
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "POST",
+            EndpointPath = "/legacy",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        using var cancellation = new CancellationTokenSource();
+        Exception failure = cancelSave
+            ? new OperationCanceledException(cancellation.Token)
+            : new InvalidOperationException("Database save failed.");
+        _saveInterceptor.ExceptionToThrow = failure;
+        if (cancelSave)
+            _saveInterceptor.BeforeSave = cancellation.Cancel;
+        if (cleanupFails)
+            _dockerService.RemoveException = new InvalidOperationException("Cleanup failed.");
+
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
+            {
+                ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+                {
+                    ModuleId = module.Id,
+                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }],
+                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" }]
+                }]
+            }, cancellation.Token));
+
+        Assert.Same(failure, exception);
+        Assert.Equal(["build", "start", "remove:replacement-container"], _dockerService.Calls);
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
+        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
+        Assert.Null(persisted.ContainerId);
+        Assert.Equal(2, persisted.SubEndpoints.Count);
+        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
+        Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(module.StoragePath, "module.dll")));
+
+        _saveInterceptor.ExceptionToThrow = null;
+        _saveInterceptor.BeforeSave = null;
+        await _context.SaveChangesAsync();
+        persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
+        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
+        Assert.Null(persisted.ContainerId);
+        Assert.Equal(2, persisted.SubEndpoints.Count);
+        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
     }
 
     #endregion
@@ -656,8 +940,8 @@ public class ModuleServiceTests : IDisposable
         Assert.NotNull(result);
         Assert.Equal(module.Id, result.Id);
         Assert.Equal("Metrics", result.ModuleName);
-        Assert.Single(result.SubEndpoints);
-        Assert.Equal("/prometheus", result.SubEndpoints.First().EndpointPath);
+        Assert.Single(result.Endpoints);
+        Assert.Equal("/prometheus", result.Endpoints.First().EndpointPath);
     }
 
     #endregion
@@ -741,6 +1025,7 @@ public class ModuleServiceTests : IDisposable
         Assert.NotNull(updated);
         Assert.Equal(expectedName, updated.ModuleName);
         Assert.Equal(expectedDescription, updated.Description);
+        Assert.Empty(_dockerService.Calls);
     }
 
     [Fact]
@@ -785,103 +1070,82 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
     }
 
-    [Fact]
+    [Theory]
+    [InlineData("extension", typeof(InvalidOperationException), "The module file must be a ZIP archive.")]
+    [InlineData("corrupt", typeof(InvalidDataException), null)]
+    [InlineData("entries", typeof(InvalidOperationException), "Module archive exceeds the maximum allowed number of entries.")]
+    [InlineData("size", typeof(InvalidOperationException), "Module archive exceeds the maximum allowed uncompressed size.")]
     [Trait("Feature", "UpdateModuleFiles")]
-    public async Task UpdateModuleFilesAsync_NonZipFile_ThrowsInvalidOperationException()
+    public async Task UpdateModuleFilesAsync_InvalidUpload_PreservesActiveVersion(
+        string scenario, Type expectedExceptionType, string? expectedMessage)
     {
-        // Arrange
-        var module = CreateTestModuleEntity("Storage Mod", "api/v1/files", 8007);
+        var moduleDir = Path.Combine(_testRootDirectory, "protected-version");
+        Directory.CreateDirectory(moduleDir);
+        var existingFilePath = Path.Combine(moduleDir, "current_assembly.dll");
+        await File.WriteAllTextAsync(existingFilePath, "current module contents");
+
+        var module = CreateTestModuleEntity("Protected Module", "api/v1/protected", 8011);
+        module.StoragePath = moduleDir;
+        module.ContainerId = "existing-container";
+        module.Status = ModuleStatus.Running;
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
 
-        var stream = new MemoryStream(Encoding.UTF8.GetBytes("raw content"));
-        var invalidFile = new FormFile(stream, 0, stream.Length, "ModuleFile", "archive.rar");
+        IFormFile upload = scenario switch
+        {
+            "extension" => CreateDummyZipFile("archive.rar"),
+            "corrupt" => new FormFile(new MemoryStream([1, 2, 3]), 0, 3, "ModuleFile", "archive.zip"),
+            "entries" => CreateZipFileWithEntries(1_001),
+            "size" => CreateZipFileWithClaimedUncompressedSize(512U * 1024 * 1024 + 1),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
 
-        var dto = new UpdateModuleFilesDto { ModuleFile = invalidFile };
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = upload }));
 
-        // Act & Assert
+        Assert.IsType(expectedExceptionType, exception);
+        if (expectedMessage is not null)
+            Assert.Equal(expectedMessage, exception!.Message);
+        Assert.True(File.Exists(existingFilePath));
+        Assert.Equal("current module contents", await File.ReadAllTextAsync(existingFilePath));
+        Assert.Empty(_dockerService.Calls);
+        Assert.Null(_endpointScanner.ScannedDirectory);
+        Assert.Equal("existing-container", module.ContainerId);
+        Assert.Equal(ModuleStatus.Running, module.Status);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync();
+        Assert.Equal("existing-container", persisted.ContainerId);
+        Assert.Equal(moduleDir, persisted.StoragePath);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_UnconfirmedEndpoints_RejectsUpdateBeforeDockerCalls(bool modulePending)
+    {
+        var module = CreateTestModuleEntity("Pending Update", "api/v1/pending-update", 8012);
+        module.ContainerId = "existing-container";
+        module.Status = modulePending ? ModuleStatus.PendingConfirmation : ModuleStatus.Running;
+        if (!modulePending)
+        {
+            module.SubEndpoints.Add(new ModuleEndpoint
+            {
+                ModuleId = module.Id,
+                HttpMethod = "GET",
+                EndpointPath = "/health",
+                Status = ModuleEndpointsStatus.PendingConfirmation
+            });
+        }
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.UpdateModuleFilesAsync(module.Id, dto));
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() }));
 
-        Assert.Equal("The module file must be a ZIP archive.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "UpdateModuleFiles")]
-    public async Task UpdateModuleFilesAsync_NonZipFile_PreservesExistingDirectoryContents()
-    {
-        // Arrange
-        var moduleDir = Path.Combine(_testRootDirectory, "module_invalid_update");
-        Directory.CreateDirectory(moduleDir);
-        var existingFilePath = Path.Combine(moduleDir, "current_assembly.dll");
-        File.WriteAllText(existingFilePath, "current module contents");
-
-        var module = CreateTestModuleEntity("Protected Storage", "api/v1/protected", 8010);
-        module.StoragePath = moduleDir;
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var stream = new MemoryStream(Encoding.UTF8.GetBytes("not a zip archive"));
-        var invalidFile = new FormFile(stream, 0, stream.Length, "ModuleFile", "archive.tar");
-
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = invalidFile }));
-
-        Assert.True(File.Exists(existingFilePath));
-        Assert.Equal("current module contents", await File.ReadAllTextAsync(existingFilePath));
-    }
-
-    [Fact]
-    [Trait("Feature", "UpdateModuleFiles")]
-    public async Task UpdateModuleFilesAsync_CorruptedZip_PreservesExistingDirectoryContents()
-    {
-        // Arrange
-        var moduleDir = Path.Combine(_testRootDirectory, "module_corrupted_update");
-        Directory.CreateDirectory(moduleDir);
-        var existingFilePath = Path.Combine(moduleDir, "current_assembly.dll");
-        File.WriteAllText(existingFilePath, "current module contents");
-
-        var module = CreateTestModuleEntity("Corrupted Archive", "api/v1/corrupted", 8011);
-        module.StoragePath = moduleDir;
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var stream = new MemoryStream(Encoding.UTF8.GetBytes("not a valid zip archive"));
-        var corruptedZip = new FormFile(stream, 0, stream.Length, "ModuleFile", "archive.zip");
-
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = corruptedZip }));
-
-        Assert.True(File.Exists(existingFilePath));
-        Assert.Equal("current module contents", await File.ReadAllTextAsync(existingFilePath));
-    }
-
-    [Fact]
-    [Trait("Feature", "UpdateModuleFiles")]
-    public async Task UpdateModuleFilesAsync_ArchiveExceedsEntryLimit_PreservesExistingDirectoryContents()
-    {
-        // Arrange
-        var moduleDir = Path.Combine(_testRootDirectory, "module_entry_limit");
-        Directory.CreateDirectory(moduleDir);
-        var existingFilePath = Path.Combine(moduleDir, "current_assembly.dll");
-        File.WriteAllText(existingFilePath, "current module contents");
-
-        var module = CreateTestModuleEntity("Entry Limit", "api/v1/entry-limit", 8012);
-        module.StoragePath = moduleDir;
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var oversizedArchive = CreateZipFileWithEntries(1_001);
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = oversizedArchive }));
-
-        Assert.Equal("Module archive exceeds the maximum allowed number of entries.", exception.Message);
-        Assert.True(File.Exists(existingFilePath));
-        Assert.Equal("current module contents", await File.ReadAllTextAsync(existingFilePath));
+        Assert.Equal("Module endpoints must be confirmed before updating module files.", exception.Message);
+        Assert.Empty(_dockerService.Calls);
+        Assert.Null(_endpointScanner.ScannedDirectory);
+        Assert.Equal("existing-container", module.ContainerId);
     }
 
     [Fact]
@@ -895,8 +1159,26 @@ public class ModuleServiceTests : IDisposable
 
         var module = CreateTestModuleEntity("File Update", "api/v1/updatefiles", 8008);
         module.StoragePath = moduleDir;
+        module.ContainerId = "existing-container";
+        module.Status = ModuleStatus.Running;
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
+        _dockerService.BeforeReady = () =>
+        {
+            Assert.Equal("existing-container", module.ContainerId);
+            Assert.True(File.Exists(Path.Combine(moduleDir, "old_file.txt")));
+            Assert.Empty(_dockerService.RemovedContainerIds);
+            return Task.CompletedTask;
+        };
+        _dockerService.BeforeRemove = async containerId =>
+        {
+            if (containerId == "existing-container")
+            {
+                var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
+                Assert.Equal("replacement-container", persisted.ContainerId);
+                Assert.Equal(_dockerService.BuiltStoragePath, persisted.StoragePath);
+            }
+        };
 
         const string newFileName = "updated_assembly.dll";
         var newZip = CreateDummyZipFile("new_release.zip", newFileName);
@@ -907,7 +1189,157 @@ public class ModuleServiceTests : IDisposable
 
         // Assert
         Assert.False(File.Exists(Path.Combine(moduleDir, "old_file.txt")));
-        Assert.True(File.Exists(Path.Combine(moduleDir, newFileName)));
+        Assert.NotEqual(moduleDir, module.StoragePath);
+        Assert.True(File.Exists(Path.Combine(module.StoragePath, newFileName)));
+        Assert.Equal("replacement-container", module.ContainerId);
+        Assert.Equal(ModuleStatus.Running, module.Status);
+        Assert.Equal("module.dll", module.ModuleEntryAssemblyFileName);
+        Assert.Equal(["build", "start", "ready", "remove:existing-container"], _dockerService.Calls);
+    }
+
+    [Theory]
+    [InlineData("scan")]
+    [InlineData("build")]
+    [InlineData("start")]
+    [InlineData("readiness")]
+    [InlineData("save")]
+    [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_Failure_PreservesActiveVersion(string failureStage)
+    {
+        var module = CreateTestModuleEntity("Active", "api/v1/active", 8020);
+        module.StoragePath = Path.Combine(_testRootDirectory, "active-version");
+        module.ContainerId = "existing-container";
+        module.ModuleEntryAssemblyFileName = "original.dll";
+        module.Status = ModuleStatus.Running;
+        Directory.CreateDirectory(module.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(module.StoragePath, "original.dll"), "original");
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        var originalPath = module.StoragePath;
+        var failure = new InvalidOperationException("Simulated " + failureStage + " failure.");
+
+        switch (failureStage)
+        {
+            case "scan": _endpointScanner.ExceptionToThrow = failure; break;
+            case "build": _dockerService.BuildException = failure; break;
+            case "start": _dockerService.StartException = failure; break;
+            case "readiness": _dockerService.ReadinessException = failure; break;
+            case "save": _saveInterceptor.ExceptionToThrow = failure; break;
+        }
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() }));
+
+        Assert.Same(failure, exception);
+        Assert.Equal("existing-container", module.ContainerId);
+        Assert.Equal(originalPath, module.StoragePath);
+        Assert.Equal("original.dll", module.ModuleEntryAssemblyFileName);
+        Assert.Equal(ModuleStatus.Running, module.Status);
+        Assert.True(File.Exists(Path.Combine(originalPath, "original.dll")));
+        Assert.DoesNotContain("existing-container", _dockerService.RemovedContainerIds);
+        Assert.False(Directory.Exists(_endpointScanner.ScannedDirectory));
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
+        Assert.Equal("existing-container", persisted.ContainerId);
+        Assert.Equal(originalPath, persisted.StoragePath);
+        if (failureStage is "start" or "readiness" or "save")
+            Assert.Contains("replacement-container", _dockerService.RemovedContainerIds);
+    }
+
+    [Fact]
+    [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_EndpointContractChanges_PreservesActiveVersion()
+    {
+        var module = CreateTestModuleEntity("Contract", "api/v1/contract", 8021);
+        module.ContainerId = "existing-container";
+        module.Status = ModuleStatus.Running;
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id, HttpMethod = "GET", EndpointPath = "/original"
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _endpointScanner.DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/changed" }];
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() }));
+
+        Assert.Empty(_dockerService.Calls);
+        Assert.Equal("existing-container", module.ContainerId);
+        Assert.Equal("/original", Assert.Single(module.SubEndpoints).EndpointPath);
+        Assert.False(Directory.Exists(_endpointScanner.ScannedDirectory));
+    }
+
+    [Fact]
+    [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_ConcurrentActivation_DoesNotOverwriteWinningVersion()
+    {
+        var module = CreateTestModuleEntity("Concurrent", "api/v1/concurrent", 8022);
+        module.ContainerId = "existing-container";
+        module.Status = ModuleStatus.Running;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _dockerService.BeforeReady = async () =>
+        {
+            await _context.Modules.Where(item => item.Id == module.Id).ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.ContainerId, "winning-container")
+                .SetProperty(item => item.StoragePath, "winning-directory"));
+        };
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() }));
+
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
+        Assert.Equal("winning-container", persisted.ContainerId);
+        Assert.Equal("winning-directory", persisted.StoragePath);
+        Assert.Equal(["replacement-container"], _dockerService.RemovedContainerIds);
+        Assert.False(Directory.Exists(_dockerService.BuiltStoragePath));
+    }
+
+    [Fact]
+    [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_Cancellation_CleansCandidateWithIndependentToken()
+    {
+        var module = CreateTestModuleEntity("Canceled", "api/v1/canceled", 8023);
+        module.ContainerId = "existing-container";
+        module.Status = ModuleStatus.Running;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        using var cancellation = new CancellationTokenSource();
+        _dockerService.BeforeReady = () =>
+        {
+            cancellation.Cancel();
+            return Task.CompletedTask;
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() }, cancellation.Token));
+
+        Assert.Equal("existing-container", module.ContainerId);
+        Assert.Equal(["replacement-container"], _dockerService.RemovedContainerIds);
+        Assert.False(Directory.Exists(_dockerService.BuiltStoragePath));
+    }
+
+    [Fact]
+    [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_CleanupFails_KeepsNewVersionActive()
+    {
+        var module = CreateTestModuleEntity("Cleanup", "api/v1/cleanup", 8024);
+        module.ContainerId = "existing-container";
+        module.Status = ModuleStatus.Running;
+        module.StoragePath = Path.Combine(_testRootDirectory, "retained-version");
+        Directory.CreateDirectory(module.StoragePath);
+        var previousPath = module.StoragePath;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _dockerService.RemoveException = new InvalidOperationException("Cleanup failed.");
+
+        await _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() });
+
+        Assert.Equal("replacement-container", module.ContainerId);
+        Assert.True(Directory.Exists(module.StoragePath));
+        Assert.True(Directory.Exists(previousPath));
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
+        Assert.Equal("replacement-container", persisted.ContainerId);
     }
 
     #endregion
@@ -925,9 +1357,11 @@ public class ModuleServiceTests : IDisposable
         await _sut.DeleteModuleAsync(nonExistentId);
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     [Trait("Feature", "DeleteModule")]
-    public async Task DeleteModuleAsync_ModuleExists_DeletesStorageDirectoryAndRemovesEntityWithEndpoints()
+    public async Task DeleteModuleAsync_ModuleExists_DeletesStorageAndEndpoints(bool hasContainer)
     {
         // Arrange
         var moduleDir = Path.Combine(_testRootDirectory, "module_to_delete");
@@ -936,6 +1370,7 @@ public class ModuleServiceTests : IDisposable
 
         var module = CreateTestModuleEntity("To Delete", "api/v1/delete", 8009);
         module.StoragePath = moduleDir;
+        module.ContainerId = hasContainer ? "existing-container" : null;
 
         var endpoint = new ModuleEndpoint
         {
@@ -959,6 +1394,7 @@ public class ModuleServiceTests : IDisposable
         // Assert - Database records removed
         Assert.Null(await _context.Modules.FindAsync(module.Id));
         Assert.Null(await _context.ModuleEndpoints.FindAsync(endpoint.Id));
+        Assert.Equal(hasContainer ? ["existing-container"] : Array.Empty<string>(), _dockerService.RemovedContainerIds);
     }
 
     #endregion
@@ -973,6 +1409,7 @@ public class ModuleServiceTests : IDisposable
         BaseEndpointPath = basePath.TrimStart('/'),
         ContainerPort = port,
         StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
+        ModuleEntryAssemblyFileName = "module.dll",
         Status = ModuleStatus.Created,
         CreatedAtUtc = DateTime.UtcNow
     };
@@ -1073,6 +1510,81 @@ public class ModuleServiceTests : IDisposable
                 EntryAssemblyFileName = "module.dll",
                 DiscoveredEndpoints = DiscoveredEndpoints
             });
+        }
+    }
+
+    private sealed class FakeDockerService : IDockerService
+    {
+        public List<string> RemovedContainerIds { get; } = [];
+        public List<string> Calls { get; } = [];
+        public string? BuiltStoragePath { get; private set; }
+        public Exception? BuildException { get; set; }
+        public Exception? StartException { get; set; }
+        public Exception? ReadinessException { get; set; }
+        public Exception? RemoveException { get; set; }
+        public Func<Task>? BeforeReady { get; set; }
+        public Func<string, Task>? BeforeRemove { get; set; }
+
+        public Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Calls.Add("build");
+            BuiltStoragePath = storagePath;
+            if (BuildException is not null)
+                throw BuildException;
+            return Task.FromResult("replacement-container");
+        }
+
+        public Task RunContainerAsync(string containerId, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Calls.Add("start");
+            if (StartException is not null)
+                throw StartException;
+            return Task.CompletedTask;
+        }
+
+        public async Task WaitUntilReadyAsync(string containerId, CancellationToken ct = default)
+        {
+            Calls.Add("ready");
+            if (BeforeReady is not null)
+                await BeforeReady();
+            ct.ThrowIfCancellationRequested();
+            if (ReadinessException is not null)
+                throw ReadinessException;
+        }
+
+        public Task StopContainerAsync(string containerId, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public async Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Calls.Add("remove:" + containerId);
+            RemovedContainerIds.Add(containerId);
+            if (BeforeRemove is not null)
+                await BeforeRemove(containerId);
+            if (RemoveException is not null)
+                throw RemoveException;
+        }
+    }
+
+    private sealed class FailingSaveInterceptor : SaveChangesInterceptor
+    {
+        public Exception? ExceptionToThrow { get; set; }
+        public Action? BeforeSave { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            BeforeSave?.Invoke();
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
+            return ValueTask.FromResult(result);
         }
     }
 

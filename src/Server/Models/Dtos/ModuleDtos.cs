@@ -33,8 +33,8 @@ public class ModuleDto
     /// <summary>
     /// The base endpoint path of the module.
     /// </summary>
-    /// <value>e.g., /api/v1/analytics</value>
-    /// <example>/api/v1/analytics</example>
+    /// <value>e.g., /modules/analytics</value>
+    /// <example>/modules/analytics</example>
     public string BaseEndpointPath { get; set; } = null!;
 
     /// <summary>
@@ -81,7 +81,7 @@ public class ModuleDetailDto : ModuleDto
     /// <summary>
     /// The list of registered sub-endpoints belonging to this module.
     /// </summary>
-    public IEnumerable<ModuleEndpointDto> SubEndpoints { get; set; } = [];
+    public IEnumerable<ModuleEndpointDto> Endpoints { get; set; } = [];
 }
 
 /// <summary>

@@ -41,7 +41,7 @@ public static class ModuleMapper
         Status = module.Status,
         StoragePath = module.StoragePath,
         CreatedAtUtc = module.CreatedAtUtc,
-        SubEndpoints = module.SubEndpoints.Select(e => e.ToEndpointDto()).ToList()
+        Endpoints = module.SubEndpoints.Select(e => e.ToEndpointDto()).ToList()
     };
 
     /// <summary>

@@ -45,6 +45,7 @@ public class Module
     /// <summary>
     /// The container ID of the module.
     /// </summary>
+    [ConcurrencyCheck]
     public string? ContainerId { get; set; }
 
     /// <summary>
@@ -58,7 +59,14 @@ public class Module
     /// </summary>
     [Required]
     [MaxLength(500)]
+    [ConcurrencyCheck]
     public string StoragePath { get; set; } = null!;
+
+    /// <summary>
+    /// The entry assembly file name of the module.
+    /// </summary>
+    [Required]
+    public string ModuleEntryAssemblyFileName { get; set; } = null!;
 
     /// <summary>
     /// The status of the module.
