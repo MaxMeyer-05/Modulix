@@ -238,7 +238,7 @@ public class CreateModuleEndpointDto
     /// <example>/api/v1/analytics</example>
     [Required(ErrorMessage = "Base endpoint path is required.")]
     [MaxLength(200, ErrorMessage = "Base endpoint path cannot exceed 200 characters.")]
-    public string BaseEndpointPath { get; set; } = null!;
+    public string EndpointPath { get; set; } = null!;
 }
 
 /// <summary>
@@ -264,17 +264,17 @@ public class EndpointDiscrepancyReportDto
     /// <summary>
     /// The list of endpoints that match the expected configuration.
     /// </summary>
-    public List<ModuleEndpointDto>? MatchedEndpoints { get; set; }
+    public List<DiscoveredEndpointDto>? MatchedEndpoints { get; set; }
 
     /// <summary>
     /// The list of extra endpoints that are present.
     /// </summary>
-    public List<ModuleEndpointDto>? ExtraEndpoints { get; set; }
+    public List<DiscoveredEndpointDto>? ExtraEndpoints { get; set; }
 
     /// <summary>
     /// The list of missing endpoints that are expected.
     /// </summary>
-    public List<ModuleEndpointDto>? MissingEndpoints { get; set; }
+    public List<DiscoveredEndpointDto>? MissingEndpoints { get; set; }
 }
 
 /// <summary>
