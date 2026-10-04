@@ -5,6 +5,14 @@ managing modular applications in Docker containers. It accepts published module
 ZIP archives, scans their controller endpoints, and manages module metadata,
 endpoint confirmation, and container lifecycle.
 
+## Documentation
+
+| Guide | Contents |
+| --- | --- |
+| [Server, Authentication, and Users](docs/readme.server.md) | Setup, configuration, authentication, token lifecycle, current-user and admin APIs, and error handling. |
+| [Module Management](docs/readme.module-management.md) | Archive preparation, upload fields and limits, endpoint confirmation, Docker lifecycle, file replacement, and deletion. |
+| [Postman testing conventions](postman/documents/testing-conventions.md) | Request order, environment variables, test data, and manual cleanup. |
+
 ## Contribute
 
 ### Prerequisites
@@ -101,26 +109,12 @@ Keep credentials, tokens, and local file paths in an ignored
 
 ## Module Management API
 
-All routes below are relative to `/api/modules-management/modules`. Read
-operations require an authenticated user; mutations require the `Admin` role.
-
-| Method | Route | Access | Success response |
-| --- | --- | --- | --- |
-| `GET` | `/` | Authenticated | `200`: module list. |
-| `GET` | `/{moduleId}` | Authenticated | `200`: module details and endpoints. |
-| `GET` | `/{moduleId}/sub-endpoints` | Authenticated | `200`: endpoint list. |
-| `POST` | `/create` | Admin | `201` or `202`: module and discrepancy report. |
-| `POST` | `/{moduleId}/confirm-endpoints` | Admin | `200`: module details. |
-| `PUT` | `/{moduleId}` | Admin | `204`: metadata updated. |
-| `PUT` | `/{moduleId}/files` | Admin | `204`: replacement activated. |
-| `DELETE` | `/{moduleId}` | Admin | `204`: module deleted; also returned if absent. |
-
-Creation and file replacement use multipart form-data; metadata updates and
-endpoint confirmation use JSON. An endpoint discrepancy leaves a new module in
-`PendingConfirmation` and returns `202`. Confirmation accepts a
-`confirmedEndpoints` array of discrepancy reports. Inspect the returned module
-status: creation or confirmation can report a module whose container failed to
-start.
+Module routes use `/api/modules-management/modules`. Read operations require
+an authenticated user; mutations require the `Admin` role. Creation and file
+replacement use multipart form-data; metadata updates and endpoint confirmation
+use JSON. Endpoint discrepancies leave new modules in `PendingConfirmation`
+until reviewed. Always inspect the returned status, because a successful HTTP
+response does not guarantee that a container is running.
 
 File replacement preserves the registered endpoint contract and waits for the
 candidate container to be ready before switching the persisted module version.
@@ -129,10 +123,14 @@ Upload only trusted binaries: module archives are executed in Docker containers.
 These endpoints manage module metadata and containers; they do not expose a
 proxy that forwards traffic to module endpoints.
 
+See [Module Management](docs/readme.module-management.md) for the full API
+reference, request examples, confirmation semantics, and lifecycle limitations.
+
 ## Project Structure
 
 | Path | Responsibility |
 | --- | --- |
+| `docs` | Feature guides for the server, authentication, users, and module management. |
 | `src/Server` | ASP.NET Core host, dependency injection, middleware, and configuration. |
 | `src/Server/Controllers` | HTTP endpoints for authentication, user management, and module management. |
 | `src/Server/Database` | EF Core context, entities, and SQLite migrations. |
@@ -162,11 +160,3 @@ proxy that forwards traffic to module endpoints.
 - **Operations:** EF Core applies pending migrations during application startup.
 	Serilog records application logs, while the global exception handler returns
 	RFC 7807 problem-details responses.
-
-## Related Articles
-
-- [ASP.NET Core authentication and authorization](https://learn.microsoft.com/aspnet/core/security/authentication/)
-- [JWT bearer authentication](https://learn.microsoft.com/aspnet/core/security/authentication/configure-jwt-bearer-authentication)
-- [Entity Framework Core migrations](https://learn.microsoft.com/ef/core/managing-schemas/migrations/)
-- [Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807)
-
