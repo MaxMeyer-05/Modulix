@@ -61,6 +61,12 @@ public class Module
     public string StoragePath { get; set; } = null!;
 
     /// <summary>
+    /// The entry assembly file name of the module.
+    /// </summary>
+    [Required]
+    public string ModuleEntryAssemblyFileName { get; set; } = null!;
+
+    /// <summary>
     /// The status of the module.
     /// </summary>
     [Required]

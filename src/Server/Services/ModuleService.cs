@@ -29,7 +29,15 @@ public class ModuleService : IModuleService
     /// </summary>
     private readonly ILogger<ModuleService> _logger;
 
+    /// <summary>
+    /// The module endpoint scanner.
+    /// </summary>
     private readonly IModuleEndpointScanner _endpointScanner;
+
+    /// <summary>
+    /// The Docker service.
+    /// </summary>
+    private readonly IDockerService _dockerService;
 
     /// <summary>
     /// The base path for storing module-related files.
@@ -42,16 +50,19 @@ public class ModuleService : IModuleService
     /// <param name="context">The database context used by the service.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="env">The host environment.</param>
+    /// <param name="dockerService">The Docker service.</param>
     /// <param name="endpointScanner">The module endpoint scanner.</param>
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
         IHostEnvironment env,
+        IDockerService dockerService,
         IModuleEndpointScanner endpointScanner)
     {
         _context = context;
         _logger = logger;
         _endpointScanner = endpointScanner;
+        _dockerService = dockerService;
         _storageBasePath = Path.Combine(env.ContentRootPath, "storage", "modules");
     }
 
@@ -87,6 +98,22 @@ public class ModuleService : IModuleService
         }
 
         module.Status = ModuleStatus.Created;
+
+        try
+        {
+            module.Status = ModuleStatus.Starting;
+
+            var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
+            module.ContainerId = containerId;
+
+            await _dockerService.RunContainerAsync(containerId, ct);
+            module.Status = ModuleStatus.Running;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start confirmed module container {ModuleId}.", module.Id);
+            module.Status = ModuleStatus.Failed;
+        }
         
         await _context.SaveChangesAsync(ct);
         return module.ToModuleDetailDto();
@@ -123,6 +150,7 @@ public class ModuleService : IModuleService
         try
         {
             result = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
+            module.ModuleEntryAssemblyFileName = result.EntryAssemblyFileName;
         }
         catch
         {
@@ -136,7 +164,27 @@ public class ModuleService : IModuleService
         var discrepancyReport = CreateEndpointDiscrepancyReport(dto.InitialEndpoints?.ToList(), discoveredEndpoints, module.Id);
     
         if (discrepancyReport?.HasDiscrepancy == true)
+        {
             module.Status = ModuleStatus.PendingConfirmation;
+        }
+        else
+        {
+            try
+            {
+                module.Status = ModuleStatus.Starting;
+
+                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, result.EntryAssemblyFileName, module.ContainerPort, ct);
+                module.ContainerId = containerId;
+
+                await _dockerService.RunContainerAsync(containerId, ct);
+                module.Status = ModuleStatus.Running;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to provision Docker container for module {ModuleId}.", module.Id);
+                module.Status = ModuleStatus.Failed;
+            }
+        }
 
         _context.Modules.Add(module);
         await _context.SaveChangesAsync(ct);
@@ -157,7 +205,10 @@ public class ModuleService : IModuleService
         if (module is null)
             return;
 
-        // TODO: Deletion of the Docker container or other runtime resources associated with the module.
+        if (!string.IsNullOrEmpty(module.ContainerId))
+        {
+            await _dockerService.RemoveContainerAsync(module.ContainerId, module.Id, ct);
+        }
 
         if (Directory.Exists(module.StoragePath))
         {
@@ -249,6 +300,13 @@ public class ModuleService : IModuleService
         if (!file.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The module file must be a ZIP archive.");
 
+        if (!string.IsNullOrWhiteSpace(module.ContainerId))
+        {
+            await _dockerService.RemoveContainerAsync(module.ContainerId, module.Id, ct);
+            module.ContainerId = null;
+            module.Status = ModuleStatus.Stopped;
+        }
+
         var storageDirectory = Path.GetFullPath(module.StoragePath);
         var storageParentDirectory = Path.GetDirectoryName(storageDirectory)!;
         var stagingDirectory = Path.Combine(storageParentDirectory, $".{module.Id:N}.{Guid.NewGuid():N}.staging");
@@ -283,7 +341,14 @@ public class ModuleService : IModuleService
             DeleteModuleDirectory(stagingDirectory, moduleId);
         }
 
-        // TODO: Update the associated Docker container and check for sub-endpoints.
+        var scanResult = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
+        var newContainerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, scanResult.EntryAssemblyFileName, module.ContainerPort, ct);
+
+        module.ContainerId = newContainerId;
+        await _dockerService.RunContainerAsync(newContainerId, ct);
+        module.Status = ModuleStatus.Running;
+
+        await _context.SaveChangesAsync(ct);
     }
 
     /// <summary>

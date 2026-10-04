@@ -14,6 +14,7 @@ public interface IDockerService
     /// <param name="containerPort">The internal port the module listens on.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The ID of the created Docker container.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if the Dockerfile is not found in the specified storage path.</exception>
     Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default);
 
     /// <summary>
