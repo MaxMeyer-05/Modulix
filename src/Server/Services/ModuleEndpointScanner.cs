@@ -67,11 +67,13 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
     /// <inheritdoc/>
     public Task<ModuleScanResultDto> ScanDirectoryAsync(string moduleDirectoryPath, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         if (!Directory.Exists(moduleDirectoryPath))
             throw new DirectoryNotFoundException($"The specified module directory does not exist: {moduleDirectoryPath}");
 
         // Find the entry assembly file name within the module directory.
-        string? entryAssemblyFileName = FindEntryAssemblyFileName(moduleDirectoryPath);
+        string? entryAssemblyFileName = FindEntryAssemblyFileName(moduleDirectoryPath, ct);
 
         var discoveredEndpoints = new List<DiscoveredEndpointDto>();
 
@@ -104,6 +106,8 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
             loadContext.Unload();
         }
 
+        ct.ThrowIfCancellationRequested();
+
         var distinctEndpoints = discoveredEndpoints
             .GroupBy(e => new { e.HttpMethod, e.EndpointPath })
             .Select(g => g.First())
@@ -130,9 +134,10 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
     /// Finds the entry assembly file name for the module by looking for a corresponding DLL for each runtime config file.
     /// </summary>
     /// <param name="moduleDirectoryPath">The path to the module directory.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>The entry assembly file name.</returns>
     /// <exception cref="FileNotFoundException">Thrown if no runtime config files or entry assembly DLL is found.</exception>
-    private string FindEntryAssemblyFileName(string moduleDirectoryPath)
+    private string FindEntryAssemblyFileName(string moduleDirectoryPath, CancellationToken ct)
     {
         var runtimeConfigFiles = Directory.GetFiles(moduleDirectoryPath, "*.runtimeconfig.json", SearchOption.TopDirectoryOnly)
             .Where(f => !f.EndsWith(".runtimeconfig.dev.json", StringComparison.OrdinalIgnoreCase))
@@ -144,6 +149,8 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
         string? entryAssemblyFileName = null;
         foreach (var runtimeConfigFile in runtimeConfigFiles)
         {
+            ct.ThrowIfCancellationRequested();
+
             var fileName = Path.GetFileName(runtimeConfigFile);
             var baseName = fileName.Substring(0, fileName.IndexOf(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase));
             var dllFileName = $"{baseName}.dll";
@@ -169,6 +176,8 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
     /// <returns>A list of discovered endpoints.</returns>
     private static List<DiscoveredEndpointDto> ScanEndpoint(Type[] types, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+
         var discoveredEndpoints = new List<DiscoveredEndpointDto>();
 
         var controllerTypes = types.Where(t => t.IsClass && !t.IsAbstract &&
@@ -178,27 +187,42 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
         {
             ct.ThrowIfCancellationRequested();
 
-            var baseRouteTemplate = controllerType.GetCustomAttribute<RouteAttribute>()?.Template ?? string.Empty;
+            var baseRouteTemplates = controllerType
+                .GetCustomAttributes<RouteAttribute>(inherit: true)
+                .Select(route => route.Template ?? string.Empty)
+                .DefaultIfEmpty(string.Empty)
+                .ToList();
             var methods = controllerType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
 
             foreach (var method in methods)
             {
+                ct.ThrowIfCancellationRequested();
+
                 var httpMethodAttributes = method.GetCustomAttributes().OfType<HttpMethodAttribute>().ToList();
 
                 foreach (var attr in httpMethodAttributes)
                 {
+                    ct.ThrowIfCancellationRequested();
+
                     var actionTemplate = attr.Template ?? string.Empty;
                     var httpMethods = attr.HttpMethods?.Any() == true ? attr.HttpMethods : ["GET"];
 
-                    var resolvedPath = BuildAndResolveRoute(baseRouteTemplate, actionTemplate, controllerType, method);
-
-                    foreach (var httpMethod in httpMethods)
+                    foreach (var baseRouteTemplate in baseRouteTemplates)
                     {
-                        discoveredEndpoints.Add(new DiscoveredEndpointDto
+                        ct.ThrowIfCancellationRequested();
+
+                        var resolvedPath = BuildAndResolveRoute(baseRouteTemplate, actionTemplate, controllerType, method);
+
+                        foreach (var httpMethod in httpMethods)
                         {
-                            HttpMethod = httpMethod.Trim().ToUpperInvariant(),
-                            EndpointPath = resolvedPath
-                        });
+                            ct.ThrowIfCancellationRequested();
+
+                            discoveredEndpoints.Add(new DiscoveredEndpointDto
+                            {
+                                HttpMethod = httpMethod.Trim().ToUpperInvariant(),
+                                EndpointPath = resolvedPath
+                            });
+                        }
                     }
                 }
             }
