@@ -293,62 +293,105 @@ public class ModuleService : IModuleService
     /// <inheritdoc/>
     public async Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
     {
-        var module = await _context.Modules.FindAsync([moduleId], ct);
+        var module = await _context.Modules
+            .Include(module => module.SubEndpoints)
+            .SingleOrDefaultAsync(module => module.Id == moduleId, ct);
         if (module is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
         if (!file.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The module file must be a ZIP archive.");
 
-        if (!string.IsNullOrWhiteSpace(module.ContainerId))
+        if (module.Status == ModuleStatus.PendingConfirmation ||
+            module.SubEndpoints.Any(endpoint => endpoint.Status == ModuleEndpointsStatus.PendingConfirmation))
         {
-            await _dockerService.RemoveContainerAsync(module.ContainerId, module.Id, ct);
-            module.ContainerId = null;
-            module.Status = ModuleStatus.Stopped;
+            throw new InvalidOperationException("Module endpoints must be confirmed before updating module files.");
         }
 
-        var storageDirectory = Path.GetFullPath(module.StoragePath);
-        var storageParentDirectory = Path.GetDirectoryName(storageDirectory)!;
-        var stagingDirectory = Path.Combine(storageParentDirectory, $".{module.Id:N}.{Guid.NewGuid():N}.staging");
+        var previousVersion = (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status);
+        var versionDirectory = Path.Combine(_storageBasePath, $"{module.Id:N}.{Guid.NewGuid():N}");
         var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
+        string? candidateId = null;
 
         _logger.LogDebug("Temporary ZIP path for module with ID '{ModuleId}': {TmpZipPath}", moduleId, tmpZipPath);
         
         try
         {
-            await using (var stream = new FileStream(tmpZipPath, FileMode.Create))
+            await using (var stream = new FileStream(tmpZipPath, FileMode.CreateNew))
             {
                 await file.ModuleFile.CopyToAsync(stream, ct);
             }
 
             ValidateModuleArchive(tmpZipPath);
-            Directory.CreateDirectory(stagingDirectory);
-            ZipFile.ExtractToDirectory(tmpZipPath, stagingDirectory);
+            Directory.CreateDirectory(versionDirectory);
+            ZipFile.ExtractToDirectory(tmpZipPath, versionDirectory);
+            ct.ThrowIfCancellationRequested();
 
-            if (Directory.Exists(storageDirectory))
-                Directory.Delete(storageDirectory, true);
+            var scanResult = await _endpointScanner.ScanDirectoryAsync(versionDirectory, ct);
+            var registeredEndpoints = module.SubEndpoints
+                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
+                .ToHashSet();
+            var discoveredEndpoints = scanResult.DiscoveredEndpoints
+                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
+                .ToHashSet();
 
-            Directory.Move(stagingDirectory, storageDirectory);
+            if (!registeredEndpoints.SetEquals(discoveredEndpoints))
+                throw new InvalidOperationException("The updated module changes its endpoint contract. The active version has been preserved.");
+
+            candidateId = await _dockerService.BuildContainerAsync(
+                module.Id, versionDirectory, scanResult.EntryAssemblyFileName, module.ContainerPort, ct);
+            await _dockerService.RunContainerAsync(candidateId, ct);
+            await _dockerService.WaitUntilReadyAsync(candidateId, ct);
+
+            module.ContainerId = candidateId;
+            module.StoragePath = versionDirectory;
+            module.ModuleEntryAssemblyFileName = scanResult.EntryAssemblyFileName;
+            module.Status = ModuleStatus.Running;
+
+            await _context.SaveChangesAsync(ct);
         }
         catch (Exception ex)
         {
+            (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status) = previousVersion;
+            if (candidateId is null || await TryRemoveModuleContainerAsync(candidateId, module.Id))
+                DeleteModuleDirectory(versionDirectory, module.Id);
+
             _logger.LogError(ex, "An error occurred while updating module files for module with ID '{ModuleId}'.", moduleId);
             throw;
         }
         finally
         {
             DeleteTemporaryFile(tmpZipPath, moduleId);
-            DeleteModuleDirectory(stagingDirectory, moduleId);
         }
 
-        var scanResult = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
-        var newContainerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, scanResult.EntryAssemblyFileName, module.ContainerPort, ct);
+        if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
+            await TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))
+        {
+            DeleteModuleDirectory(previousVersion.StoragePath, module.Id);
+        }
 
-        module.ContainerId = newContainerId;
-        await _dockerService.RunContainerAsync(newContainerId, ct);
-        module.Status = ModuleStatus.Running;
+        _logger.LogInformation("Activated replacement container '{ContainerId}' for module '{ModuleId}'.", candidateId, moduleId);
+    }
 
-        await _context.SaveChangesAsync(ct);
+    /// <summary>
+    /// Attempts to remove a Docker container associated with a module.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to remove.</param>
+    /// <param name="moduleId">The ID of the module associated with the container.</param>
+    /// <returns>True if the container was successfully removed; otherwise, false.</returns>
+    private async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
+    {
+        using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            await _dockerService.RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+            return false;
+        }
     }
 
     /// <summary>

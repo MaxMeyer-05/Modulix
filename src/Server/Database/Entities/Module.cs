@@ -45,6 +45,7 @@ public class Module
     /// <summary>
     /// The container ID of the module.
     /// </summary>
+    [ConcurrencyCheck]
     public string? ContainerId { get; set; }
 
     /// <summary>
@@ -58,6 +59,7 @@ public class Module
     /// </summary>
     [Required]
     [MaxLength(500)]
+    [ConcurrencyCheck]
     public string StoragePath { get; set; } = null!;
 
     /// <summary>

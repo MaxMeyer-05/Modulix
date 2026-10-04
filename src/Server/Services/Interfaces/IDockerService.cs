@@ -25,6 +25,13 @@ public interface IDockerService
     Task RunContainerAsync(string containerId, CancellationToken ct = default);
 
     /// <summary>
+    /// Waits for a running container to pass its port health check, with a bounded timeout.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to check.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task WaitUntilReadyAsync(string containerId, CancellationToken ct = default);
+
+    /// <summary>
     /// Stops a running Docker container.
     /// </summary>
     /// <param name="containerId">The ID of the container to stop.</param>

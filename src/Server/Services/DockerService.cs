@@ -1,5 +1,6 @@
 using System.Formats.Tar;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -9,7 +10,7 @@ using Server.Services.Interfaces;
 namespace Server.Services;
 
 /// <inheritdoc cref="IDockerService"/>
-public class DockerService : IDockerService
+public class DockerService : IDockerService, IDisposable
 {
     /// <summary>
     /// The name of the Docker network used for module containers.
@@ -46,6 +47,17 @@ public class DockerService : IDockerService
         _client = new DockerClientConfiguration(dockerUri).CreateClient();
     }
 
+    /// <summary>
+    /// Initializes the service with an existing Docker client.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="client">The Docker client owned by this service.</param>
+    public DockerService(ILogger<DockerService> logger, DockerClient client)
+    {
+        _logger = logger;
+        _client = client;
+    }
+
     /// <inheritdoc/>
     public async Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
     {
@@ -62,8 +74,9 @@ public class DockerService : IDockerService
         }
 
         // Define the image and container names based on the module ID.
-        var imageName = $"modulix-module-{moduleId}";
-        var containerName = $"modulix-container-{moduleId}";
+        var version = Guid.NewGuid().ToString("N");
+        var imageName = $"modulix-module-{moduleId:N}:{version}";
+        var containerName = $"modulix-container-{moduleId:N}-{version}";
 
         var dockerfilePath = Path.Combine(storagePath, "Dockerfile");
 
@@ -72,90 +85,110 @@ public class DockerService : IDockerService
             WORKDIR /app
             COPY . .
             ENV ASPNETCORE_ENVIRONMENT=Production
-            ENTRYPOINT ["dotnet", "{entryDllName}"]
+            ENTRYPOINT {JsonSerializer.Serialize(new[] { "dotnet", entryDllName })}
         """;
 
         await File.WriteAllTextAsync(dockerfilePath, defaultDockerfile, ct);
         
         // Create a tarball of the build context for Docker.
-        var tarStream = new MemoryStream();
+        await using var tarStream = new MemoryStream();
         TarFile.CreateFromDirectory(storagePath, tarStream, includeBaseDirectory: false);
         tarStream.Position = 0;
 
         _logger.LogInformation("Docker build context created for module '{ModuleId}'.", moduleId);
 
         // Build the Docker image from the Dockerfile and the tarball context.
-        await _client.Images.BuildImageFromDockerfileAsync(
-            new ImageBuildParameters
-            {
-                Tags = [imageName],
-                Dockerfile = "Dockerfile"
-            },
-            tarStream,
-            [],
-            new Dictionary<string, string>(),
-            new Progress<JSONMessage>(msg =>
-            {
-                if (!string.IsNullOrWhiteSpace(msg.Stream))
-                {
-                    _logger.LogDebug("[Docker Build: {ModuleId}] {Message}", moduleId, msg.Stream.TrimEnd());
-                }
-                if (!string.IsNullOrWhiteSpace(msg.ErrorMessage))
-                {
-                    _logger.LogError("[Docker Build Error: {ModuleId}] {Message}", moduleId, msg.ErrorMessage);
-                }
-            }),
-            ct
-        );
-
-        // Create the Docker container using the built image.
-        var createResponse = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
+        var progress = new DockerBuildProgress(_logger, moduleId);
+        try
         {
-            Image = imageName,
-            Name = containerName,
-            Env =
-            [
-                $"ASPNETCORE_HTTP_PORTS={containerPort}",
-                "ASPNETCORE_ENVIRONMENT=Production"
-            ],
-            HostConfig = new HostConfig
+            await _client.Images.BuildImageFromDockerfileAsync(
+                new ImageBuildParameters
+                {
+                    Tags = [imageName],
+                    Dockerfile = "Dockerfile"
+                },
+                tarStream,
+                [],
+                new Dictionary<string, string>(),
+                progress,
+                ct
+            );
+
+            if (progress.ErrorMessage is not null)
+                throw new InvalidOperationException($"Docker image build failed: {progress.ErrorMessage}");
+
+            var createResponse = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
             {
-                NetworkMode = NetworkName,
-                RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
+                Image = imageName,
+                Name = containerName,
+                Env =
+                [
+                    $"ASPNETCORE_HTTP_PORTS={containerPort}",
+                    "ASPNETCORE_ENVIRONMENT=Production"
+                ],
+                Healthcheck = new HealthConfig
+                {
+                    Test = ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/\"$ASPNETCORE_HTTP_PORTS\""],
+                    Interval = TimeSpan.FromSeconds(1),
+                    Timeout = TimeSpan.FromSeconds(2),
+                    Retries = 30
+                },
+                HostConfig = new HostConfig
+                {
+                    NetworkMode = NetworkName,
+                    RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
+                }
+            }, ct);
+
+            _logger.LogInformation("Container '{ContainerName}' created for module '{ModuleId}'.", containerName, moduleId);
+
+            return createResponse.ID;
+        }
+        catch
+        {
+            using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await _client.Containers.RemoveContainerAsync(containerName, new ContainerRemoveParameters { Force = true }, cleanupCts.Token);
             }
-        }, ct); 
+            catch (DockerContainerNotFoundException) { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to clean up candidate container '{ContainerName}'.", containerName);
+            }
 
-        _logger.LogInformation("Container '{ContainerName}' created for module '{ModuleId}'.", containerName, moduleId);
+            try
+            {
+                await _client.Images.DeleteImageAsync(imageName, new ImageDeleteParameters(), cleanupCts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to clean up candidate image '{ImageName}'.", imageName);
+            }
 
-        return createResponse.ID;
+            throw;
+        }
     }
 
     /// <inheritdoc/>
     public async Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default)
     {
-        var imageName = $"modulix-module-{moduleId}";
+        ContainerInspectResponse container;
+        try
+        {
+            container = await _client.Containers.InspectContainerAsync(containerId, ct);
+        }
+        catch (DockerContainerNotFoundException)
+        {
+            return;
+        }
+
         await StopContainerAsync(containerId, ct);
+        await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, ct);
+        _logger.LogInformation("Container '{ContainerId}' removed for module '{ModuleId}'.", containerId, moduleId);
 
-        try
-        {
-            await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, ct);
-            _logger.LogInformation("Container '{ContainerId}' removed.", containerId);
-        }
-        catch (DockerContainerNotFoundException) { }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to remove container '{ContainerId}'.", containerId);
-        }
-
-        try
-        {
-            await _client.Images.DeleteImageAsync(imageName, new ImageDeleteParameters { Force = true }, ct);
-            _logger.LogInformation("Docker image '{ImageName}' deleted.", imageName);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not delete image '{ImageName}'. Skipping.", imageName);
-        }
+        await _client.Images.DeleteImageAsync(container.Config.Image, new ImageDeleteParameters(), ct);
+        _logger.LogInformation("Docker image '{ImageName}' deleted.", container.Config.Image);
     }
 
     /// <inheritdoc/>
@@ -163,6 +196,36 @@ public class DockerService : IDockerService
     {
         await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);
         _logger.LogInformation("Container '{ContainerId}' started.", containerId);
+    }
+
+    /// <inheritdoc/>
+    public async Task WaitUntilReadyAsync(string containerId, CancellationToken ct = default)
+    {
+        using var readinessCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        readinessCts.CancelAfter(TimeSpan.FromSeconds(60));
+
+        try
+        {
+            while (true)
+            {
+                var container = await _client.Containers.InspectContainerAsync(containerId, readinessCts.Token);
+                if (!container.State.Running || container.State.Restarting)
+                    throw new InvalidOperationException($"Container '{containerId}' stopped before becoming ready.");
+
+                var health = container.State.Health?.Status;
+                if (health == "healthy")
+                    return;
+
+                if (health is null or "unhealthy")
+                    throw new InvalidOperationException($"Container '{containerId}' has no successful port health check.");
+
+                await Task.Delay(TimeSpan.FromSeconds(1), readinessCts.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Container '{containerId}' did not become ready within 60 seconds.");
+        }
     }
 
     /// <inheritdoc/>
@@ -176,6 +239,30 @@ public class DockerService : IDockerService
         catch (DockerContainerNotFoundException)
         {
             _logger.LogWarning("Container '{ContainerId}' was not found or already stopped.", containerId);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _client.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    private sealed class DockerBuildProgress(ILogger<DockerService> logger, Guid moduleId) : IProgress<JSONMessage>
+    {
+        public string? ErrorMessage { get; private set; }
+
+        public void Report(JSONMessage message)
+        {
+            if (!string.IsNullOrWhiteSpace(message.Stream))
+                logger.LogDebug("[Docker Build: {ModuleId}] {Message}", moduleId, message.Stream.TrimEnd());
+
+            if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
+            {
+                ErrorMessage ??= message.ErrorMessage;
+                logger.LogError("[Docker Build Error: {ModuleId}] {Message}", moduleId, message.ErrorMessage);
+            }
         }
     }
 }
