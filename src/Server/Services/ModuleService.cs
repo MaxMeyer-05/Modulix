@@ -107,14 +107,16 @@ public class ModuleService : IModuleService
 
         module.Status = ModuleStatus.Created;
 
+        var previousContainerId = module.ContainerId;
+        string? candidateId = null;
         try
         {
             module.Status = ModuleStatus.Starting;
 
-            var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
-            module.ContainerId = containerId;
+            candidateId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
+            module.ContainerId = candidateId;
 
-            await _dockerService.RunContainerAsync(containerId, ct);
+            await _dockerService.RunContainerAsync(candidateId, ct);
             module.Status = ModuleStatus.Running;
         }
         catch (Exception ex)
@@ -123,7 +125,26 @@ public class ModuleService : IModuleService
             module.Status = ModuleStatus.Failed;
         }
         
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            if (candidateId is not null)
+                await TryRemoveModuleContainerAsync(candidateId, module.Id);
+
+            module.ContainerId = previousContainerId;
+            module.Status = ModuleStatus.PendingConfirmation;
+            _context.Entry(module).State = EntityState.Unchanged;
+            foreach (var endpoint in pendingEndpoints)
+            {
+                endpoint.Status = ModuleEndpointsStatus.PendingConfirmation;
+                _context.Entry(endpoint).State = EntityState.Unchanged;
+            }
+
+            throw;
+        }
         return module.ToModuleDetailDto();
     }
 
@@ -195,7 +216,27 @@ public class ModuleService : IModuleService
         }
 
         _context.Modules.Add(module);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            if (string.IsNullOrWhiteSpace(module.ContainerId) ||
+                await TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
+            {
+                DeleteModuleDirectory(module.StoragePath, module.Id);
+            }
+
+            _context.Entry(module).State = EntityState.Detached;
+            foreach (var endpoint in _context.ChangeTracker.Entries<ModuleEndpoint>()
+                .Where(entry => entry.Entity.ModuleId == module.Id).ToList())
+            {
+                endpoint.State = EntityState.Detached;
+            }
+
+            throw;
+        }
 
         _logger.LogInformation("Created module with ID '{ModuleId}' and stored its files at '{StoragePath}'.", module.Id, module.StoragePath);
 
@@ -530,10 +571,10 @@ public class ModuleService : IModuleService
             throw;
         }
 
-        var tmpZipPath = Path.Combine(Path.GetTempPath(), file.FileName);
+        var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
         try
         {
-            using (var stream = new FileStream(tmpZipPath, FileMode.Create))
+            using (var stream = new FileStream(tmpZipPath, FileMode.CreateNew))
             {
                 await file.CopyToAsync(stream, ct);
             }

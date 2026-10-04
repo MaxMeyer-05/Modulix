@@ -303,6 +303,96 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal(ModuleStatus.Running, result.Module.Status);
     }
 
+    [Theory]
+    [InlineData("name")]
+    [InlineData("absolute")]
+    [InlineData("relative")]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ClientFileName_DoesNotOverwriteOrDeleteExistingFile(string pathKind)
+    {
+        var existingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
+        await File.WriteAllTextAsync(existingPath, "existing file");
+        var fileName = pathKind switch
+        {
+            "absolute" => existingPath,
+            "relative" => Path.Combine("..", Path.GetFileName(Path.TrimEndingDirectorySeparator(Path.GetTempPath())), Path.GetFileName(existingPath)),
+            _ => Path.GetFileName(existingPath)
+        };
+
+        try
+        {
+            var result = await _sut.CreateModuleAsync(new CreateModuleDto
+            {
+                ModuleName = "Safe Upload",
+                BaseEndpointPath = "api/v1/safe-upload",
+                ModuleFile = CreateDummyZipFile(fileName)
+            });
+
+            Assert.Equal(ModuleStatus.Running, result.Module.Status);
+            Assert.Equal("existing file", await File.ReadAllTextAsync(existingPath));
+        }
+        finally
+        {
+            File.Delete(existingPath);
+        }
+    }
+
+    [Theory]
+    [InlineData("running", false)]
+    [InlineData("running", true)]
+    [InlineData("pending", false)]
+    [InlineData("build", false)]
+    [InlineData("start", false)]
+    [InlineData("canceled", false)]
+    [InlineData("canceled", true)]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_SaveFails_CleansCandidateAndPreservesOriginalFailure(string scenario, bool cleanupFails)
+    {
+        using var cancellation = new CancellationTokenSource();
+        Exception failure = scenario == "canceled"
+            ? new OperationCanceledException(cancellation.Token)
+            : new InvalidOperationException("Database save failed.");
+        _saveInterceptor.ExceptionToThrow = failure;
+        if (scenario == "canceled")
+            _saveInterceptor.BeforeSave = cancellation.Cancel;
+        if (cleanupFails)
+            _dockerService.RemoveException = new InvalidOperationException("Cleanup failed.");
+        if (scenario == "build")
+            _dockerService.BuildException = new InvalidOperationException("Build failed.");
+        if (scenario == "start")
+            _dockerService.StartException = new InvalidOperationException("Start failed.");
+        _endpointScanner.DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }];
+
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.CreateModuleAsync(new CreateModuleDto
+            {
+                ModuleName = "Unsaved Module",
+                BaseEndpointPath = "api/v1/unsaved",
+                ModuleFile = CreateDummyZipFile(),
+                InitialEndpoints = scenario == "pending"
+                    ? [new CreateModuleEndpointDto { HttpMethod = "POST", EndpointPath = "/jobs" }]
+                    : null
+            }, cancellation.Token));
+
+        Assert.Same(failure, exception);
+        var expectedCalls = scenario switch
+        {
+            "pending" => Array.Empty<string>(),
+            "build" => ["build"],
+            _ => ["build", "start", "remove:replacement-container"]
+        };
+        Assert.Equal(expectedCalls, _dockerService.Calls);
+        Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
+        Assert.Empty(await _context.ModuleEndpoints.AsNoTracking().ToListAsync());
+        Assert.Equal(cleanupFails, Directory.Exists(_endpointScanner.ScannedDirectory));
+
+        _saveInterceptor.ExceptionToThrow = null;
+        _saveInterceptor.BeforeSave = null;
+        await _context.SaveChangesAsync();
+        Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
+        Assert.Empty(await _context.ModuleEndpoints.AsNoTracking().ToListAsync());
+    }
+
     [Fact]
     [Trait("Feature", "CreateModule")]
     public async Task CreateModuleAsync_AllInitialEndpointsMatch_ReturnsMatchedReportAndCreatedModule()
@@ -701,6 +791,75 @@ public class ModuleServiceTests : IDisposable
         var persisted = await _context.Modules.AsNoTracking().SingleAsync();
         Assert.Equal(ModuleStatus.Failed, persisted.Status);
         Assert.Equal(failBuild ? null : "replacement-container", persisted.ContainerId);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [Trait("Feature", "ConfirmEndpoints")]
+    public async Task ConfirmEndpointsAsync_SaveFails_CleansCandidateAndPreservesPendingModule(bool cleanupFails, bool cancelSave)
+    {
+        var module = CreateTestModuleEntity("Unsaved Confirmation", "api/v1/unsaved-confirmation", 8085);
+        module.Status = ModuleStatus.PendingConfirmation;
+        module.StoragePath = Path.Combine(_testRootDirectory, "pending-module");
+        Directory.CreateDirectory(module.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(module.StoragePath, "module.dll"), "original");
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "POST",
+            EndpointPath = "/legacy",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        using var cancellation = new CancellationTokenSource();
+        Exception failure = cancelSave
+            ? new OperationCanceledException(cancellation.Token)
+            : new InvalidOperationException("Database save failed.");
+        _saveInterceptor.ExceptionToThrow = failure;
+        if (cancelSave)
+            _saveInterceptor.BeforeSave = cancellation.Cancel;
+        if (cleanupFails)
+            _dockerService.RemoveException = new InvalidOperationException("Cleanup failed.");
+
+        var exception = await Record.ExceptionAsync(() =>
+            _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
+            {
+                ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+                {
+                    ModuleId = module.Id,
+                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }],
+                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" }]
+                }]
+            }, cancellation.Token));
+
+        Assert.Same(failure, exception);
+        Assert.Equal(["build", "start", "remove:replacement-container"], _dockerService.Calls);
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
+        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
+        Assert.Null(persisted.ContainerId);
+        Assert.Equal(2, persisted.SubEndpoints.Count);
+        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
+        Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(module.StoragePath, "module.dll")));
+
+        _saveInterceptor.ExceptionToThrow = null;
+        _saveInterceptor.BeforeSave = null;
+        await _context.SaveChangesAsync();
+        persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
+        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
+        Assert.Null(persisted.ContainerId);
+        Assert.Equal(2, persisted.SubEndpoints.Count);
+        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
     }
 
     #endregion
@@ -1416,10 +1575,12 @@ public class ModuleServiceTests : IDisposable
     private sealed class FailingSaveInterceptor : SaveChangesInterceptor
     {
         public Exception? ExceptionToThrow { get; set; }
+        public Action? BeforeSave { get; set; }
 
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
+            BeforeSave?.Invoke();
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 
