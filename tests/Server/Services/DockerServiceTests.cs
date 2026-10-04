@@ -56,19 +56,64 @@ public class DockerServiceTests
         Assert.Equal(2, inspections);
     }
 
-    [Fact]
-    public async Task WaitUntilReadyAsync_Cancellation_PropagatesCancellation()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WaitUntilReadyAsync_Cancellation_DistinguishesCallerCancellationAndTimeout(bool callerCancels)
     {
         using var cancellation = new CancellationTokenSource();
         using var service = CreateService((request, cancellationToken) =>
         {
-            cancellation.Cancel();
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(JsonResponse(new { }));
+            if (callerCancels)
+                cancellation.Cancel();
+            return Task.FromCanceled<HttpResponseMessage>(new CancellationToken(canceled: true));
         });
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.WaitUntilReadyAsync("candidate", cancellation.Token));
+        if (callerCancels)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.WaitUntilReadyAsync("candidate", cancellation.Token));
+        else
+            await Assert.ThrowsAsync<TimeoutException>(() => service.WaitUntilReadyAsync("candidate", cancellation.Token));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NoContent)]
+    [InlineData(HttpStatusCode.NotModified)]
+    public async Task RunContainerAsync_NewOrAlreadyRunningContainer_Succeeds(HttpStatusCode status)
+    {
+        var requests = 0;
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            requests++;
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.EndsWith("/containers/candidate/start", request.RequestUri!.AbsolutePath);
+            return Task.FromResult(new HttpResponseMessage(status));
+        });
+
+        await service.RunContainerAsync("candidate");
+
+        Assert.Equal(1, requests);
+    }
+
+    [Theory]
+    [InlineData("remove")]
+    [InlineData("stop")]
+    public async Task CleanupAsync_MissingContainer_IsIdempotent(string operation)
+    {
+        var requests = 0;
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            requests++;
+            Assert.EndsWith(operation == "remove" ? "/containers/missing/json" : "/containers/missing/stop",
+                request.RequestUri!.AbsolutePath);
+            return Task.FromResult(JsonResponse(new { message = "No such container." }, HttpStatusCode.NotFound));
+        });
+
+        if (operation == "remove")
+            await service.RemoveContainerAsync("missing", Guid.NewGuid());
+        else
+            await service.StopContainerAsync("missing");
+
+        Assert.Equal(1, requests);
     }
 
     [Fact]
@@ -117,9 +162,10 @@ public class DockerServiceTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task BuildContainerAsync_VersionedBuild_ChecksErrorsAndBuildContext(bool buildFails)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task BuildContainerAsync_VersionedBuild_ChecksErrorsAndBuildContext(bool buildFails, bool createNetwork)
     {
         var root = Path.Combine(Path.GetTempPath(), "Modulix_Docker_Tests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -128,6 +174,7 @@ public class DockerServiceTests
         string? createdName = null;
         var createdContainer = false;
         var deletedImage = false;
+        var networkCreated = false;
         var archiveEntries = new List<string>();
         try
         {
@@ -136,7 +183,16 @@ public class DockerServiceTests
             {
                 var path = request.RequestUri!.AbsolutePath;
                 if (path.EndsWith("/networks", StringComparison.Ordinal))
-                    return JsonResponse(new[] { new { Name = "modulix-network" } });
+                    return JsonResponse(createNetwork ? [] : new[] { new { Name = "modulix-network" } });
+
+                if (path.EndsWith("/networks/create", StringComparison.Ordinal))
+                {
+                    networkCreated = true;
+                    using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    Assert.Equal("modulix-network", body.RootElement.GetProperty("Name").GetString());
+                    Assert.Equal("bridge", body.RootElement.GetProperty("Driver").GetString());
+                    return JsonResponse(new { Id = "network" });
+                }
 
                 if (path.EndsWith("/build", StringComparison.Ordinal))
                 {
@@ -160,8 +216,15 @@ public class DockerServiceTests
                     createdImage = body.RootElement.GetProperty("Image").GetString();
                     createdName = QueryHelpers.ParseQuery(request.RequestUri.Query)["name"].ToString();
                     Assert.Equal("CMD", body.RootElement.GetProperty("Healthcheck").GetProperty("Test")[0].GetString());
+                    Assert.Equal(1_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Interval").GetInt64());
+                    Assert.Equal(2_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Timeout").GetInt64());
+                    Assert.Equal("modulix-network", body.RootElement.GetProperty("HostConfig").GetProperty("NetworkMode").GetString());
+                    Assert.Contains("ASPNETCORE_HTTP_PORTS=8080", body.RootElement.GetProperty("Env").EnumerateArray().Select(value => value.GetString()));
                     return JsonResponse(new { Id = "candidate" });
                 }
+
+                if (buildFails && request.Method == HttpMethod.Delete && path.Contains("/containers/", StringComparison.Ordinal))
+                    return JsonResponse(new { message = "No such container." }, HttpStatusCode.NotFound);
 
                 deletedImage |= request.Method == HttpMethod.Delete && path.Contains("/images/", StringComparison.Ordinal);
                 return JsonResponse(Array.Empty<object>());
@@ -184,6 +247,65 @@ public class DockerServiceTests
 
             Assert.Contains("Dockerfile", archiveEntries);
             Assert.Contains("module.dll", archiveEntries);
+            Assert.Equal(createNetwork, networkCreated);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuildContainerAsync_CreationAndCleanupFail_PreservesOriginalFailure(bool callerCancels)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Modulix_Docker_Tests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        using var cancellation = new CancellationTokenSource();
+        var cleanupRequests = new List<string>();
+        try
+        {
+            using var service = CreateService((request, cancellationToken) =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                if (path.EndsWith("/networks", StringComparison.Ordinal))
+                    return Task.FromResult(JsonResponse(new[] { new { Name = "modulix-network" } }));
+
+                if (path.EndsWith("/build", StringComparison.Ordinal))
+                    return Task.FromResult(JsonResponse(new { stream = "Build complete.\n" }));
+
+                if (path.EndsWith("/containers/create", StringComparison.Ordinal))
+                {
+                    if (callerCancels)
+                    {
+                        cancellation.Cancel();
+                        return Task.FromCanceled<HttpResponseMessage>(cancellation.Token);
+                    }
+                    return Task.FromResult(JsonResponse(new { message = "Candidate creation failed." }, HttpStatusCode.InternalServerError));
+                }
+
+                Assert.Equal(HttpMethod.Delete, request.Method);
+                Assert.False(cancellationToken.IsCancellationRequested);
+                cleanupRequests.Add(path);
+                return Task.FromResult(JsonResponse(new { message = "Cleanup also failed." }, HttpStatusCode.InternalServerError));
+            });
+
+            if (callerCancels)
+            {
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                    service.BuildContainerAsync(Guid.NewGuid(), root, "module.dll", 8080, cancellation.Token));
+            }
+            else
+            {
+                var failure = await Assert.ThrowsAsync<DockerApiException>(() =>
+                    service.BuildContainerAsync(Guid.NewGuid(), root, "module.dll", 8080));
+                Assert.Contains("Candidate creation failed.", failure.Message);
+            }
+
+            Assert.Equal(2, cleanupRequests.Count);
+            Assert.Contains("/containers/modulix-container-", cleanupRequests[0]);
+            Assert.Contains("/images/modulix-module-", cleanupRequests[1]);
         }
         finally
         {

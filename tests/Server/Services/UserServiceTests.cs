@@ -95,40 +95,27 @@ public class UserServiceTests : IDisposable
         Assert.NotNull(await _context.Users.FindAsync(user.Id));
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(null)]
+    [InlineData("ValidUserPassword123!")]
     [Trait("Feature", "DeleteUser")]
-    public async Task DeleteUserAsync_WithoutPassword_DeletesUserSuccessfully()
+    public async Task DeleteUserAsync_AuthorizedRequest_DeletesUserAndRefreshTokens(string? password)
     {
-        // Arrange (e.g. Admin deletion where password confirmation is omitted)
-        var user = UserTestFixture.CreateTestUser("admin_delete_user");
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        // Act
-        await _sut.DeleteUserAsync(user.Id, password: null);
-
-        // Assert
-        var deletedUser = await _context.Users.FindAsync(user.Id);
-        Assert.Null(deletedUser);
-    }
-
-    [Fact]
-    [Trait("Feature", "DeleteUser")]
-    public async Task DeleteUserAsync_ValidPasswordProvided_DeletesUserSuccessfully()
-    {
-        // Arrange
-        const string password = "ValidUserPassword123!";
         var user = UserTestFixture.CreateTestUser("self_delete_user");
-        user.PasswordHash = _passwordHasher.HashPassword(user, password);
+        user.PasswordHash = _passwordHasher.HashPassword(user, "ValidUserPassword123!");
         _context.Users.Add(user);
+        _context.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            Token = "existing-token",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(1)
+        });
         await _context.SaveChangesAsync();
 
-        // Act
         await _sut.DeleteUserAsync(user.Id, password);
 
-        // Assert
-        var deletedUser = await _context.Users.FindAsync(user.Id);
-        Assert.Null(deletedUser);
+        Assert.False(await _context.Users.AnyAsync(item => item.Id == user.Id));
+        Assert.Empty(await _context.RefreshTokens.Where(token => token.UserId == user.Id).ToListAsync());
     }
 
     #endregion
@@ -284,51 +271,32 @@ public class UserServiceTests : IDisposable
         Assert.False(otherUserToken.IsRevoked);
     }
 
-    [Fact]
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("expired")]
+    [InlineData("revoked")]
     [Trait("Feature", "RefreshToken")]
-    public async Task RefreshTokenAsync_TokenRevokedOrExpired_ThrowsUnauthorizedAccessException()
+    public async Task RefreshTokenAsync_InvalidToken_DoesNotIssueOrChangeTokens(string scenario)
     {
-        // Arrange
-        var user = UserTestFixture.CreateTestUser("expiredtokenuser");
+        var user = UserTestFixture.CreateTestUser("invalidtokenuser");
         _context.Users.Add(user);
-        const string expiredToken = "expired-token";
-        _context.RefreshTokens.Add(new RefreshToken
+        var token = new RefreshToken
         {
             UserId = user.Id,
-            Token = expiredToken,
-            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5),
-            IsRevoked = false
-        });
+            Token = "existing-token",
+            ExpiresAtUtc = scenario == "expired" ? DateTime.UtcNow.AddMinutes(-5) : DateTime.UtcNow.AddHours(2),
+            IsRevoked = scenario == "revoked"
+        };
+        _context.RefreshTokens.Add(token);
         await _context.SaveChangesAsync();
 
-        // Act & Assert
         var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _sut.RefreshTokenAsync(expiredToken));
+            _sut.RefreshTokenAsync(scenario == "missing" ? "missing-token" : token.Token));
 
         Assert.Equal("Invalid refresh token.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "RefreshToken")]
-    public async Task RefreshTokenAsync_TokenAlreadyRevoked_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        var user = UserTestFixture.CreateTestUser("revokedtokenuser");
-        _context.Users.Add(user);
-        _context.RefreshTokens.Add(new RefreshToken
-        {
-            UserId = user.Id,
-            Token = "revoked-token",
-            ExpiresAtUtc = DateTime.UtcNow.AddHours(2),
-            IsRevoked = true
-        });
-        await _context.SaveChangesAsync();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _sut.RefreshTokenAsync("revoked-token"));
-
-        Assert.Equal("Invalid refresh token.", exception.Message);
+        var persisted = await _context.RefreshTokens.AsNoTracking().SingleAsync();
+        Assert.Equal(token.Id, persisted.Id);
+        Assert.Equal(scenario == "revoked", persisted.IsRevoked);
     }
 
     #endregion
@@ -350,30 +318,12 @@ public class UserServiceTests : IDisposable
         Assert.Equal($"User with ID '{missingUserId}' not found.", exception.Message);
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     [Trait("Feature", "UpdateUser")]
-    public async Task UpdateUserAsync_NoStateChanges_ReturnsNull()
+    public async Task UpdateUserAsync_UnchangedOrMissingEmail_LeavesUserAndTokensUntouched(bool includeEmail)
     {
-        // Arrange
-        var user = UserTestFixture.CreateTestUser("unmodified");
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        // DTO with identical email
-        var updateDto = new UpdateUserDto { UserEmail = user.UserEmail };
-
-        // Act
-        var result = await _sut.UpdateUserAsync(user.Id, updateDto);
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    [Trait("Feature", "UpdateUser")]
-    public async Task UpdateUserAsync_EmailNotSpecified_ReturnsNullAndLeavesRefreshTokensUntouched()
-    {
-        // Arrange
         var user = UserTestFixture.CreateTestUser("unspecifiedemail");
         _context.Users.Add(user);
         _context.RefreshTokens.Add(new RefreshToken
@@ -384,14 +334,18 @@ public class UserServiceTests : IDisposable
         });
         await _context.SaveChangesAsync();
 
-        // Act
-        var result = await _sut.UpdateUserAsync(user.Id, new UpdateUserDto());
+        var result = await _sut.UpdateUserAsync(user.Id, new UpdateUserDto
+        {
+            UserEmail = includeEmail ? user.UserEmail : null
+        });
 
-        // Assert
         Assert.Null(result);
-        var tokens = await _context.RefreshTokens.Where(rt => rt.UserId == user.Id).ToListAsync();
-        Assert.Single(tokens);
-        Assert.Equal("existing-token", tokens[0].Token);
+        Assert.Equal(EntityState.Unchanged, _context.Entry(user).State);
+        var persisted = await _context.Users.AsNoTracking().SingleAsync(item => item.Id == user.Id);
+        Assert.Equal(user.UserEmail, persisted.UserEmail);
+        var token = await _context.RefreshTokens.AsNoTracking().SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal("existing-token", token.Token);
+        Assert.False(token.IsRevoked);
     }
 
     [Fact]

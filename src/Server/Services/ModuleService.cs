@@ -97,6 +97,14 @@ public class ModuleService : IModuleService
             }
         }
 
+        if (dto.ConfirmedEndpoints.Count == 0 || pendingEndpoints.Any(endpoint =>
+                endpoint.Status == ModuleEndpointsStatus.PendingConfirmation &&
+                _context.Entry(endpoint).State != EntityState.Deleted))
+        {
+            await _context.SaveChangesAsync(ct);
+            return module.ToModuleDetailDto();
+        }
+
         module.Status = ModuleStatus.Created;
 
         try

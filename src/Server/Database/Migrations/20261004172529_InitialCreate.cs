@@ -22,6 +22,7 @@ namespace Server.Database.Migrations
                     ContainerId = table.Column<string>(type: "TEXT", nullable: true),
                     ContainerPort = table.Column<int>(type: "INTEGER", nullable: false),
                     StoragePath = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
+                    ModuleEntryAssemblyFileName = table.Column<string>(type: "TEXT", nullable: false),
                     Status = table.Column<string>(type: "TEXT", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },

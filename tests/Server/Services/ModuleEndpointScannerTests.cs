@@ -100,52 +100,35 @@ public class ModuleEndpointScannerTests : IDisposable
             _sut.ScanDirectoryAsync(moduleDirectory, cancellationTokenSource.Token));
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     [Trait("Feature", "ScanDirectory")]
-    public async Task ScanDirectoryAsync_AssemblyWithController_ReturnsResolvedEndpoints()
+    public async Task ScanDirectoryAsync_ControllerRoutes_ReturnsSortedDistinctEndpoints(bool includeUnmatchedRuntimeConfig)
     {
-        // Arrange
         var moduleDirectory = CreateModuleDirectoryFromTestOutput();
+        if (includeUnmatchedRuntimeConfig)
+            await File.WriteAllTextAsync(Path.Combine(moduleDirectory, "unmatched.runtimeconfig.json"), "{}");
 
-        // Act
         var result = await _sut.ScanDirectoryAsync(moduleDirectory);
 
-        // Assert
+        (string HttpMethod, string EndpointPath)[] expected =
+        [
+            ("GET", "/"),
+            ("GET", "/api/ModuleEndpointScannerSample"),
+            ("POST", "/api/ModuleEndpointScannerSample/items/Create"),
+            ("PUT", "/absolute"),
+            ("DELETE", "/root/Remove"),
+            ("PATCH", "/api/ModuleEndpointScannerSample/multi"),
+            ("OPTIONS", "/api/ModuleEndpointScannerSample/multi"),
+            ("GET", "/action-only/Details"),
+            ("GET", "/api/route-variants/status"),
+            ("GET", "/api/route-variant-alias/status"),
+            ("GET", "/api/duplicate-route/status")
+        ];
         Assert.Equal(Path.GetFileName(typeof(ModuleEndpointScannerTests).Assembly.Location), result.EntryAssemblyFileName);
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/api/ModuleEndpointScannerSample");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/api/ModuleEndpointScannerSample/items/Create");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "PUT" && endpoint.EndpointPath == "/absolute");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "DELETE" && endpoint.EndpointPath == "/root/Remove");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "PATCH" && endpoint.EndpointPath == "/api/ModuleEndpointScannerSample/multi");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "OPTIONS" && endpoint.EndpointPath == "/api/ModuleEndpointScannerSample/multi");
-    }
-
-    [Fact]
-    [Trait("Feature", "ScanDirectory")]
-    public async Task ScanDirectoryAsync_MultipleRuntimeConfigsAndRouteVariants_ReturnsAllDistinctEndpoints()
-    {
-        // Arrange
-        var moduleDirectory = CreateModuleDirectoryFromTestOutput();
-        await File.WriteAllTextAsync(Path.Combine(moduleDirectory, "unmatched.runtimeconfig.json"), "{}");
-
-        // Act
-        var result = await _sut.ScanDirectoryAsync(moduleDirectory);
-
-        // Assert
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/action-only/Details");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/api/route-variants/status");
-        Assert.Contains(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/api/route-variant-alias/status");
-        Assert.Single(result.DiscoveredEndpoints, endpoint =>
-            endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/api/duplicate-route/status");
+        Assert.Equal(expected.OrderBy(endpoint => endpoint.EndpointPath).ThenBy(endpoint => endpoint.HttpMethod),
+            result.DiscoveredEndpoints.Select(endpoint => (endpoint.HttpMethod, endpoint.EndpointPath)));
     }
 
     #endregion
@@ -162,8 +145,15 @@ public class ModuleEndpointScannerTests : IDisposable
     private string CreateModuleDirectoryFromTestOutput()
     {
         var moduleDirectory = CreateModuleDirectory("scanner-module");
+        var runtimeConfigName = $"{typeof(ModuleEndpointScannerTests).Assembly.GetName().Name}.runtimeconfig.json";
         foreach (var sourceFilePath in Directory.GetFiles(AppContext.BaseDirectory, "*", SearchOption.TopDirectoryOnly))
         {
+            if (sourceFilePath.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase) &&
+                Path.GetFileName(sourceFilePath) != runtimeConfigName)
+            {
+                continue;
+            }
+
             var targetFilePath = Path.Combine(moduleDirectory, Path.GetFileName(sourceFilePath));
             File.Copy(sourceFilePath, targetFilePath);
         }
@@ -192,6 +182,14 @@ public class ModuleEndpointScannerSampleController : ControllerBase
 
     [AcceptVerbs("PATCH", "OPTIONS", Route = "multi")]
     public IActionResult UpdateMultiple() => Ok();
+}
+
+[ApiController]
+[Route("/")]
+public class ModuleEndpointScannerRootController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult Get() => Ok();
 }
 
 [ApiController]

@@ -29,6 +29,7 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ContainerId")
+                        .IsConcurrencyToken()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ContainerPort")
@@ -41,6 +42,10 @@ namespace Server.Database.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ModuleEntryAssemblyFileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ModuleName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -51,6 +56,7 @@ namespace Server.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("StoragePath")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
