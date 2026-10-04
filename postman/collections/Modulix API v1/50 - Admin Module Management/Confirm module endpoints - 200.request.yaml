@@ -1,0 +1,34 @@
+$kind: http-request
+url: "{{baseUrl}}/api/modules-management/modules/{{moduleId}}/confirm-endpoints"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "confirmedEndpoints": {{moduleEndpointConfirmation}}
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const reports = JSON.parse(pm.variables.get('moduleEndpointConfirmation') || '[]');
+      if (!Array.isArray(reports)) {
+        throw new Error('moduleEndpointConfirmation must be a JSON array of discrepancy reports.');
+      }
+      if (reports.length === 0) {
+        pm.execution.skipRequest();
+      }
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status is 200', () => pm.response.to.have.status(200));
+      pm.test('Response contains the selected module', () => {
+        pm.expect(pm.response.json().id).to.eql(pm.variables.get('moduleId'));
+      });
+      const pendingConfirmationStatus = 0;
+      if (pm.response.code === 200 && pm.response.json().status !== pendingConfirmationStatus) {
+        pm.environment.set('moduleEndpointConfirmation', '[]');
+      }
+    language: text/javascript
+order: 2000

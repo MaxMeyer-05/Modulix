@@ -16,6 +16,8 @@ namespace Server.Controllers;
 [Route("api/modules-management/modules")]
 public class ModulesManagementController : ControllerBase
 {
+    private const long MaximumUploadBytes = 50L * 1024 * 1024; // Maximum allowed upload size for module files (50 MB)
+
     /// <summary>
     /// The module service used by the controller.
     /// </summary>
@@ -41,10 +43,13 @@ public class ModulesManagementController : ControllerBase
     /// </returns>
     [HttpPost("create")]
     [Authorize(Roles = nameof(Roles.Admin))]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaximumUploadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> CreateModuleAsync(CreateModuleDto dto)
+    public async Task<IActionResult> CreateModuleAsync([FromForm] CreateModuleDto dto)
     {
         if (dto == null)
             return BadRequest();
@@ -163,10 +168,14 @@ public class ModulesManagementController : ControllerBase
     /// </returns>
     [HttpPut("{moduleId}/files")]
     [Authorize(Roles = nameof(Roles.Admin))]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaximumUploadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto dto)
+    public async Task<IActionResult> UpdateModuleFilesAsync(Guid moduleId, [FromForm] UpdateModuleFilesDto dto)
     {
         await _moduleService.UpdateModuleFilesAsync(moduleId, dto, HttpContext.RequestAborted);
         return NoContent();

@@ -1,0 +1,9 @@
+$kind: collection
+description: Read module metadata with a user token. Set moduleId to an existing module or create a disposable module in 50 - Admin Module Management first.
+auth:
+  - id: 1624b0df-fbfc-4e2e-95f6-bbfd115c709c
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{userAccessToken}}"
+order: 4100

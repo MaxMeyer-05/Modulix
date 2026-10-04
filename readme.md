@@ -1,12 +1,18 @@
 # Modulix
 
-TBD: general description, what is the purpose and responsiblity of ths service?
+Modulix is an ASP.NET Core service for user and session management and for
+managing modular applications in Docker containers. It accepts published module
+ZIP archives, scans their controller endpoints, and manages module metadata,
+endpoint confirmation, and container lifecycle.
 
 ## Contribute
 
 ### Prerequisites
 
 - .NET SDK 10.0
+- A reachable Docker daemon with access for the service account when creating,
+	confirming, updating, or deleting module containers. On Linux, the service
+	uses `/var/run/docker.sock`; on Windows, it uses the Docker named pipe.
 
 Restore dependencies, build the solution, and run all tests from the repository
 root:
@@ -68,19 +74,75 @@ UI, select **Authorize** and enter the access token. Swagger sends it as an
 Use `POST /api/users/token/refresh` to exchange a valid refresh token for a new
 token pair. Use `POST /api/auth/logout` to revoke a refresh token.
 
+### Postman
+
+The source-controlled collection in [postman](postman) includes authentication,
+user management, module management, and authorization/error checks. Select
+`Modulix API v1` and the `Modulix Local` environment in the Postman VS Code view.
+Run the prerequisite registration/login requests before authenticated requests;
+admin actions additionally require an existing admin account.
+
+Module uploads use multipart form-data with a `ModuleFile` ZIP. Configure the
+local archive paths or select files in Postman. Creating a module saves its ID
+for subsequent requests. Review any endpoint discrepancy report before
+confirming it, and run destructive cleanup requests manually only.
+
+Both upload endpoints limit the entire request body to 50 MiB (52,428,800
+bytes), including text fields and multipart overhead. The ZIP must therefore
+be smaller than 50 MiB. MVC form binding returns `400` when this limit is
+exceeded; a reverse proxy can return `413` or enforce a lower limit. ZIP
+validation separately allows at most 1,000 entries and 512 MiB of uncompressed
+data.
+
+See [Postman testing conventions](postman/documents/testing-conventions.md) for
+environment variables, module preparation, request order, and upload fields.
+Keep credentials, tokens, and local file paths in an ignored
+`*.private.environment.yaml` file.
+
+## Module Management API
+
+All routes below are relative to `/api/modules-management/modules`. Read
+operations require an authenticated user; mutations require the `Admin` role.
+
+| Method | Route | Access | Success response |
+| --- | --- | --- | --- |
+| `GET` | `/` | Authenticated | `200`: module list. |
+| `GET` | `/{moduleId}` | Authenticated | `200`: module details and endpoints. |
+| `GET` | `/{moduleId}/sub-endpoints` | Authenticated | `200`: endpoint list. |
+| `POST` | `/create` | Admin | `201` or `202`: module and discrepancy report. |
+| `POST` | `/{moduleId}/confirm-endpoints` | Admin | `200`: module details. |
+| `PUT` | `/{moduleId}` | Admin | `204`: metadata updated. |
+| `PUT` | `/{moduleId}/files` | Admin | `204`: replacement activated. |
+| `DELETE` | `/{moduleId}` | Admin | `204`: module deleted; also returned if absent. |
+
+Creation and file replacement use multipart form-data; metadata updates and
+endpoint confirmation use JSON. An endpoint discrepancy leaves a new module in
+`PendingConfirmation` and returns `202`. Confirmation accepts a
+`confirmedEndpoints` array of discrepancy reports. Inspect the returned module
+status: creation or confirmation can report a module whose container failed to
+start.
+
+File replacement preserves the registered endpoint contract and waits for the
+candidate container to be ready before switching the persisted module version.
+Pending endpoint confirmation or changed HTTP methods/routes cause `409`.
+Upload only trusted binaries: module archives are executed in Docker containers.
+These endpoints manage module metadata and containers; they do not expose a
+proxy that forwards traffic to module endpoints.
+
 ## Project Structure
 
 | Path | Responsibility |
 | --- | --- |
 | `src/Server` | ASP.NET Core host, dependency injection, middleware, and configuration. |
-| `src/Server/Controllers` | HTTP endpoints for authentication and user management. |
+| `src/Server/Controllers` | HTTP endpoints for authentication, user management, and module management. |
 | `src/Server/Database` | EF Core context, entities, and SQLite migrations. |
 | `src/Server/Infrastructure` | Cross-cutting infrastructure, including exception handling. |
 | `src/Server/Mappers` | Mapping between persistence entities and API DTOs. |
 | `src/Server/Models` | API DTOs, session data, and role definitions. |
 | `src/Server/Security` | JWT configuration and issuance, password hashing, and claims helpers. |
-| `src/Server/Services` | Authentication and user-management business logic. |
+| `src/Server/Services` | Authentication, user management, module scanning, and Docker lifecycle logic. |
 | `tests/Server` | Unit tests for security, services, and models. |
+| `postman` | API collection, environment templates, and testing conventions. |
 
 ## Key Concepts
 
@@ -94,6 +156,9 @@ token pair. Use `POST /api/auth/logout` to revoke a refresh token.
 - **User management:** Authenticated users can view, update, and delete their
 	own account. Administrators can list users, change roles and scopes, and
 	delete user accounts.
+- **Module management:** Authenticated users can inspect modules and their
+	registered endpoints. Administrators upload module archives, confirm endpoint
+	discrepancies, update metadata or binaries, and delete modules and containers.
 - **Operations:** EF Core applies pending migrations during application startup.
 	Serilog records application logs, while the global exception handler returns
 	RFC 7807 problem-details responses.
