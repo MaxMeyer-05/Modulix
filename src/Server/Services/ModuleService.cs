@@ -122,8 +122,8 @@ public class ModuleService : IModuleService
 
         // Create a discrepancy report
         var discrepancyReport = CreateEndpointDiscrepancyReport(dto.InitialEndpoints?.ToList(), discoveredEndpoints, module.Id);
-
-        if (discrepancyReport.HasDiscrepancy)
+    
+        if (discrepancyReport?.HasDiscrepancy == true)
             module.Status = ModuleStatus.PendingConfirmation;
 
         _context.Modules.Add(module);
@@ -429,12 +429,12 @@ public class ModuleService : IModuleService
     /// <param name="discoveredEndpoints">The list of endpoints discovered for the module.</param>
     /// <param name="moduleId">The unique identifier of the module.</param>
     /// <returns>A report detailing any discrepancies between the initial and discovered endpoints.</returns>
-    private EndpointDiscrepancyReportDto CreateEndpointDiscrepancyReport(
+    private EndpointDiscrepancyReportDto? CreateEndpointDiscrepancyReport(
         List<CreateModuleEndpointDto>? initialEndpoints, 
         List<DiscoveredEndpointDto> discoveredEndpoints, 
         Guid moduleId)
     {
-        var discrepancyReport = new EndpointDiscrepancyReportDto();
+        EndpointDiscrepancyReportDto discrepancyReport = new();
         if (initialEndpoints is null || initialEndpoints.Count == 0)
         {
             foreach (var endpoint in discoveredEndpoints)
@@ -502,6 +502,6 @@ public class ModuleService : IModuleService
             }
         }
         
-        return discrepancyReport;
+        return discrepancyReport ?? null;
     }
 }
