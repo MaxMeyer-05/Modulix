@@ -21,8 +21,8 @@ variables override JSON settings; use `__` for nested configuration keys.
 | `Serilog` | Log levels, sinks, and retention settings. |
 
 The API retrieves public signing keys from Keycloak metadata instead of
-issuing or signing tokens itself. `Keycloak:Authority` and `Keycloak:Token`
-are not consumed by the current implementation.
+issuing or signing tokens itself. Access tokens are supplied by clients in
+the bearer header, not stored in server configuration.
 
 Keep the database and module storage persistent and back up the database
 before deployments that apply migrations. Expose the service through HTTPS
@@ -41,22 +41,32 @@ Secured endpoints require a Keycloak access token in the
 issuer, audience, signature, and lifetime using the configured realm metadata.
 The API does not perform per-request Keycloak session or revocation checks.
 
-### Authorization Status
+### Authorization
 
 Module controllers retain their authentication and `Admin` role requirements.
 The `Roles` enum remains a naming convention for these requirements, not a
-local role assignment store. Mapping Keycloak realm or client roles into
-ASP.NET Core role claims is deferred; ordinary nested Keycloak roles are not
-automatically recognized by the existing admin checks.
+local role assignment store. The API disables inbound claim renaming and
+uses the top-level `roles` claim for ASP.NET Core role checks. Role names are
+case-sensitive: `Admin` satisfies an admin requirement; `admin` does not.
 
-## Database Status
+Configure a Keycloak `User Client Role` mapper for the Modulix API client to
+emit a multivalued string claim named `roles` in access tokens. Assign its
+client scope to the login client as a default scope. Add an audience mapper
+for the API client so tokens contain the configured `Keycloak:Audience`.
+Nested `realm_access.roles` or `resource_access.<client>.roles` alone do not
+satisfy these checks. Obtain a new access token after changing the mappers
+or role assignments.
 
-Only modules and module endpoints remain in the EF Core model. The previous
-migration files have been removed during restructuring. Startup still calls
-`Database.Migrate()`, but it cannot provision the schema without migrations.
-Restore applied migration history and add a removal migration when preserving
-an existing database; create an initial module-only migration only for a new
-or deliberately reset development database.
+## Database
+
+The `InitialCreate` migration in `src/Server/Database/Migrations` creates
+the module and module-endpoint tables. No local user or refresh-token tables
+are included. Startup applies pending migrations with `Database.Migrate()`.
+
+This initial migration is intended for a new database. If an existing database
+still uses the previous user/session schema or migration history, preserve
+its data and reconcile that history before applying the new initial migration.
+Do not apply it over existing tables without a migration plan.
 
 ## Errors and Testing
 

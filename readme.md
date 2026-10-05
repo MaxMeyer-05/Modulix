@@ -45,13 +45,15 @@ dotnet restore
 dotnet run --project src/Server
 ```
 
-Pending database migrations are applied automatically. The migration history
-is currently absent during restructuring, so database provisioning must be
-resolved before using the server. Preserve applied migration history for any
-existing database that must be retained.
+Pending database migrations are applied automatically. `InitialCreate` in
+`src/Server/Database/Migrations` provisions the module-only schema for a new
+database. Existing databases from before the Keycloak migration require
+their previous migration history to be reconciled before applying it.
 
-Keycloak role mapping is not implemented yet. The existing admin role checks
-remain in place and require compatible role claims.
+Admin checks use the top-level `roles` claim, for example `["Admin", "User"]`.
+Configure Keycloak to include the API client roles in this claim and the API
+audience in access tokens; see the
+[authorization reference](docs/readme.server.md#authorization).
 
 The development profile listens on `http://localhost:5284`. The following
 documentation endpoints are available only in Development:

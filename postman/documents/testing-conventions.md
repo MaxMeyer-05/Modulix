@@ -23,9 +23,11 @@ The collection contains module requests only. Local registration, login,
 token refresh, and user-management requests have been removed. Supply access
 tokens externally and replace them when they expire.
 
-Keycloak role mapping is not implemented yet. Admin requests require role
-claims recognized by ASP.NET Core; a nested Keycloak role assignment alone
-does not satisfy the existing admin checks.
+Admin requests require an access token with `Admin` in the top-level `roles`
+claim and the configured API audience. A nested Keycloak role assignment
+alone does not satisfy the admin checks. Configure the
+[Keycloak token mappers](../../docs/readme.server.md#authorization) and obtain
+a new token after role or mapper changes.
 
 Do not execute `99 - Manual Cleanup` in a normal Collection Runner run;
 select a cleanup request deliberately.
