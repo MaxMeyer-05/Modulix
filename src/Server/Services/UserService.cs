@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Server.Mappers;
 using Server.Models.Dtos;
 using Server.Database.DbContexts;
+using Server.Services.Interfaces;
 
 using Server.Security.Tokens;
 using Server.Security.Password;
@@ -63,7 +64,7 @@ public class UserService : IUserService
 
         _context.Users.Remove(user);
         await _context.SaveChangesAsync(ct);
-        _logger.LogDebug("Deleted user with ID '{UserId}' from the database.", userId);
+        _logger.LogInformation("Deleted user with ID '{UserId}' from the database.", userId);
     }
 
     /// <inheritdoc/>
@@ -100,6 +101,9 @@ public class UserService : IUserService
                 ct);
         if (refreshTokenEntity is null)
             throw new UnauthorizedAccessException("Invalid refresh token.");
+
+        if (refreshTokenEntity.ExpiresAtUtc <= DateTime.UtcNow)
+            throw new UnauthorizedAccessException("Refresh token has expired.");
 
         var user = await _context.Users.FindAsync(refreshTokenEntity.UserId, ct);
         if (user is null)
@@ -146,7 +150,7 @@ public class UserService : IUserService
         });
 
         await _context.SaveChangesAsync(ct);
-        _logger.LogDebug("Updated user with ID '{UserId}' in the database.", userId);
+        _logger.LogInformation("Updated user with ID '{UserId}' in the database.", userId);
 
         return tokenResult;
     }
@@ -179,7 +183,7 @@ public class UserService : IUserService
         });
 
         await _context.SaveChangesAsync(ct);
-        _logger.LogDebug("Updated password for user with ID '{UserId}'.", userId);
+        _logger.LogInformation("Updated password for user with ID '{UserId}'.", userId);
 
         return tokenResult;
     }
@@ -198,7 +202,7 @@ public class UserService : IUserService
             return;
 
         await _context.SaveChangesAsync(ct);
-        _logger.LogDebug("Updated scopes for user with ID '{UserId}' in the database.", userId);
+        _logger.LogInformation("Updated scopes for user with ID '{UserId}' in the database.", userId);
     }
 
     /// <inheritdoc/>
@@ -215,8 +219,6 @@ public class UserService : IUserService
             return;
 
         await _context.SaveChangesAsync(ct);
-        _logger.LogDebug("Updated role for user with ID '{UserId}' in the database.", userId);
-
-        return;
+        _logger.LogInformation("Updated role for user with ID '{UserId}' in the database.", userId);
     }
 }

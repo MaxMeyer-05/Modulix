@@ -26,3 +26,17 @@ values:
     value: ''
   - key: adminTargetUserId
     value: ''
+  - key: moduleId
+    value: ''
+  - key: moduleName
+    value: 'PostmanModule'
+  - key: moduleDescription
+    value: 'Disposable Postman test module.'
+  - key: moduleBaseEndpointPath
+    value: 'modules/postman'
+  - key: moduleZipPath
+    value: ''
+  - key: moduleReplacementZipPath
+    value: ''
+  - key: moduleEndpointConfirmation
+    value: '[]'

@@ -22,6 +22,9 @@ appsettings.Staging.json
 postman/environments/*.private.postman_environment.json
 postman/environments/*.private.environment.yaml
 
+# Obsidian
+*.obsidian
+
 # User-specific files
 *.rsuser
 *.suo

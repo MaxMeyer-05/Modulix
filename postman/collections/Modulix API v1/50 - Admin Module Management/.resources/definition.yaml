@@ -1,0 +1,9 @@
+$kind: collection
+description: Requires an admin login and a disposable published module ZIP. Review any endpoint discrepancy report before confirming it. File updates must preserve the registered endpoint contract.
+auth:
+  - id: 23a8d925-3649-46f5-9f1a-68809f9912ac
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{adminAccessToken}}"
+order: 4200

@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/api/modules-management/modules/{{moduleId}}"
+method: DELETE
+auth:
+  type: bearer
+  credentials:
+    token: "{{adminAccessToken}}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      if (!pm.variables.get('moduleId')) {
+        throw new Error('Set moduleId to a disposable module before deleting it.');
+      }
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status is 204', () => pm.response.to.have.status(204));
+      if (pm.response.code === 204) {
+        pm.environment.unset('moduleId');
+        pm.environment.set('moduleEndpointConfirmation', '[]');
+      }
+    language: text/javascript
+order: 3000

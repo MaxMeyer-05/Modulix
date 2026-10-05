@@ -1,107 +1,92 @@
 # Modulix
 
-TBD: general description, what is the purpose and responsiblity of ths service?
+Modulix is an ASP.NET Core 10 Web API for centrally managing users, sessions,
+and modular applications. Administrators upload published applications as ZIP
+archives; the server discovers their controller endpoints and manages their
+deployment in Docker containers.
 
-## Contribute
+## What It Does
+
+- **Authentication and sessions:** Email/password login, JWT access tokens,
+  and refresh-token rotation and revocation.
+- **User management:** Self-service account management and admin-controlled
+  roles and scopes.
+- **Module management:** Archive uploads, endpoint discovery and confirmation,
+  metadata updates, binary replacement, and container deletion.
+- **Persistence and operations:** SQLite storage through EF Core, automatic
+  database migrations at startup, and structured logging with Serilog.
+
+Modulix manages module metadata and containers. It does not currently provide
+a reverse proxy that forwards requests to module endpoints.
+
+## Quick Start
 
 ### Prerequisites
 
-- .NET SDK 10.0
+- .NET SDK 10.0.
+- Write access to the SQLite database location and configured log destinations.
+- A reachable Docker daemon for module container operations. Authentication
+  and user management do not require Docker. See the
+  [module prerequisites](docs/readme.module-management.md#prerequisites) for
+  Docker access and storage requirements.
 
-Restore dependencies, build the solution, and run all tests from the repository
-root:
+### Configure and Run
+
+Run these commands from the repository root. Review
+[appsettings.Template.json](src/Server/appsettings.Template.json) for the local
+SQLite, logging, and non-secret JWT settings. Configuration keys and deployment
+guidance are documented in the
+[server guide](docs/readme.server.md#configuration).
+
+Store the JWT signing key in .NET User Secrets, not in a committed
+configuration file. Replace the placeholder with a random secret of at least
+32 UTF-8 bytes before running the server:
 
 ```sh
 dotnet restore
-dotnet build
-dotnet test
-```
-
-Start the service locally:
-
-```sh
+dotnet user-secrets set "Jwt:SecretKey" "replace-with-a-random-secret-of-at-least-32-bytes" --project src/Server
 dotnet run --project src/Server
 ```
 
-The development profile listens on `http://localhost:5284`. OpenAPI and Swagger
-UI are available only in the Development environment at
-`http://localhost:5284/swagger`.
+Pending database migrations are applied automatically; no separate database
+setup command is required.
 
-### Configuration
+The development profile listens on `http://localhost:5284`. The following
+documentation endpoints are available only in Development:
 
-Use `src/Server/appsettings.Template.json` as the starting point for local
-configuration. It contains the SQLite connection string, Serilog settings, and
-non-secret JWT options.
-
-The `Jwt` configuration section requires the following values:
-
-| Key | Description |
+| Endpoint | URL |
 | --- | --- |
-| `Jwt:Issuer` | Expected token issuer. |
-| `Jwt:Audience` | Expected token audience. |
-| `Jwt:AccessTokenLifetimeMinutes` | Positive access-token lifetime in minutes. |
-| `Jwt:RefreshTokenLifetimeMinutes` | Positive refresh-token lifetime in minutes. |
-| `Jwt:SecretKey` | UTF-8 signing key with at least 32 bytes. |
+| Swagger UI | `http://localhost:5284/swagger` |
+| Swagger JSON | `http://localhost:5284/swagger/v1/swagger.json` |
+| OpenAPI document | `http://localhost:5284/openapi/v1.json` |
 
-Do not add `Jwt:SecretKey` to an `appsettings` file. For local development,
-store it with .NET User Secrets:
+Authentication endpoints and token behavior are documented in the
+[authentication reference](docs/readme.server.md#authentication-api).
+For collection-based testing, follow the
+[Postman guide](postman/documents/testing-conventions.md).
 
-```sh
-dotnet user-secrets set "Jwt:SecretKey" "replace-with-a-random-secret-of-at-least-32-bytes" --project src/Server
-```
+## Documentation
 
-For deployments, provide it through the `Jwt__SecretKey` environment variable:
-
-```sh
-export Jwt__SecretKey="replace-with-a-random-secret-of-at-least-32-bytes"
-```
-
-Environment variables override configuration values from JSON files.
-
-### Swagger Authentication
-
-Register a user with `POST /api/auth/register`, then use
-`POST /api/auth/login` to obtain an access token and refresh token. In Swagger
-UI, select **Authorize** and enter the access token. Swagger sends it as an
-`Authorization: Bearer <token>` header for secured endpoints.
-
-Use `POST /api/users/token/refresh` to exchange a valid refresh token for a new
-token pair. Use `POST /api/auth/logout` to revoke a refresh token.
+| Guide | Contents |
+| --- | --- |
+| [Server, Authentication, and Users](docs/readme.server.md) | Configuration, deployment considerations, authentication, token lifecycle, user APIs, and error handling. |
+| [Module Management](docs/readme.module-management.md) | Archive preparation, upload fields and limits, endpoint confirmation, Docker lifecycle, file replacement, and deletion. |
+| [Postman testing conventions](postman/documents/testing-conventions.md) | Request order, environment variables, test data, and manual cleanup. |
 
 ## Project Structure
 
 | Path | Responsibility |
 | --- | --- |
-| `src/Server` | ASP.NET Core host, dependency injection, middleware, and configuration. |
-| `src/Server/Controllers` | HTTP endpoints for authentication and user management. |
-| `src/Server/Database` | EF Core context, entities, and SQLite migrations. |
-| `src/Server/Infrastructure` | Cross-cutting infrastructure, including exception handling. |
-| `src/Server/Mappers` | Mapping between persistence entities and API DTOs. |
-| `src/Server/Models` | API DTOs, session data, and role definitions. |
-| `src/Server/Security` | JWT configuration and issuance, password hashing, and claims helpers. |
-| `src/Server/Services` | Authentication and user-management business logic. |
+| `src/Server` | API host, controllers, services, security, and database persistence. |
 | `tests/Server` | Unit tests for security, services, and models. |
+| `docs` | Detailed server and module documentation. |
+| `postman` | API collection, environment templates, and testing conventions. |
 
-## Key Concepts
+## Development
 
-- **Authentication:** Users register and log in with an email address and
-	password. A successful login returns a JWT access token and a refresh token.
-- **Authorization:** Secured endpoints validate issuer, audience, signature,
-	lifetime, subject, and role claims. Admin-only endpoints require the `Admin`
-	role.
-- **Sessions:** Refresh tokens are persisted in SQLite. They can be refreshed
-	to obtain a new token pair or revoked during logout.
-- **User management:** Authenticated users can view, update, and delete their
-	own account. Administrators can list users, change roles and scopes, and
-	delete user accounts.
-- **Operations:** EF Core applies pending migrations during application startup.
-	Serilog records application logs, while the global exception handler returns
-	RFC 7807 problem-details responses.
+Build the solution and run its tests from the repository root:
 
-## Related Articles
-
-- [ASP.NET Core authentication and authorization](https://learn.microsoft.com/aspnet/core/security/authentication/)
-- [JWT bearer authentication](https://learn.microsoft.com/aspnet/core/security/authentication/configure-jwt-bearer-authentication)
-- [Entity Framework Core migrations](https://learn.microsoft.com/ef/core/managing-schemas/migrations/)
-- [Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807)
-
+```sh
+dotnet build
+dotnet test
+```

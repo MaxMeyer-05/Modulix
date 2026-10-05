@@ -12,20 +12,26 @@ public class RegisterDto
     /// <summary>
     /// The email address of the user.
     /// </summary>
-    [Required]
-    [EmailAddress]
+    /// <value>e.g., user@example.com</value>
+    /// <example>user@example.com</example>
+    [Required(ErrorMessage = "User email is required.")]
+    [EmailAddress(ErrorMessage = "Invalid email address.")]
     public string UserEmail { get; set; } = null!;
     
     /// <summary>
     /// The password of the user.
     /// </summary>
-    [Required]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "User password is required.")]
     public string UserPassword { get; set; } = null!;
 
     /// <summary>
     /// The new password of the user.
     /// </summary>
-    [Required]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "Confirm password is required.")]
     public string Confirm_UserPassword { get; set; } = null!;
 }
 
@@ -37,14 +43,18 @@ public class LoginDto
     /// <summary>
     /// The email address of the user.
     /// </summary>
-    [Required]
-    [EmailAddress]
+    /// <value>e.g., user@example.com</value>
+    /// <example>user@example.com</example>
+    [Required(ErrorMessage = "User email is required.")]
+    [EmailAddress(ErrorMessage = "Invalid email address.")]
     public string UserEmail { get; set; } = null!;
 
     /// <summary>
     /// The password of the user.
     /// </summary>
-    [Required]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "User password is required.")]
     public string UserPassword { get; set; } = null!;
 }
 
@@ -72,7 +82,9 @@ public class UpdateUserDto
     /// <summary>
     /// The email address of the user.
     /// </summary>
-    [EmailAddress]
+    /// <value>e.g., user@example.com</value>
+    /// <example>user@example.com</example>
+    [EmailAddress(ErrorMessage = "Invalid email address.")]
     public string? UserEmail { get; set; }
 }
 
@@ -84,22 +96,28 @@ public class UpdatePasswordDto
     /// <summary>
     /// The user's current password.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "Current password is required.")]
+    [MinLength(1, ErrorMessage = "Current password must be at least 1 character long.")]
     public string CurrentPassword { get; set; } = null!;
 
     /// <summary>
     /// The new password for the user.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "New password is required.")]
+    [MinLength(1, ErrorMessage = "New password must be at least 1 character long.")]
     public string NewPassword { get; set; } = null!;
 
     /// <summary>
     /// The confirmation of the new password.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "Confirm new password is required.")]
+    [MinLength(1, ErrorMessage = "Confirm new password must be at least 1 character long.")]
     public string ConfirmNewPassword { get; set; } = null!;
 }
 
@@ -111,7 +129,10 @@ public class UpdateUserRoleDto
     /// <summary>
     /// The new role of the user.
     /// </summary>
-    public Roles? Role { get; set; }
+    /// <value>e.g., Admin, User</value>
+    /// <example>Admin</example>
+    [Required(ErrorMessage = "User role is required.")]
+    public Roles Role { get; set; }
 }
 
 /// <summary>
@@ -122,7 +143,9 @@ public class UpdateUserScopesDto
     /// <summary>
     /// The scopes assigned to the user.
     /// </summary>
-    [Required]
+    /// <value>e.g., ["scope1", "scope2"]</value>
+    /// <example>["scope1", "scope2"]</example>
+    [Required(ErrorMessage = "Allowed scopes are required.")]
     public List<string> AllowedScopes { get; set; } = [];
 }
 
@@ -134,8 +157,10 @@ public class DeleteCurrentUserDto
     /// <summary>
     /// The user's current password.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <value>e.g., P@ssw0rd</value>
+    /// <example>P@ssw0rd</example>
+    [Required(ErrorMessage = "Current password is required.")]
+    [MinLength(1, ErrorMessage = "Current password must be at least 1 character long.")]
     public string CurrentPassword { get; set; } = null!;
 }
 
@@ -147,8 +172,10 @@ public class RefreshTokenRequestDto
     /// <summary>
     /// The active refresh token.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <value>e.g., eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</value>
+    /// <example>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</example>
+    [Required(ErrorMessage = "Refresh token is required.")]
+    [MinLength(1, ErrorMessage = "Refresh token must be at least 1 character long.")]
     public string RefreshToken { get; set; } = null!;
 }
 
@@ -160,7 +187,9 @@ public class LogoutDto
     /// <summary>
     /// The refresh token for the session to revoke.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <value>e.g., eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</value>
+    /// <example>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</example>
+    [Required(ErrorMessage = "Refresh token is required.")]
+    [MinLength(1, ErrorMessage = "Refresh token must be at least 1 character long.")]
     public string RefreshToken { get; set; } = null!;
 }

@@ -13,19 +13,15 @@ public static class UserMapper
     /// </summary>
     /// <param name="user">The user entity.</param>
     /// <returns>A <see cref="UserDto"/> representing the user.</returns>
-    public static UserDto ToUserDto(this User user)
+    public static UserDto ToUserDto(this User user) => new()
     {
-        return new UserDto
-        {
-            Id = user.Id,
-            UserEmail = user.UserEmail,
-            Role = user.Role,
-            AllowedScopes = user.AllowedScopes,
-            IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
-        };
-    }
-
+        Id = user.Id,
+        UserEmail = user.UserEmail,
+        Role = user.Role,
+        AllowedScopes = user.AllowedScopes,
+        IsActive = user.IsActive,
+        CreatedAt = user.CreatedAt
+    };
     /// <summary>
     /// Updates a <see cref="User"/> entity with the values from an <see cref="UpdateUserDto"/>.
     /// </summary>
@@ -43,7 +39,7 @@ public static class UserMapper
     /// <param name="userRoleDto">The DTO containing the updated user role information.</param>
     public static void UpdateUserRoleFromDto(this User user, UpdateUserRoleDto userRoleDto)
     {
-        user.Role = userRoleDto.Role ?? user.Role;
+        user.Role = userRoleDto.Role;
     }
 
     /// <summary>

@@ -1,0 +1,37 @@
+$kind: http-request
+url: "{{baseUrl}}/api/modules-management/modules/create"
+method: POST
+body:
+  type: formdata
+  content:
+    - key: ModuleName
+      type: text
+      value: "{{moduleName}}"
+    - key: Description
+      type: text
+      value: "{{moduleDescription}}"
+    - key: BaseEndpointPath
+      type: text
+      value: "{{moduleBaseEndpointPath}}"
+    - key: ModuleFile
+      type: file
+      src: "{{moduleZipPath}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status is 201 or 202', () => {
+        pm.expect(pm.response.code).to.be.oneOf([201, 202]);
+      });
+      if ([201, 202].includes(pm.response.code)) {
+        const payload = pm.response.json();
+        pm.test('Response contains the created module', () => {
+          pm.expect(payload.module.id).to.be.a('string').and.not.empty;
+          pm.expect(payload.module.endpoints).to.be.an('array');
+        });
+        pm.environment.set('moduleId', payload.module.id);
+        const reports = payload.discrepancyReport && payload.discrepancyReport.hasDiscrepancy
+          ? [payload.discrepancyReport] : [];
+        pm.environment.set('moduleEndpointConfirmation', JSON.stringify(reports));
+      }
+    language: text/javascript
+order: 1000
