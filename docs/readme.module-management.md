@@ -3,12 +3,12 @@
 This guide documents module archives, endpoint discovery and confirmation,
 the management API, and Docker lifecycle behavior. See the
 [project README](../readme.md#quick-start) for local setup and
-[Server, Authentication, and Users](readme.server.md#authentication-api) for
+[Server and Authentication](readme.server.md#authentication) for
 token handling.
 
 ## Prerequisites
 
-- A running Modulix server with configured SQLite and JWT settings.
+- A running Modulix server with configured SQLite and Keycloak token validation.
 - A valid access token. Reads require authentication; mutations require `Admin`.
 - A reachable Docker daemon for container creation, confirmation, replacement,
   and deletion. On Linux the service connects to `/var/run/docker.sock`; on

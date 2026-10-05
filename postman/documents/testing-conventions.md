@@ -2,7 +2,7 @@
 
 This guide covers collection setup, request order, test variables, and cleanup.
 API contracts are documented in
-[Server, Authentication, and Users](../../docs/readme.server.md) and
+[Server and Authentication](../../docs/readme.server.md) and
 [Module Management](../../docs/readme.module-management.md).
 
 ## Use in VS Code
@@ -10,7 +10,7 @@ API contracts are documented in
 The Postman extension reads the source-controlled collection and environment files below `postman/` automatically. Select `Modulix API v1` in the Postman view, then activate the required `Modulix` environment.
 
 1. Set `baseUrl` for non-local environments to the actual deployment URL.
-2. Configure `adminEmail` and `adminPassword` only when admin requests are needed.
+2. Obtain access tokens from Keycloak and set `userAccessToken` and, when needed, `adminAccessToken` in a private environment.
 3. Export from the Postman view when the collection must be used in a separate Postman client.
 
 Start the server using the [project quick start](../../readme.md#quick-start)
@@ -19,11 +19,16 @@ development profile URL.
 
 ## Collection order
 
-Run `00 - Prerequisites` before authenticated folders. It registers a local test user, logs in, and writes `userAccessToken`, `userRefreshToken`, and `testUserId` to the active environment. The email and test passwords are generated only when their variables are empty.
+The collection contains module requests only. Local registration, login,
+token refresh, and user-management requests have been removed. Supply access
+tokens externally and replace them when they expire.
 
-`10 - Authentication and Session` rotates the user token pair. Profile and password changes in `20 - Current User` also rotate the token pair; their test scripts update the active environment automatically.
+Keycloak role mapping is not implemented yet. Admin requests require role
+claims recognized by ASP.NET Core; a nested Keycloak role assignment alone
+does not satisfy the existing admin checks.
 
-`30 - Admin User Management` requires an existing admin account. Set `adminTargetUserId` only to a disposable test account. Do not execute `99 - Manual Cleanup` in a normal Collection Runner run; select a cleanup request deliberately.
+Do not execute `99 - Manual Cleanup` in a normal Collection Runner run;
+select a cleanup request deliberately.
 
 ## Module management
 
@@ -50,6 +55,4 @@ set it manually.
 
 Committed environment files contain no credentials or tokens. Store real credentials in a local environment named `*.private.environment.yaml`; private environments are ignored by Git. Do not use real production users for destructive requests.
 
-The login scripts populate user and admin token variables from the
-[login response](../../docs/readme.server.md#login); refresh and profile-change
-scripts replace them with the returned token pair.
+No collection scripts create accounts, obtain tokens, or refresh sessions.
