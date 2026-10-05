@@ -1,3 +1,0 @@
-$kind: collection
-description: Run in order. Configure admin credentials in the active environment before using the admin folders.
-order: 1000

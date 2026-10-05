@@ -11,7 +11,7 @@ using Server.Database.DbContexts;
 namespace Server.Database.Migrations
 {
     [DbContext(typeof(ServerContext))]
-    [Migration("20261004172529_InitialCreate")]
+    [Migration("20261005131101_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -112,73 +112,6 @@ namespace Server.Database.Migrations
                     b.ToTable("module_endpoints");
                 });
 
-            modelBuilder.Entity("Server.Database.Entities.RefreshToken", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("ExpiresAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsRevoked")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("refresh_tokens");
-                });
-
-            modelBuilder.Entity("Server.Database.Entities.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.PrimitiveCollection<string>("AllowedScopes")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserEmail")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserEmail")
-                        .IsUnique();
-
-                    b.ToTable("users");
-                });
-
             modelBuilder.Entity("Server.Database.Entities.ModuleEndpoint", b =>
                 {
                     b.HasOne("Server.Database.Entities.Module", "Module")
@@ -190,25 +123,9 @@ namespace Server.Database.Migrations
                     b.Navigation("Module");
                 });
 
-            modelBuilder.Entity("Server.Database.Entities.RefreshToken", b =>
-                {
-                    b.HasOne("Server.Database.Entities.User", "User")
-                        .WithMany("RefreshTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Server.Database.Entities.Module", b =>
                 {
                     b.Navigation("SubEndpoints");
-                });
-
-            modelBuilder.Entity("Server.Database.Entities.User", b =>
-                {
-                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }

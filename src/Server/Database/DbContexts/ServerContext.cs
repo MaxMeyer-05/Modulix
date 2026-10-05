@@ -5,20 +5,10 @@ using Server.Database.Entities;
 namespace Server.Database.DbContexts;
 
 /// <summary>
-/// Represents the database context for the server, including users and refresh tokens.
+/// Represents the database context for modules and their endpoints.
 /// </summary>
 public class ServerContext : DbContext
 {
-    /// <summary>
-    /// Represents the collection of users in the database.
-    /// </summary>
-    public DbSet<User> Users { get; set; } = null!;
-
-    /// <summary>
-    /// Represents the collection of refresh tokens in the database.
-    /// </summary>
-    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
-
     /// <summary>
     /// Represents the collection of modules in the database.
     /// </summary>
@@ -44,17 +34,6 @@ public class ServerContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<User>(entity => 
-        {
-            entity.Property(u => u.Role)
-                .HasConversion<string>();
-
-            entity.HasMany(u => u.RefreshTokens)
-                .WithOne(rt => rt.User)
-                .HasForeignKey(rt => rt.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
 
         modelBuilder.Entity<Module>(entity =>
         {

@@ -1,42 +1,25 @@
 using Serilog;
 
 using Microsoft.OpenApi;
-using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 using Server.Services;
 using Server.Services.Interfaces;
 
-using Server.Models.Dtos;
 using Server.Infrastructure;
 using Server.Database.DbContexts;
-
-using Server.Security.Tokens;
-using Server.Security.Password;
-using Server.Security.Authorization;
-using Server.Security.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
 
-builder.Services.AddScoped<UserSessionDataDto>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
-builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
 builder.Services.AddScoped<IModuleEndpointScanner, ModuleEndpointScanner>();
 
-builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IDockerService, DockerService>();
-builder.Services.AddSingleton<IJwtTokenProvider, JwtTokenProvider>();
-builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
-
-builder.Services.AddOptions<JwtOptions>()
-    .BindConfiguration(JwtOptions.SectionName)
-    .ValidateOnStart();
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
@@ -50,21 +33,6 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1"
     });
 
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter a JWT access token."
-    });
-
-    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-    });
-
     options.IncludeXmlComments(
         Path.Combine(
             AppContext.BaseDirectory, 
@@ -73,28 +41,17 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer();
-
-builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-    .Configure<IOptions<JwtOptions>>((options, jwtOptions) =>
+    .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = jwtOptions.Value.CreateTokenValidationParameters();
+        options.MapInboundClaims = false;
+        options.RequireHttpsMetadata = false;
+        options.Audience = builder.Configuration["Keycloak:Audience"];
+        options.MetadataAddress = builder.Configuration["Keycloak:MetadataAddress"]!;
 
-        options.Events = new JwtBearerEvents
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            OnTokenValidated = context =>
-            {
-                if (context.Principal?.HasValidSessionClaims() != true)
-                {
-                    context.Fail("The token does not contain a valid subject and role.");
-                    return Task.CompletedTask;
-                }
-
-                var sessionDto = context.HttpContext.RequestServices.GetRequiredService<UserSessionDataDto>();
-                context.Principal.PopulateSessionData(sessionDto);
-
-                return Task.CompletedTask;
-            }
+            ValidIssuer = builder.Configuration["Keycloak:Issuer"],
+            RoleClaimType = "roles"
         };
     });
 

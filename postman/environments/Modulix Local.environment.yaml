@@ -2,29 +2,9 @@ name: Modulix Local
 values:
   - key: baseUrl
     value: 'http://localhost:5284'
-  - key: testUserEmail
-    value: ''
-  - key: testUserPassword
-    value: ''
-  - key: replacementUserPassword
-    value: ''
-  - key: updatedUserEmail
-    value: ''
-  - key: testUserId
-    value: ''
   - key: userAccessToken
     value: ''
-  - key: userRefreshToken
-    value: ''
-  - key: adminEmail
-    value: ''
-  - key: adminPassword
-    value: ''
   - key: adminAccessToken
-    value: ''
-  - key: adminRefreshToken
-    value: ''
-  - key: adminTargetUserId
     value: ''
   - key: moduleId
     value: ''
