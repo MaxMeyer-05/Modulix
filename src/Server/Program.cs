@@ -43,13 +43,15 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.MapInboundClaims = false;
         options.RequireHttpsMetadata = false;
         options.Audience = builder.Configuration["Keycloak:Audience"];
         options.MetadataAddress = builder.Configuration["Keycloak:MetadataAddress"]!;
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = builder.Configuration["Keycloak:Issuer"]
+            ValidIssuer = builder.Configuration["Keycloak:Issuer"],
+            RoleClaimType = "roles"
         };
     });
 
