@@ -1,42 +1,10 @@
 # Server, Authentication, and Users
 
-Modulix runs as an ASP.NET Core 10 Web API. The server stores users, refresh
-tokens, and module metadata in SQLite and uses JWT bearer authentication for
-secured endpoints.
-
-See the [project README](../readme.md) for the repository overview and
+This guide documents server configuration, authentication and token lifecycle,
+user APIs, and error responses. See the
+[project README](../readme.md#quick-start) for local setup and
 [Module Management](readme.module-management.md) for module uploads and Docker
 operations.
-
-## Local Setup
-
-Run the following commands from the repository root with .NET SDK 10.0
-installed:
-
-```sh
-dotnet restore
-dotnet build
-dotnet test
-```
-
-Use [appsettings.Template.json](../src/Server/appsettings.Template.json) as a
-reference for local settings. Store the JWT signing key in User Secrets, not
-in a committed configuration file:
-
-```sh
-dotnet user-secrets set "Jwt:SecretKey" "replace-with-a-random-secret-of-at-least-32-bytes" --project src/Server
-dotnet run --project src/Server
-```
-
-The development profile listens on `http://localhost:5284`. In Development,
-Swagger UI is available at `/swagger`, Swagger JSON at `/swagger/v1/swagger.json`,
-and the built-in OpenAPI document at `/openapi/v1.json`. These endpoints are
-not mapped outside Development.
-
-Docker is needed for module container operations, not for authentication or
-user management. The service account needs write access to the SQLite database
-location and configured log destinations. Pending EF Core migrations are
-applied automatically during startup.
 
 ## Configuration
 
@@ -62,79 +30,41 @@ service through HTTPS in production.
 
 ## Authentication API
 
-Requests use JSON with `Content-Type: application/json`. Secured endpoints
-require `Authorization: Bearer <accessToken>`.
+Authentication endpoints use JSON. Secured endpoints require a valid JWT
+access token.
 
-| Method | Route | Access | Success |
-| --- | --- | --- | --- |
-| `POST` | `/api/auth/register` | Anonymous | `204`, no response body. |
-| `POST` | `/api/auth/login` | Anonymous | `200`, user and token pair. |
-| `POST` | `/api/auth/logout` | Authenticated | `204`, refresh token revoked. |
-| `POST` | `/api/users/token/refresh` | Anonymous, valid refresh token required | `200`, new token pair. |
+| Method | Route | Access | Purpose | Success |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/auth/register` | Anonymous | Creates a regular user account. | `204`, no response body. |
+| `POST` | `/api/auth/login` | Anonymous | Verifies credentials and creates a session. | `200`, user and token pair. |
+| `POST` | `/api/auth/logout` | Authenticated | Revokes one refresh token owned by the current user. | `204`. |
+| `POST` | `/api/users/token/refresh` | Anonymous, valid refresh token required | Rotates the refresh token and issues new access and refresh tokens. | `200`, new token pair. |
 
 ### Register
 
-```sh
-curl -i http://localhost:5284/api/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"userEmail":"user@example.com","userPassword":"local-demo-password","confirm_UserPassword":"local-demo-password"}'
-```
-
-All three fields are required. The email must be valid and both passwords must
-match. A duplicate email returns `409`; invalid input returns `400`.
+Registration requires a valid email, a password, and matching password
+confirmation. A duplicate email returns `409`; invalid input returns `400`.
 Registration does not log the user in and accepts no role or scope assignment.
-The example credentials are for disposable local testing only.
 
 ### Login
 
-```sh
-curl -i http://localhost:5284/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"userEmail":"user@example.com","userPassword":"local-demo-password"}'
-```
-
-The response has this shape; placeholders represent returned values:
-
-```json
-{
-  "user": {
-    "id": "<userId>",
-    "userEmail": "user@example.com",
-    "role": 1,
-    "allowedScopes": null,
-    "isActive": true,
-    "createdAt": "<UTC timestamp>"
-  },
-  "tokenResult": {
-    "accessToken": "<accessToken>",
-    "refreshToken": "<refreshToken>",
-    "accessTokenExpiresAtUtc": "<UTC timestamp>",
-    "refreshTokenExpiresAtUtc": "<UTC timestamp>"
-  }
-}
-```
+Login verifies the email and password. The response contains the account
+details in `user` and the issued tokens in `tokenResult`. The token result
+includes `accessToken`, `refreshToken`, `accessTokenExpiresAtUtc`, and
+`refreshTokenExpiresAtUtc`.
 
 Invalid credentials return `401`. Roles use numeric JSON values: `Admin = 0`
-and `User = 1`. In Swagger UI, select **Authorize** and enter only the access
-token; Swagger adds the bearer prefix.
+and `User = 1`.
 
 ### Refresh and Logout
 
-Send the refresh token as the JSON body to `/api/users/token/refresh`:
-
-```json
-{
-  "refreshToken": "<refreshToken>"
-}
-```
-
 A successful refresh returns the four token fields directly, without a
-`tokenResult` wrapper. The previous refresh token is revoked. Store the new
-pair before the next request; expired, revoked, or unknown refresh tokens
-return `401`. This endpoint does not require a valid access token.
+`tokenResult` wrapper, and revokes the previous refresh token. Expired,
+revoked, or unknown refresh tokens return `401`. This endpoint does not
+require a valid access token.
 
-Logout uses the same body at `/api/auth/logout`, but additionally requires a
-valid access token. The refresh token must be unrevoked, unexpired, and owned
+Logout requires a valid access token. The refresh token must be unrevoked,
+unexpired, and owned
 by the authenticated user. Logout revokes that refresh token only, not every
 session for the account.
 
@@ -148,35 +78,15 @@ their configured expiration and validation rules reject them.
 
 The user ID comes from the authenticated session, not from the request body.
 
-| Method | Route | JSON body | Success |
+| Method | Route | Purpose | Success |
 | --- | --- | --- | --- |
-| `GET` | `/api/users/me` | None | `200`, `UserDto`. |
-| `PATCH` | `/api/users/me` | Optional `userEmail` | `200`, token pair; `204` if unchanged. |
-| `PATCH` | `/api/users/me/password` | `currentPassword`, `newPassword`, `confirmNewPassword` | `200`, token pair. |
-| `DELETE` | `/api/users/me` | `currentPassword` | `204`. |
-
-For example, update the email with:
-
-```sh
-curl -i -X PATCH http://localhost:5284/api/users/me \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"userEmail":"updated@example.com"}'
-```
-
-For a password change, provide the current password and matching new values:
-
-```json
-{
-  "currentPassword": "local-demo-password",
-  "newPassword": "replacement-demo-password",
-  "confirmNewPassword": "replacement-demo-password"
-}
-```
+| `GET` | `/api/users/me` | Returns the current user's profile. | `200`, `UserDto`. |
+| `PATCH` | `/api/users/me` | Updates the current user's email address. | `200`, token pair; `204` if unchanged. |
+| `PATCH` | `/api/users/me/password` | Changes the password after verifying the current password and new password confirmation. | `200`, token pair. |
+| `DELETE` | `/api/users/me` | Deletes the current account after verifying its password. | `204`. |
 
 An actual profile change or successful password change removes all existing
-refresh tokens for the account and persists a new token pair. Replace the
-client's stored pair with the response. An unchanged profile returns `204`
+refresh tokens for the account and persists a new token pair. An unchanged profile returns `204`
 without rotating tokens. An incorrect current password returns `401`; password
 confirmation mismatches return `400`. Missing users return `404`.
 
@@ -188,24 +98,15 @@ module deletion, deleting a missing user returns `404`.
 All routes in this table require the `Admin` role. Use an existing admin
 account; registration is not an admin-provisioning endpoint.
 
-| Method | Route | JSON body | Success |
+| Method | Route | Purpose | Success |
 | --- | --- | --- | --- |
-| `GET` | `/api/users` | None | `200`, user list ordered by email and ID. |
-| `PATCH` | `/api/users/{userId}/role` | `role` | `204`. |
-| `PATCH` | `/api/users/{userId}/scopes` | `allowedScopes` | `204`. |
-| `DELETE` | `/api/users/{userId}` | None | `204`, no target password required. |
+| `GET` | `/api/users` | Lists all user accounts, ordered by email and ID. | `200`, user list. |
+| `PATCH` | `/api/users/{userId}/role` | Changes the target user's role. | `204`. |
+| `PATCH` | `/api/users/{userId}/scopes` | Changes the target user's allowed scopes. | `204`. |
+| `DELETE` | `/api/users/{userId}` | Deletes the target account without requiring its password. | `204`. |
 
-Assign the admin role using `{ "role": 0 }`, or the regular user role using
-`{ "role": 1 }`. Set scopes with a JSON string array:
-
-```json
-{
-  "allowedScopes": ["module:read", "module:write"]
-}
-```
-
-These scope names are examples, not predefined permissions. The server stores
-scopes and includes them in issued tokens, but the current controllers enforce
+Scopes are stored as a list of strings, not predefined permissions. The server
+includes them in issued tokens, but the current controllers enforce
 authentication and roles, not scope policies.
 
 Role and scope updates do not rotate tokens or modify existing JWT claims.
@@ -232,5 +133,5 @@ Serilog records errors and configured operational logs.
 
 The [Postman testing conventions](../postman/documents/testing-conventions.md)
 describe the registration/login prerequisites, token variables, admin requests,
-and manual cleanup. Keep credentials and tokens in ignored private environments.
+and manual cleanup, including how to store sensitive test values.
 Server tests live in [tests/Server](../tests/Server).

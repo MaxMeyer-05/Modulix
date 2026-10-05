@@ -49,7 +49,7 @@ public class Module
     public string? ContainerId { get; set; }
 
     /// <summary>
-    /// The container port of the module.
+    /// The internal TCP port of the module, not its dynamically assigned loopback host port.
     /// </summary>
     [Required]
     public int ContainerPort { get; set; }

@@ -121,6 +121,10 @@ public class DockerService : IDockerService, IDisposable
             {
                 Image = imageName,
                 Name = containerName,
+                ExposedPorts = new Dictionary<string, EmptyStruct>
+                {
+                    [$"{containerPort}/tcp"] = default
+                },
                 Env =
                 [
                     $"ASPNETCORE_HTTP_PORTS={containerPort}",
@@ -136,6 +140,11 @@ public class DockerService : IDockerService, IDisposable
                 HostConfig = new HostConfig
                 {
                     NetworkMode = NetworkName,
+                    PublishAllPorts = false,
+                    PortBindings = new Dictionary<string, IList<PortBinding>>
+                    {
+                        [$"{containerPort}/tcp"] = [new PortBinding { HostIP = "127.0.0.1", HostPort = "0" }]
+                    },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
                 }
             }, ct);

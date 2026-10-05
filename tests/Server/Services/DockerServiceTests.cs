@@ -162,10 +162,11 @@ public class DockerServiceTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public async Task BuildContainerAsync_VersionedBuild_ChecksErrorsAndBuildContext(bool buildFails, bool createNetwork)
+    [InlineData(false, false, 8080)]
+    [InlineData(true, false, 8080)]
+    [InlineData(false, true, 8080)]
+    [InlineData(false, false, 5500)]
+    public async Task BuildContainerAsync_VersionedBuild_ChecksErrorsAndBuildContext(bool buildFails, bool createNetwork, int containerPort)
     {
         var root = Path.Combine(Path.GetTempPath(), "Modulix_Docker_Tests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -218,8 +219,17 @@ public class DockerServiceTests
                     Assert.Equal("CMD", body.RootElement.GetProperty("Healthcheck").GetProperty("Test")[0].GetString());
                     Assert.Equal(1_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Interval").GetInt64());
                     Assert.Equal(2_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Timeout").GetInt64());
-                    Assert.Equal("modulix-network", body.RootElement.GetProperty("HostConfig").GetProperty("NetworkMode").GetString());
-                    Assert.Contains("ASPNETCORE_HTTP_PORTS=8080", body.RootElement.GetProperty("Env").EnumerateArray().Select(value => value.GetString()));
+                    var hostConfig = body.RootElement.GetProperty("HostConfig");
+                    Assert.Equal("modulix-network", hostConfig.GetProperty("NetworkMode").GetString());
+                    Assert.False(hostConfig.TryGetProperty("PublishAllPorts", out var publishAllPorts) && publishAllPorts.GetBoolean());
+                    var exposedPort = Assert.Single(body.RootElement.GetProperty("ExposedPorts").EnumerateObject());
+                    Assert.Equal($"{containerPort}/tcp", exposedPort.Name);
+                    var boundPort = Assert.Single(hostConfig.GetProperty("PortBindings").EnumerateObject());
+                    Assert.Equal($"{containerPort}/tcp", boundPort.Name);
+                    var binding = Assert.Single(boundPort.Value.EnumerateArray());
+                    Assert.Equal("127.0.0.1", binding.GetProperty("HostIp").GetString());
+                    Assert.Equal("0", binding.GetProperty("HostPort").GetString());
+                    Assert.Contains($"ASPNETCORE_HTTP_PORTS={containerPort}", body.RootElement.GetProperty("Env").EnumerateArray().Select(value => value.GetString()));
                     return JsonResponse(new { Id = "candidate" });
                 }
 
@@ -233,13 +243,13 @@ public class DockerServiceTests
             if (buildFails)
             {
                 await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                    service.BuildContainerAsync(moduleId, root, "module.dll", 8080));
+                    service.BuildContainerAsync(moduleId, root, "module.dll", containerPort));
                 Assert.False(createdContainer);
                 Assert.True(deletedImage);
             }
             else
             {
-                Assert.Equal("candidate", await service.BuildContainerAsync(moduleId, root, "module.dll", 8080));
+                Assert.Equal("candidate", await service.BuildContainerAsync(moduleId, root, "module.dll", containerPort));
                 Assert.StartsWith($"modulix-module-{moduleId:N}:", createdImage);
                 Assert.StartsWith($"modulix-container-{moduleId:N}-", createdName);
                 Assert.False(deletedImage);

@@ -1,12 +1,10 @@
 # Module Management
 
-Modulix accepts published ASP.NET Core applications as ZIP archives, scans
-their controller endpoints, stores module metadata, and builds and runs Docker
-containers. Module management does not provide a reverse proxy or forward
-requests to the registered endpoints.
-
-See the [project README](../readme.md) for the repository overview and
-[Server, Authentication, and Users](readme.server.md) for setup and token handling.
+This guide documents module archives, endpoint discovery and confirmation,
+the management API, and Docker lifecycle behavior. See the
+[project README](../readme.md#quick-start) for local setup and
+[Server, Authentication, and Users](readme.server.md#authentication-api) for
+token handling.
 
 ## Prerequisites
 
@@ -45,6 +43,26 @@ through minimal APIs. The Docker service generates its own Dockerfile using
 `mcr.microsoft.com/dotnet/aspnet:10.0` and starts the detected entry assembly in
 the Production environment. A module must work with those runtime settings.
 
+### Container Networking
+
+`ContainerPort` is the internal TCP port the module listens on inside its
+container. It is not a public port or the host port used to reach the module.
+Docker assigns a free host port per container and binds it only to IPv4 loopback
+(`127.0.0.1`). No ports are published on all host interfaces.
+
+On the Docker host, use `docker port <container-id> <container-port>/tcp` to
+find the assigned local address. A host-based YARP proxy must resolve this
+binding from Docker's `NetworkSettings.Ports` and use
+`http://127.0.0.1:<host-port>`, not `localhost:<ContainerPort>`, as its destination.
+Dynamic host ports allow the current and replacement versions to run together
+until the replacement is ready. YARP routing is not implemented yet.
+
+Containers on `modulix-network` can still reach each other using their container
+addresses and internal ports. If the server itself runs in Docker, its localhost
+is not the Docker host; it must join that network to reach modules directly.
+These bindings apply to newly created containers; existing containers must be
+recreated to adopt them.
+
 ### Upload Limits
 
 Both creation and file replacement accept `multipart/form-data`:
@@ -66,18 +84,18 @@ Archive entry and uncompressed-size limit violations return `409`.
 All routes in this table are relative to
 `/api/modules-management/modules`. IDs are GUIDs.
 
-| Method | Route | Access | Body | Success |
+| Method | Route | Access | Purpose | Success |
 | --- | --- | --- | --- | --- |
-| `GET` | `/` | Authenticated | None | `200`, module list. |
-| `GET` | `/{moduleId}` | Authenticated | None | `200`, module details and endpoints. |
-| `GET` | `/{moduleId}/sub-endpoints` | Authenticated | None | `200`, endpoint list. |
-| `POST` | `/create` | Admin | Multipart | `201` or `202`, creation result. |
-| `POST` | `/{moduleId}/confirm-endpoints` | Admin | JSON | `200`, module details. |
-| `PUT` | `/{moduleId}` | Admin | JSON | `204`. |
-| `PUT` | `/{moduleId}/files` | Admin | Multipart | `204`. |
-| `DELETE` | `/{moduleId}` | Admin | None | `204`, including an absent module. |
+| `GET` | `/` | Authenticated | Lists registered modules. | `200`, module list. |
+| `GET` | `/{moduleId}` | Authenticated | Returns module details and registered endpoints. | `200`, module details. |
+| `GET` | `/{moduleId}/sub-endpoints` | Authenticated | Lists the module's registered endpoints. | `200`, endpoint list. |
+| `POST` | `/create` | Admin | Registers an uploaded module, scans its endpoints, and starts it unless confirmation is required. | `201` or `202`, creation result. |
+| `POST` | `/{moduleId}/confirm-endpoints` | Admin | Resolves pending endpoint discrepancies and attempts startup when all are resolved. | `200`, module details. |
+| `PUT` | `/{moduleId}` | Admin | Updates the module's name and description. | `204`. |
+| `PUT` | `/{moduleId}/files` | Admin | Replaces module binaries after contract and readiness checks. | `204`. |
+| `DELETE` | `/{moduleId}` | Admin | Removes the module, its endpoints, container/image, and stored files. | `204`, including an absent module. |
 
-Use `Authorization: Bearer <accessToken>` on every request. Missing or invalid
+All module endpoints require JWT authentication. Missing or invalid
 authentication returns `401`; a non-admin calling a mutation receives `403`.
 Missing modules return `404`, except for idempotent deletion.
 
@@ -88,7 +106,7 @@ Missing modules return `404`, except for idempotent deletion.
 | `ModuleName` | Yes | Display name, at most 100 characters. |
 | `Description` | No | Description, at most 500 characters. |
 | `BaseEndpointPath` | Yes | Unique base path, at most 200 characters. |
-| `ContainerPort` | No | Port from 1 to 65535; must not already be assigned to another module. |
+| `ContainerPort` | No | Internal container TCP port from 1 to 65535; must not already be assigned to another module. Not the loopback host port. |
 | `ModuleFile` | Yes | Nonempty ZIP archive supplied as a file field. |
 | `InitialEndpoints[i].HttpMethod` | No | Expected endpoint method, at most 10 characters. |
 | `InitialEndpoints[i].EndpointPath` | No | Expected endpoint path, at most 200 characters. |
@@ -98,52 +116,19 @@ allocation range. Base paths are trimmed and stripped of leading/trailing
 slashes. Existing base paths and conflicting prefixes are rejected with `400`.
 The base path is stored metadata, not an automatically exposed proxy route.
 
-```sh
-curl -i http://localhost:5284/api/modules-management/modules/create \
-  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
-  -F 'ModuleName=Example Module' \
-  -F 'Description=Local test module' \
-  -F 'BaseEndpointPath=example' \
-  -F 'ModuleFile=@./example-module.zip;type=application/zip'
-```
+Creation accepts multipart form-data, not JSON. Initial endpoint definitions
+are compared with the scanner's HTTP method and route strings exactly; the
+module base path is not added to those routes. If no initial endpoints are
+supplied, discovered endpoints are registered without a discrepancy-confirmation
+step.
 
-Let curl or Postman generate the multipart `Content-Type` and boundary. JSON
-does not work for uploads. To compare expected endpoints with scanned endpoints,
-add indexed fields, for example:
-
-```sh
--F 'InitialEndpoints[0].HttpMethod=GET' \
--F 'InitialEndpoints[0].EndpointPath=api/example'
-```
-
-Use the exact route strings returned by the scanner, without assuming that the
-module base path is added to them. Initial creation compares method and path
-strings exactly. If no initial endpoints are supplied, discovered endpoints are
-registered without a discrepancy-confirmation step.
-
-Both success codes return a `ModuleCreationResultDto` envelope:
-
-```json
-{
-  "module": {
-    "id": "<moduleId>",
-    "moduleName": "Example Module",
-    "baseEndpointPath": "example",
-    "containerPort": 1024,
-    "status": 3,
-    "endpoints": []
-  },
-  "discrepancyReport": {
-    "hasDiscrepancy": false
-  }
-}
-```
-
-This example shows selected fields. Details also include description, creation
-time, storage path, and container ID. Save `module.id` for later operations.
+Both success codes return a `ModuleCreationResultDto` containing `module`
+details and a `discrepancyReport`. Details include the module ID, name, base
+path, internal port, status, endpoints, description, creation time, storage
+path, and container ID.
 `202` means the module is `PendingConfirmation`; `201` means it is not pending,
-but does not guarantee that Docker started successfully. Always inspect
-`module.status`, which may be `Failed`.
+but does not guarantee that Docker started successfully. The returned
+`module.status` may be `Failed`.
 
 ## Endpoint Discrepancies and Confirmation
 
@@ -157,29 +142,8 @@ contains the module ID and these lists:
 | `missingEndpoints` | Expected endpoints that were not discovered. |
 | `extraEndpoints` | Discovered endpoints that were not expected. |
 
-Review the report before submitting it. Confirmation accepts an array of
-reports, not a flat endpoint array:
-
-```json
-{
-  "confirmedEndpoints": [
-    {
-      "moduleId": "<moduleId>",
-      "hasDiscrepancy": true,
-      "missingEndpoints": [
-        { "httpMethod": "GET", "endpointPath": "api/expected" }
-      ],
-      "extraEndpoints": [
-        { "httpMethod": "POST", "endpointPath": "api/discovered" }
-      ]
-    }
-  ]
-}
-```
-
-Send this JSON to
-`POST /api/modules-management/modules/{moduleId}/confirm-endpoints`.
-The current confirmation behavior is important:
+Confirmation processes an array of discrepancy reports in `confirmedEndpoints`,
+not a flat endpoint list. Its effect on registered metadata is:
 
 - Pending endpoints listed in `missingEndpoints` are accepted as active metadata.
 - Pending endpoints listed in `extraEndpoints` are removed from registered metadata.
@@ -192,8 +156,8 @@ extra endpoint does not disable it inside the container.
 
 Only after every pending endpoint has been resolved does the service attempt
 to build and start the container. The response is `200` even when confirmation
-remains incomplete or container startup sets the module to `Failed`. Inspect
-the returned status and retain the report while it is still pending. Confirming
+remains incomplete or container startup sets the module to `Failed`. The
+returned status indicates whether confirmation completed or startup failed. Confirming
 a module that is not in `PendingConfirmation` returns `409`.
 
 ## Read and Update
@@ -202,27 +166,14 @@ Listing returns `ModuleDto` records. Details add `containerId`, `storagePath`,
 and `endpoints`. Endpoint records contain their ID, HTTP method, path, status,
 and creation time.
 
-Metadata updates accept only the optional name and description fields:
-
-```json
-{
-  "moduleName": "Renamed Module",
-  "description": "Updated description"
-}
-```
-
-Send this JSON to `PUT /api/modules-management/modules/{moduleId}`. This does
-not replace files, change the base path or port, or restart the container.
+Metadata updates change only the optional `moduleName` and `description`
+fields. They do not replace files, change the base path or port, or restart
+the container.
 
 ### Replace Module Files
 
-```sh
-curl -i -X PUT "http://localhost:5284/api/modules-management/modules/$MODULE_ID/files" \
-  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
-  -F 'ModuleFile=@./replacement-module.zip;type=application/zip'
-```
-
-The service extracts replacement files into a separate version directory and
+File replacement accepts a ZIP archive as multipart form-data. The service
+extracts replacement files into a separate version directory and
 scans them before changing the active version. Replacement requires exactly the
 registered set of HTTP methods and paths. Methods are compared case-insensitively
 for replacement; paths are compared exactly. Pending endpoint confirmation or
@@ -265,9 +216,8 @@ behind. Use deletion deliberately, especially against production modules.
 ## Testing and Implementation
 
 The [Postman testing conventions](../postman/documents/testing-conventions.md)
-describe module preparation, indexed form fields, saved module IDs, confirmation
-reports, and manual cleanup. Create a module before running detail requests on
-an empty database. Do not confirm discrepancies in an unattended run.
+describe collection order, test variables, saved module IDs, confirmation
+reports, and manual cleanup.
 
 The implementation is split between the
 [controller](../src/Server/Controllers/ModulesManagementController.cs),
