@@ -17,9 +17,9 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
 
 builder.Services.AddScoped<IModuleService, ModuleService>();
-builder.Services.AddScoped<IModuleEndpointScanner, ModuleEndpointScanner>();
 
 builder.Services.AddSingleton<IDockerService, DockerService>();
+builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));

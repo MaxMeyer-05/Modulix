@@ -24,12 +24,21 @@ public class ModulesManagementController : ControllerBase
     private readonly IModuleService _moduleService;
 
     /// <summary>
+    /// The module endpoint scanner used by the controller.
+    /// </summary>
+    private readonly IModuleEndpointScanner _endpointScanner;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ModulesManagementController"/> class.
     /// </summary>
     /// <param name="moduleService">The module service.</param>
-    public ModulesManagementController(IModuleService moduleService)
+    /// <param name="endpointScanner">The module endpoint scanner.</param>
+    public ModulesManagementController(
+        IModuleService moduleService, 
+        IModuleEndpointScanner endpointScanner)
     {
         _moduleService = moduleService;
+        _endpointScanner = endpointScanner;
     }
 
     /// <summary>
@@ -51,16 +60,13 @@ public class ModulesManagementController : ControllerBase
     [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status202Accepted)]
     public async Task<IActionResult> CreateModuleAsync([FromForm] CreateModuleDto dto)
     {
-        if (dto == null)
-            return BadRequest();
-            
         var result = await _moduleService.CreateModuleAsync(dto, HttpContext.RequestAborted);
-
-        if (result.Module.Status == ModuleStatus.PendingConfirmation)
+        
+        if (result.Module.Status == ModuleStatus.QueuedForScan || result.Module.Status == ModuleStatus.PendingConfirmation)
         {
             return Accepted(result);
         }
-
+        
         return CreatedAtAction(nameof(GetModuleByIdAsync), new { moduleId = result.Module.Id }, result);
     }
 
@@ -82,10 +88,7 @@ public class ModulesManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleDetailDto>> ConfirmModuleEndpointsAsync([FromRoute] Guid moduleId, [FromBody] ConfirmEndpointsDto dto)
-    {   
-        if (dto == null)
-            return BadRequest();
-
+    { 
         var result = await _moduleService.ConfirmEndpointsAsync(moduleId, dto, HttpContext.RequestAborted);
         return Ok(result);
     }
@@ -195,5 +198,35 @@ public class ModulesManagementController : ControllerBase
     {
         await _moduleService.DeleteModuleAsync(moduleId, HttpContext.RequestAborted);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Cancels the scan of a specific module by its ID.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module.</param>
+    /// <returns>
+    /// A 204 No Content response indicating that the scan was successfully cancelled.
+    /// A 400 Bad Request response if the module is not queued for scanning.
+    /// A 409 Conflict response if the scan has already started or completed.
+    /// </returns>
+    [HttpDelete("{moduleId}/cancel-scan")]
+    [Authorize(Roles = nameof(Roles.Admin))]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelScanAsync(Guid moduleId)
+    {
+        var module = await _moduleService.GetModuleByIdAsync(moduleId, HttpContext.RequestAborted);
+        if (module.Status != ModuleStatus.QueuedForScan)
+            return BadRequest(new ProblemDetails { Detail = "Module is not queued for scanning." });
+
+        var cancelled = _endpointScanner.CancelScan(moduleId);
+        if (cancelled)
+        {
+            await _moduleService.DeleteModuleAsync(moduleId, HttpContext.RequestAborted);
+            return NoContent();
+        }
+
+        return Conflict(new ProblemDetails { Detail = "Scan has already started or completed." });
     }
 } 

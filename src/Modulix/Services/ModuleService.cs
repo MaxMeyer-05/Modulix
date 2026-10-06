@@ -175,6 +175,23 @@ public class ModuleService : IModuleService
         // Set the storage path for the module
         module.StoragePath = targetPath;
 
+        // Add initial sub-endpoints for the module
+        var manualRoutes = dto.InitialEndpoints?.ToList() ?? [];
+        foreach (var ep in manualRoutes)
+        {
+            module.SubEndpoints.Add(new ModuleEndpoint
+            {
+                ModuleId = module.Id,
+                HttpMethod = ep.HttpMethod,
+                EndpointPath = ep.EndpointPath,
+                Status = ModuleEndpointsStatus.PendingConfirmation 
+            });
+        }
+
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync(ct);
+
+        // Scan the module for endpoints and handle any errors during the scanning process
         ScanEnqueueResponse scanResponse;
         try
         {
@@ -187,35 +204,10 @@ public class ModuleService : IModuleService
             throw;
         }
 
-        var discoveredEndpoints = scanResponse.Result!.DiscoveredEndpoints;
-
         // Create a discrepancy report
-        var discrepancyReport = CreateEndpointDiscrepancyReport(dto.InitialEndpoints?.ToList(), discoveredEndpoints, module.Id);
-    
-        if (discrepancyReport?.HasDiscrepancy == true)
-        {
-            module.Status = ModuleStatus.PendingConfirmation;
-        }
-        else
-        {
-            try
-            {
-                module.Status = ModuleStatus.Starting;
+        var discrepancyReport = await CreateEndpointDiscrepancyReport(module, scanResponse.Result!.DiscoveredEndpoints, ct);
 
-                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, scanResponse.Result!.EntryAssemblyFileName, module.ContainerPort, ct);
-                module.ContainerId = containerId;
-
-                await _dockerService.RunContainerAsync(containerId, ct);
-                module.Status = ModuleStatus.Running;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to provision Docker container for module {ModuleId}.", module.Id);
-                module.Status = ModuleStatus.Failed;
-            }
-        }
-
-        _context.Modules.Add(module);
+        // Log the final status of the module after attempting to provision the Docker container
         try
         {
             await _context.SaveChangesAsync(ct);
@@ -250,7 +242,10 @@ public class ModuleService : IModuleService
         /// <inheritdoc/>
     public async Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var module = await _context.Modules.Include(m => m.SubEndpoints).FirstOrDefaultAsync(m => m.Id == moduleId, ct);
+        if (module == null) return;
+
+        await CreateEndpointDiscrepancyReport(module, result.DiscoveredEndpoints, ct);
     }
 
     /// <inheritdoc/>
@@ -346,7 +341,7 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<bool> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
+    public async Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
     {
         var module = await _context.Modules
             .Include(module => module.SubEndpoints)
@@ -426,7 +421,6 @@ public class ModuleService : IModuleService
         }
 
         _logger.LogInformation("Activated replacement container '{ContainerId}' for module '{ModuleId}'.", candidateId, moduleId);
-        return true;
     }
 
     /// <summary>
@@ -606,83 +600,122 @@ public class ModuleService : IModuleService
     /// <summary>
     /// Creates a report detailing discrepancies between the initial and discovered endpoints for a module.
     /// </summary>
-    /// <param name="initialEndpoints">The list of initially defined endpoints for the module.</param>
+    /// <param name="module">The module entity containing the initially defined endpoints.</param>
     /// <param name="discoveredEndpoints">The list of endpoints discovered for the module.</param>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <returns>A report detailing any discrepancies between the initial and discovered endpoints.</returns>
-    private EndpointDiscrepancyReportDto? CreateEndpointDiscrepancyReport(
-        List<CreateModuleEndpointDto>? initialEndpoints, 
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// The task result contains a report detailing any discrepancies between the initial and discovered endpoints, 
+    /// or null if no discrepancies were found.
+    /// </returns>
+    private async Task<EndpointDiscrepancyReportDto?> CreateEndpointDiscrepancyReport(
+        Module module,
         List<DiscoveredEndpointDto> discoveredEndpoints, 
-        Guid moduleId)
+        CancellationToken ct)
     {
-        EndpointDiscrepancyReportDto discrepancyReport = new();
+        var initialEndpoints = module.SubEndpoints.ToList();
+        EndpointDiscrepancyReportDto? report = null;
+
         if (initialEndpoints is null || initialEndpoints.Count == 0)
         {
-            foreach (var endpoint in discoveredEndpoints)
+            foreach (var scanned in discoveredEndpoints)
             {
-                _context.ModuleEndpoints.Add(new ModuleEndpoint
+                module.SubEndpoints.Add(new ModuleEndpoint
                 {
-                    ModuleId = moduleId,
-                    HttpMethod = endpoint.HttpMethod,
-                    EndpointPath = endpoint.EndpointPath
+                    ModuleId = module.Id,
+                    HttpMethod = scanned.HttpMethod,
+                    EndpointPath = scanned.EndpointPath,
+                    Status = ModuleEndpointsStatus.Active
                 });
             }
+
+            module.Status = ModuleStatus.Created;
         }
         else
         {
-            foreach (var endpoint in initialEndpoints)
+            var matched = new List<DiscoveredEndpointDto>();
+            var extra = new List<DiscoveredEndpointDto>();
+            var missing = new List<DiscoveredEndpointDto>();
+
+            foreach (var initial in initialEndpoints)
             {
-                var discoveredEndpoint = discoveredEndpoints.Find(de =>
-                    de.HttpMethod == endpoint.HttpMethod &&
-                    de.EndpointPath == endpoint.EndpointPath);
+                var found = discoveredEndpoints.Any(s => 
+                    s.HttpMethod.Equals(
+                        initial.HttpMethod, 
+                        StringComparison.OrdinalIgnoreCase)
+                    && s.EndpointPath.Equals(
+                        initial.EndpointPath, 
+                        StringComparison.OrdinalIgnoreCase)
+                );
 
-                if (discoveredEndpoint is null)
+                if (found)
                 {
-                    _context.ModuleEndpoints.Add(new ModuleEndpoint
-                    {
-                        ModuleId = moduleId,
-                        HttpMethod = endpoint.HttpMethod,
-                        EndpointPath = endpoint.EndpointPath,
-                        Status = ModuleEndpointsStatus.PendingConfirmation
-                    });
-
-                    discrepancyReport.MissingEndpoints ??= [];
-                    discrepancyReport.MissingEndpoints.Add(new DiscoveredEndpointDto { HttpMethod = endpoint.HttpMethod, EndpointPath = endpoint.EndpointPath });
-                    discrepancyReport.HasDiscrepancy = true;
+                    initial.Status = ModuleEndpointsStatus.Active;
+                    matched.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
                 }
                 else
                 {
-                    _context.ModuleEndpoints.Add(new ModuleEndpoint
-                    {
-                        ModuleId = moduleId,
-                        HttpMethod = endpoint.HttpMethod,
-                        EndpointPath = endpoint.EndpointPath
-                    });
-
-                    discrepancyReport.MatchedEndpoints ??= [];
-                    discrepancyReport.MatchedEndpoints.Add(new DiscoveredEndpointDto { HttpMethod = endpoint.HttpMethod, EndpointPath = endpoint.EndpointPath });
+                    initial.Status = ModuleEndpointsStatus.PendingConfirmation;
+                    extra.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
                 }
             }
 
-            foreach (var endpoint in discoveredEndpoints.Where(discoveredEndpoint =>
-                         !initialEndpoints.Any(initialEndpoint =>
-                             initialEndpoint.HttpMethod == discoveredEndpoint.HttpMethod &&
-                             initialEndpoint.EndpointPath == discoveredEndpoint.EndpointPath)))
+            foreach (var scanned in discoveredEndpoints)
             {
-                _context.ModuleEndpoints.Add(new ModuleEndpoint
-                {
-                    ModuleId = moduleId,
-                    HttpMethod = endpoint.HttpMethod,
-                    EndpointPath = endpoint.EndpointPath,
-                    Status = ModuleEndpointsStatus.PendingConfirmation
-                });
+                var isExpected = initialEndpoints.Any(i => 
+                    i.HttpMethod.Equals(
+                        scanned.HttpMethod, 
+                        StringComparison.OrdinalIgnoreCase) 
+                    && i.EndpointPath.Equals(
+                        scanned.EndpointPath, 
+                        StringComparison.OrdinalIgnoreCase)
+                );
 
-                discrepancyReport.ExtraEndpoints ??= [];
-                discrepancyReport.ExtraEndpoints.Add(endpoint);
-                discrepancyReport.HasDiscrepancy = true;
+                if (!isExpected)
+                {
+                    module.SubEndpoints.Add(new ModuleEndpoint
+                    {
+                        ModuleId = module.Id,
+                        HttpMethod = scanned.HttpMethod,
+                        EndpointPath = scanned.EndpointPath,
+                        Status = ModuleEndpointsStatus.PendingConfirmation
+                    });
+                    missing.Add(scanned);
+                }
+            }
+
+            bool hasDiscrepancy = extra.Count > 0 || missing.Count > 0;
+
+            if (hasDiscrepancy)
+            {
+                report = new EndpointDiscrepancyReportDto
+                {
+                    ModuleId = module.Id,
+                    HasDiscrepancy = true,
+                    MatchedEndpoints = matched,
+                    ExtraEndpoints = extra,
+                    MissingEndpoints = missing
+                };
             }
         }
         
-        return discrepancyReport ?? null;
+        if (module.Status == ModuleStatus.Created)
+        {
+            try
+            {
+                module.Status = ModuleStatus.Starting;
+                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
+                module.ContainerId = containerId;
+                await _dockerService.RunContainerAsync(containerId, ct);
+                module.Status = ModuleStatus.Running;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to provision Docker container for module {ModuleId}.", module.Id);
+                module.Status = ModuleStatus.Failed;
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
+        return report;
     }
 }

@@ -69,7 +69,7 @@ public interface IModuleService
     /// <param name="ct">The cancellation token.</param>
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the module is not in a state that allows file updates.</exception>
-    Task<bool> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
+    Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
 
     /// <summary>
     /// Processes the result of a previously queued module scan.
