@@ -183,9 +183,11 @@ public class DockerServiceTests
         var deletedImage = false;
         var networkCreated = false;
         var archiveEntries = new List<string>();
+        var archiveContents = new Dictionary<string, string>();
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "module.dll"), "module contents");
+            await File.WriteAllTextAsync(Path.Combine(root, "Dockerfile"), "FROM untrusted-upload:latest");
             using var service = CreateService(async (request, cancellationToken) =>
             {
                 var path = request.RequestUri!.AbsolutePath;
@@ -206,12 +208,20 @@ public class DockerServiceTests
                     await using var context = await request.Content!.ReadAsStreamAsync(cancellationToken);
                     using var reader = new TarReader(context);
                     while (reader.GetNextEntry() is { } entry)
-                        archiveEntries.Add(entry.Name.TrimStart('.', '/'));
+                    {
+                        var entryName = entry.Name.TrimStart('.', '/');
+                        archiveEntries.Add(entryName);
+                        if (entry.DataStream is not null)
+                        {
+                            using var contents = new StreamReader(entry.DataStream, leaveOpen: true);
+                            archiveContents[entryName] = await contents.ReadToEndAsync(cancellationToken);
+                        }
+                    }
 
                     return new HttpResponseMessage(HttpStatusCode.OK)
                     {
                         Content = new StringContent(buildFails
-                            ? "{\"error\":\"Build failed.\"}\n"
+                            ? "{\"error\":\"Build failed.\"}\n{\"stream\":\"Build complete.\"}\n"
                             : "{\"stream\":\"Build complete.\"}\n", Encoding.UTF8, "application/json")
                     };
                 }
@@ -248,8 +258,9 @@ public class DockerServiceTests
 
             if (buildFails)
             {
-                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     service.BuildContainerAsync(moduleId, root, "module.dll", containerPort));
+                Assert.Contains("Build failed.", exception.Message);
                 Assert.False(createdContainer);
                 Assert.True(deletedImage);
             }
@@ -263,9 +274,14 @@ public class DockerServiceTests
 
             Assert.Contains("Dockerfile", archiveEntries);
             Assert.Contains("module.dll", archiveEntries);
+            Assert.Equal("module contents", archiveContents["module.dll"]);
             Assert.Equal(createNetwork, networkCreated);
             var dockerfile = await File.ReadAllTextAsync(Path.Combine(root, "Dockerfile"));
             Assert.StartsWith($"FROM {baseImage}", dockerfile.TrimStart());
+            Assert.Equal(dockerfile, archiveContents["Dockerfile"]);
+            Assert.DoesNotContain("untrusted-upload", archiveContents["Dockerfile"]);
+            var entrypoint = Assert.Single(dockerfile.Split('\n'), line => line.TrimStart().StartsWith("ENTRYPOINT ", StringComparison.Ordinal));
+            Assert.Equal(new[] { "dotnet", "module.dll" }, JsonSerializer.Deserialize<string[]>(entrypoint.Trim()["ENTRYPOINT ".Length..]));
         }
         finally
         {
@@ -329,6 +345,36 @@ public class DockerServiceTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Theory]
+    [InlineData("inspect", 1)]
+    [InlineData("stop", 2)]
+    [InlineData("image", 4)]
+    public async Task RemoveContainerAsync_DockerFailure_StopsCleanupAtFailedOperation(string failingOperation, int expectedRequests)
+    {
+        var requests = new List<string>();
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            var path = Uri.UnescapeDataString(request.RequestUri!.AbsolutePath);
+            requests.Add(request.Method + " " + path);
+            var operation = path.EndsWith("/json", StringComparison.Ordinal) ? "inspect"
+                : path.EndsWith("/stop", StringComparison.Ordinal) ? "stop"
+                : path.Contains("/images/", StringComparison.Ordinal) ? "image" : "container";
+            if (operation == failingOperation)
+                return Task.FromResult(JsonResponse(new { message = "Failure during " + operation }, HttpStatusCode.InternalServerError));
+            return Task.FromResult(operation == "inspect"
+                ? JsonResponse(new { Config = new { Image = "module-image:old" } })
+                : JsonResponse(Array.Empty<object>()));
+        });
+
+        var exception = await Assert.ThrowsAsync<DockerApiException>(() =>
+            service.RemoveContainerAsync("old-container", Guid.NewGuid()));
+
+        Assert.Contains("Failure during " + failingOperation, exception.Message);
+        Assert.Equal(expectedRequests, requests.Count);
+        if (failingOperation == "stop")
+            Assert.DoesNotContain(requests, request => request.StartsWith("DELETE ", StringComparison.Ordinal));
     }
 
     private static DockerService CreateService(

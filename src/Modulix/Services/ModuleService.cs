@@ -95,6 +95,9 @@ public class ModuleService : IModuleService
         if (module.Status != ModuleStatus.PendingConfirmation)
             throw new InvalidOperationException($"Module '{moduleId}' is not in PendingConfirmation status.");
 
+        var previousEndpoints = module.SubEndpoints
+            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
+            .ToList();
         var pendingEndpoints = module.SubEndpoints
             .Where(e => e.Status == ModuleEndpointsStatus.PendingConfirmation)
             .ToList();
@@ -156,6 +159,14 @@ public class ModuleService : IModuleService
             
             module.ContainerId = previousContainerId;
             module.Status = ModuleStatus.PendingConfirmation;
+            _context.Entry(module).State = EntityState.Unchanged;
+            foreach (var previousEndpoint in previousEndpoints)
+            {
+                previousEndpoint.Endpoint.Status = previousEndpoint.Status;
+                _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
+                if (!module.SubEndpoints.Contains(previousEndpoint.Endpoint))
+                    module.SubEndpoints.Add(previousEndpoint.Endpoint);
+            }
             throw;
         }
         return module.ToModuleDetailDto();
@@ -201,15 +212,14 @@ public class ModuleService : IModuleService
             });
         }
 
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync(ct);
-
         // Scan the module for endpoints and handle any errors during the scanning process
         ScanEnqueueResponse scanResponse;
         try
         {
             scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, module.StoragePath, ScanPriority.Create, ct);
-            module.ModuleEntryAssemblyFileName = scanResponse.Result!.EntryAssemblyFileName;
+            module.ModuleEntryAssemblyFileName = scanResponse.WasQueued
+                ? string.Empty
+                : (scanResponse.Result ?? throw new InvalidOperationException("The scanner did not return a scan result.")).EntryAssemblyFileName;
         }
         catch
         {
@@ -217,16 +227,25 @@ public class ModuleService : IModuleService
             throw;
         }
 
-        // Create a discrepancy report
-        var discrepancyReport = await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResponse.Result!.DiscoveredEndpoints, ct);
-
+        EndpointDiscrepancyReportDto? discrepancyReport = null;
         // Log the final status of the module after attempting to provision the Docker container
         try
         {
-            await _context.SaveChangesAsync(ct);
+            _context.Modules.Add(module);
+            if (scanResponse.WasQueued)
+            {
+                module.Status = ModuleStatus.QueuedForScan;
+                await _context.SaveChangesAsync(ct);
+            }
+            else
+            {
+                discrepancyReport = await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResponse.Result!.DiscoveredEndpoints, ct);
+            }
         }
         catch
         {
+            if (scanResponse.WasQueued)
+                _endpointScanner.CancelScan(module.Id);
             if (string.IsNullOrWhiteSpace(module.ContainerId) ||
                 await TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
@@ -248,7 +267,15 @@ public class ModuleService : IModuleService
         return new ModuleCreationResultDto
         {
             Module = module.ToModuleDetailDto(),
-            DiscrepancyReport = discrepancyReport
+            DiscrepancyReport = scanResponse.WasQueued ? null : discrepancyReport ?? new EndpointDiscrepancyReportDto
+            {
+                ModuleId = module.Id,
+                MatchedEndpoints = manualRoutes.Count == 0 ? null : manualRoutes.Select(endpoint => new DiscoveredEndpointDto
+                {
+                    HttpMethod = endpoint.HttpMethod,
+                    EndpointPath = endpoint.EndpointPath
+                }).ToList()
+            }
         };
     }
 
@@ -256,8 +283,10 @@ public class ModuleService : IModuleService
     public async Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default)
     {
         var module = await _context.Modules.Include(m => m.SubEndpoints).FirstOrDefaultAsync(m => m.Id == moduleId, ct);
-        if (module == null) return;
+        if (module == null || module.Status != ModuleStatus.QueuedForScan) return;
 
+        module.ModuleEntryAssemblyFileName = result.EntryAssemblyFileName;
+        module.Status = ModuleStatus.Created;
         await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, result.DiscoveredEndpoints, ct);
     }
 
@@ -393,25 +422,38 @@ public class ModuleService : IModuleService
             ct.ThrowIfCancellationRequested();
 
             // Scan the module's directory for endpoints
-            var scanResult = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
+            var scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
+            if (scanResponse.WasQueued)
+            {
+                _endpointScanner.CancelScan(module.Id);
+                throw new InvalidOperationException("Module file replacement requires an available scanner. Retry after queued scans complete.");
+            }
+            var scanResult = scanResponse.Result ?? throw new InvalidOperationException("The scanner did not return a scan result.");
 
-            // Compare the registered endpoints with the discovered endpoints
-            var currentEndpointsDtoList = module.SubEndpoints
-                .Select(e => new CreateModuleEndpointDto { HttpMethod = e.HttpMethod, EndpointPath = e.EndpointPath })
-                .ToList();
+            var registeredEndpoints = module.SubEndpoints
+                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
+                .ToHashSet();
+            var discoveredEndpoints = scanResult.DiscoveredEndpoints
+                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath));
+            if (!registeredEndpoints.SetEquals(discoveredEndpoints))
+                throw new InvalidOperationException("Replacement module endpoints do not match the registered endpoint contract.");
 
-            // Create a discrepancy report comparing the current endpoints with the discovered endpoints
-            var discrepancyReport = _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResult.Result!.DiscoveredEndpoints, ct);
+            candidateId = await _dockerService.BuildContainerAsync(module.Id, versionDirectory, scanResult.EntryAssemblyFileName, module.ContainerPort, ct);
+            await _dockerService.RunContainerAsync(candidateId, ct);
+            await _dockerService.WaitUntilReadyAsync(candidateId, ct);
+            ct.ThrowIfCancellationRequested();
 
             module.ContainerId = candidateId;
             module.StoragePath = versionDirectory;
-            module.ModuleEntryAssemblyFileName = scanResult.Result.EntryAssemblyFileName;
+            module.ModuleEntryAssemblyFileName = scanResult.EntryAssemblyFileName;
+            module.Status = ModuleStatus.Running;
 
             await _context.SaveChangesAsync(ct);
         }
         catch (Exception ex)
         {
             (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status) = previousVersion;
+            _context.Entry(module).State = EntityState.Unchanged;
 
             if (candidateId is null || await TryRemoveModuleContainerAsync(candidateId, module.Id))
                 _directoryExtension.DeleteModuleDirectory(versionDirectory, module.Id);

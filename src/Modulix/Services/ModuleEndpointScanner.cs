@@ -129,6 +129,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// <inheritdoc/>
     public async Task<ScanEnqueueResponse> ScanOrEnqueueAsync(Guid moduleId, string moduleDirectoryPath, ScanPriority priority = ScanPriority.Create, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         if (!Directory.Exists(moduleDirectoryPath))
             throw new DirectoryNotFoundException($"Directory not found: {moduleDirectoryPath}");
 
@@ -155,7 +156,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
             }
         }
 
-        var jobCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        var jobCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, ct);
         _queuedJobs.TryAdd(moduleId, jobCts);
 
         var job = new ScanJob
@@ -227,7 +228,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                     try
                     {
                         var result = await RunDockerScannerAsync(nextJob.HostDirectoryPath, nextJob.CancellationToken);
-                        await _moduleService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, stoppingToken);
+                        await _moduleService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, nextJob.CancellationToken);
                     }
                     catch (OperationCanceledException)
                     {

@@ -23,7 +23,9 @@ public static class PortExtension
         }
         else
         {
-            availablePort = Enumerable.Range(1024, 48127).Except(usedPorts).FirstOrDefault();
+            availablePort = Enumerable.Range(1024, 49151 - 1024 + 1).Except(usedPorts).FirstOrDefault();
+            if (availablePort == 0)
+                throw new InvalidOperationException("No available container ports in the range 1024-49151.");
         }
 
         return availablePort;

@@ -389,7 +389,8 @@ public class ModuleServiceTests : IDisposable
         {
             "pending" => Array.Empty<string>(),
             "build" => ["build"],
-            _ => ["build", "start", "remove:replacement-container"]
+            "start" => ["build", "start", "remove:replacement-container"],
+            _ => ["build", "start", "ready", "remove:replacement-container"]
         };
         Assert.Equal(expectedCalls, _dockerService.Calls);
         Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
@@ -401,6 +402,57 @@ public class ModuleServiceTests : IDisposable
         await _context.SaveChangesAsync();
         Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
         Assert.Empty(await _context.ModuleEndpoints.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_ScannerQueuesWork_PersistsPendingModuleWithoutProvisioning()
+    {
+        _endpointScanner.WasQueued = true;
+
+        var result = await _sut.CreateModuleAsync(new CreateModuleDto
+        {
+            ModuleName = "Queued module",
+            BaseEndpointPath = "api/queued",
+            ModuleFile = CreateDummyZipFile(),
+            InitialEndpoints = [new CreateModuleEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+        });
+
+        Assert.Equal(ModuleStatus.QueuedForScan, result.Module.Status);
+        Assert.Null(result.DiscrepancyReport);
+        Assert.Empty(_dockerService.Calls);
+        Assert.Empty(_endpointScanner.CancelledModuleIds);
+        var persisted = await _context.Modules.AsNoTracking().Include(module => module.SubEndpoints).SingleAsync();
+        Assert.Equal(result.Module.Id, persisted.Id);
+        Assert.Equal(ModuleStatus.QueuedForScan, persisted.Status);
+        Assert.Null(persisted.ContainerId);
+        Assert.Equal(string.Empty, persisted.ModuleEntryAssemblyFileName);
+        Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, Assert.Single(persisted.SubEndpoints).Status);
+        Assert.True(Directory.Exists(persisted.StoragePath));
+    }
+
+    [Fact]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_QueuedModuleSaveFails_CancelsScanAndRemovesUnpersistedFiles()
+    {
+        _endpointScanner.WasQueued = true;
+        var failure = new InvalidOperationException("Queue persistence failed.");
+        _saveInterceptor.ExceptionToThrow = failure;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.CreateModuleAsync(new CreateModuleDto
+        {
+            ModuleName = "Queued module",
+            BaseEndpointPath = "api/queued",
+            ModuleFile = CreateDummyZipFile()
+        }));
+
+        Assert.Same(failure, exception);
+        Assert.Single(_endpointScanner.CancelledModuleIds);
+        Assert.False(Directory.Exists(_endpointScanner.ScannedDirectory));
+        Assert.Empty(_dockerService.Calls);
+        _saveInterceptor.ExceptionToThrow = null;
+        await _context.SaveChangesAsync();
+        Assert.Empty(await _context.Modules.AsNoTracking().ToListAsync());
     }
 
     [Fact]
@@ -1257,6 +1309,35 @@ public class ModuleServiceTests : IDisposable
 
     [Fact]
     [Trait("Feature", "UpdateModuleFiles")]
+    public async Task UpdateModuleFilesAsync_ScannerBusy_CancelsQueuedReplacementAndPreservesActiveVersion()
+    {
+        var module = CreateTestModuleEntity("Active module", "api/active", 8080);
+        module.ContainerId = "active-container";
+        module.Status = ModuleStatus.Running;
+        module.StoragePath = Path.Combine(_testRootDirectory, "active-version");
+        Directory.CreateDirectory(module.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(module.StoragePath, "module.dll"), "active files");
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _endpointScanner.WasQueued = true;
+        var originalPath = module.StoragePath;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.UpdateModuleFilesAsync(module.Id, new UpdateModuleFilesDto { ModuleFile = CreateDummyZipFile() }));
+
+        Assert.Equal(module.Id, Assert.Single(_endpointScanner.CancelledModuleIds));
+        Assert.Empty(_dockerService.Calls);
+        Assert.False(Directory.Exists(_endpointScanner.ScannedDirectory));
+        Assert.Equal("active files", await File.ReadAllTextAsync(Path.Combine(originalPath, "module.dll")));
+        await _context.SaveChangesAsync();
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync();
+        Assert.Equal("active-container", persisted.ContainerId);
+        Assert.Equal(originalPath, persisted.StoragePath);
+        Assert.Equal(ModuleStatus.Running, persisted.Status);
+    }
+
+    [Fact]
+    [Trait("Feature", "UpdateModuleFiles")]
     public async Task UpdateModuleFilesAsync_EndpointContractChanges_PreservesActiveVersion()
     {
         var module = CreateTestModuleEntity("Contract", "api/v1/contract", 8021);
@@ -1350,6 +1431,113 @@ public class ModuleServiceTests : IDisposable
         Assert.True(Directory.Exists(previousPath));
         var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
         Assert.Equal("replacement-container", persisted.ContainerId);
+    }
+
+    #endregion
+
+    #region ProcessQueuedScanResult Tests
+
+    [Fact]
+    [Trait("Feature", "ProcessQueuedScanResult")]
+    public async Task ProcessQueuedScanResultAsync_DeletedModule_DoesNotRecreateModuleOrBuildContainer()
+    {
+        await _sut.ProcessQueuedScanResultAsync(Guid.NewGuid(), new ModuleScanResultDto
+        {
+            EntryAssemblyFileName = "scanned.dll",
+            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+        });
+
+        Assert.Empty(await _context.Modules.ToListAsync());
+        Assert.Empty(await _context.ModuleEndpoints.ToListAsync());
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "ProcessQueuedScanResult")]
+    public async Task ProcessQueuedScanResultAsync_ModuleAlreadyRunning_DoesNotOverwriteActiveVersion()
+    {
+        var module = CreateTestModuleEntity("Running module", "api/running", 8080);
+        module.Status = ModuleStatus.Running;
+        module.ContainerId = "active-container";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
+        {
+            EntryAssemblyFileName = "stale.dll",
+            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/stale" }]
+        });
+
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
+        Assert.Equal(ModuleStatus.Running, persisted.Status);
+        Assert.Equal("active-container", persisted.ContainerId);
+        Assert.Equal("module.dll", persisted.ModuleEntryAssemblyFileName);
+        Assert.Empty(persisted.SubEndpoints);
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [Trait("Feature", "ProcessQueuedScanResult")]
+    public async Task ProcessQueuedScanResultAsync_DiscoveredEntryAssembly_PersistsActualAssemblyBeforeProvisioning(bool hasManualEndpoint)
+    {
+        var module = CreateTestModuleEntity("Queued module", "api/queued", 8080);
+        module.Status = ModuleStatus.QueuedForScan;
+        module.ModuleEntryAssemblyFileName = "placeholder.dll";
+        if (hasManualEndpoint)
+            module.SubEndpoints.Add(new ModuleEndpoint
+            {
+                ModuleId = module.Id,
+                HttpMethod = "GET",
+                EndpointPath = "/health",
+                Status = ModuleEndpointsStatus.PendingConfirmation
+            });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
+        {
+            EntryAssemblyFileName = "scanned.dll",
+            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+        });
+
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);
+        Assert.Equal("scanned.dll", persisted.ModuleEntryAssemblyFileName);
+        Assert.Equal(ModuleStatus.Running, persisted.Status);
+        Assert.Equal("replacement-container", persisted.ContainerId);
+        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(persisted.SubEndpoints).Status);
+        Assert.Equal("scanned.dll", _dockerService.BuiltEntryAssembly);
+        Assert.Equal(new[] { "build", "start", "ready" }, _dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "ProcessQueuedScanResult")]
+    public async Task ProcessQueuedScanResultAsync_EndpointDiscrepancy_PersistsPendingRoutesWithoutStartingContainer()
+    {
+        var module = CreateTestModuleEntity("Queued module", "api/queued", 8080);
+        module.Status = ModuleStatus.QueuedForScan;
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/expected",
+            Status = ModuleEndpointsStatus.PendingConfirmation
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
+        {
+            EntryAssemblyFileName = "module.dll",
+            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/discovered" }]
+        });
+
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);
+        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
+        Assert.Equal(new[] { "/discovered", "/expected" }, persisted.SubEndpoints.Select(endpoint => endpoint.EndpointPath).Order());
+        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
+        Assert.Empty(_dockerService.Calls);
     }
 
     #endregion
@@ -1509,7 +1697,17 @@ public class ModuleServiceTests : IDisposable
 
         public string? ScannedDirectory { get; private set; }
 
-        public Task<ModuleScanResultDto> ScanDirectoryAsync(string moduleDirectoryPath, CancellationToken ct = default)
+        public bool WasQueued { get; set; }
+        public List<Guid> CancelledModuleIds { get; } = [];
+
+        public bool CancelScan(Guid moduleId)
+        {
+            CancelledModuleIds.Add(moduleId);
+            return WasQueued;
+        }
+
+        public Task<ScanEnqueueResponse> ScanOrEnqueueAsync(
+            Guid moduleId, string moduleDirectoryPath, ScanPriority priority = ScanPriority.Create, CancellationToken ct = default)
         {
             ScannedDirectory = moduleDirectoryPath;
             ct.ThrowIfCancellationRequested();
@@ -1517,10 +1715,14 @@ public class ModuleServiceTests : IDisposable
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 
-            return Task.FromResult(new ModuleScanResultDto
+            return Task.FromResult(new ScanEnqueueResponse
             {
-                EntryAssemblyFileName = "module.dll",
-                DiscoveredEndpoints = DiscoveredEndpoints
+                WasQueued = WasQueued,
+                Result = WasQueued ? null : new ModuleScanResultDto
+                {
+                    EntryAssemblyFileName = "module.dll",
+                    DiscoveredEndpoints = DiscoveredEndpoints
+                }
             });
         }
     }
@@ -1530,6 +1732,7 @@ public class ModuleServiceTests : IDisposable
         public List<string> RemovedContainerIds { get; } = [];
         public List<string> Calls { get; } = [];
         public string? BuiltStoragePath { get; private set; }
+        public string? BuiltEntryAssembly { get; private set; }
         public Exception? BuildException { get; set; }
         public Exception? StartException { get; set; }
         public Exception? ReadinessException { get; set; }
@@ -1542,6 +1745,7 @@ public class ModuleServiceTests : IDisposable
             ct.ThrowIfCancellationRequested();
             Calls.Add("build");
             BuiltStoragePath = storagePath;
+            BuiltEntryAssembly = entryDllName;
             if (BuildException is not null)
                 throw BuildException;
             return Task.FromResult("replacement-container");

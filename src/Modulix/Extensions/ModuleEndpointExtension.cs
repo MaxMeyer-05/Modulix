@@ -114,7 +114,7 @@ public class ModuleEndpointExtension
                 else
                 {
                     initial.Status = ModuleEndpointsStatus.PendingConfirmation;
-                    extra.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
+                    missing.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
                 }
             }
 
@@ -138,7 +138,7 @@ public class ModuleEndpointExtension
                         EndpointPath = scanned.EndpointPath,
                         Status = ModuleEndpointsStatus.PendingConfirmation
                     });
-                    missing.Add(scanned);
+                    extra.Add(scanned);
                 }
             }
 
