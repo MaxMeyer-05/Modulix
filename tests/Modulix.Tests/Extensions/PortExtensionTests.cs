@@ -6,6 +6,8 @@ namespace Modulix.Tests.Extensions;
 [Trait("SubCategory", "PortExtension")]
 public class PortExtensionTests
 {
+    #region Selected Port Tests
+
     [Theory]
     [InlineData(1024)]
     [InlineData(8080)]
@@ -22,6 +24,10 @@ public class PortExtensionTests
 
         Assert.Contains("8080", exception.Message);
     }
+
+    #endregion
+
+    #region Automatic Port Selection Tests
 
     [Theory]
     [InlineData(0)]
@@ -49,4 +55,6 @@ public class PortExtensionTests
     {
         Assert.Equal(1025, PortExtension.GetAvailablePort([80, 1024, 1024, 65535], 0));
     }
+
+    #endregion
 }

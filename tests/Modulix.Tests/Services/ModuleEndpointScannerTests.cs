@@ -38,6 +38,8 @@ public class ModuleEndpointScannerTests : IDisposable
     private Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _responder;
     private int _containerCount;
 
+    #region Setup & Teardown
+
     public ModuleEndpointScannerTests()
     {
         Directory.CreateDirectory(_testRootDirectory);
@@ -66,6 +68,10 @@ public class ModuleEndpointScannerTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    #endregion
+
+    #region Scan Validation Tests
+
     [Fact]
     public async Task ScanOrEnqueueAsync_MissingDirectory_ThrowsBeforeCallingDocker()
     {
@@ -84,6 +90,10 @@ public class ModuleEndpointScannerTests : IDisposable
         Assert.False(_sut.CancelScan(Guid.NewGuid()));
         Assert.Empty(_requests);
     }
+
+    #endregion
+
+    #region Immediate Scan Tests
 
     [Theory]
     [InlineData(false)]
@@ -233,6 +243,10 @@ public class ModuleEndpointScannerTests : IDisposable
         Assert.False((await _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory)).WasQueued);
     }
 
+    #endregion
+
+    #region Queue Tests
+
     [Fact]
     public async Task ScanOrEnqueueAsync_AllSlotsBusy_QueuesWithoutStartingAnotherContainerAndAllowsCancellation()
     {
@@ -326,6 +340,10 @@ public class ModuleEndpointScannerTests : IDisposable
             await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
         }
     }
+
+    #endregion
+
+    #region Background Scan Tests
 
     [Theory]
     [InlineData(false)]
@@ -445,6 +463,10 @@ public class ModuleEndpointScannerTests : IDisposable
         }
     }
 
+    #endregion
+
+    #region Test Fakes & Helpers
+
     private void BlockFirstScan(TaskCompletionSource started, TaskCompletionSource release)
     {
         _responder = async (request, cancellationToken) =>
@@ -534,4 +556,6 @@ public class ModuleEndpointScannerTests : IDisposable
             return handler;
         }
     }
+
+    #endregion
 }

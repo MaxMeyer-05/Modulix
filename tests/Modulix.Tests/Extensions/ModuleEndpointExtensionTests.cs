@@ -20,6 +20,8 @@ public class ModuleEndpointExtensionTests : IDisposable
     private readonly RecordingDockerService _dockerService = new();
     private readonly ModuleEndpointExtension _sut;
 
+    #region Setup & Teardown
+
     public ModuleEndpointExtensionTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
@@ -35,6 +37,10 @@ public class ModuleEndpointExtensionTests : IDisposable
         _connection.Dispose();
         GC.SuppressFinalize(this);
     }
+
+    #endregion
+
+    #region CheckBaseEndpointPathConflict Tests
 
     [Theory]
     [InlineData("api/modules", "api/modules")]
@@ -53,6 +59,10 @@ public class ModuleEndpointExtensionTests : IDisposable
     {
         ModuleEndpointExtension.CheckBaseEndpointPathConflict(["api/orders", "api/products"], "api/customers");
     }
+
+    #endregion
+
+    #region CreateEndpointDiscrepancyReport Tests
 
     [Theory]
     [InlineData(false)]
@@ -153,6 +163,10 @@ public class ModuleEndpointExtensionTests : IDisposable
         Assert.Equal(failingOperation == "build" ? null : "candidate", persisted.ContainerId);
     }
 
+    #endregion
+
+    #region Test Fakes & Helpers
+
     private async Task<Module> CreateModuleAsync(params CreateModuleEndpointDto[] endpoints)
     {
         var module = new Module
@@ -216,4 +230,6 @@ public class ModuleEndpointExtensionTests : IDisposable
                 throw new InvalidOperationException("Docker operation failed: " + operation);
         }
     }
+
+    #endregion
 }

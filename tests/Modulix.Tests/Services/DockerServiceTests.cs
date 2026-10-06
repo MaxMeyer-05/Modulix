@@ -18,6 +18,8 @@ namespace Modulix.Tests.Services;
 [Trait("SubCategory", "DockerService")]
 public class DockerServiceTests
 {
+    #region WaitUntilReady Tests
+
     [Theory]
     [InlineData("healthy", true, false, true)]
     [InlineData("unhealthy", true, false, false)]
@@ -78,6 +80,10 @@ public class DockerServiceTests
         else
             await Assert.ThrowsAsync<TimeoutException>(() => service.WaitUntilReadyAsync("candidate", cancellation.Token));
     }
+
+    #endregion
+
+    #region Container Lifecycle Tests
 
     [Theory]
     [InlineData(HttpStatusCode.NoContent)]
@@ -164,6 +170,10 @@ public class DockerServiceTests
 
         Assert.False(imageDeleted);
     }
+
+    #endregion
+
+    #region BuildContainer Tests
 
     [Theory]
     [InlineData(false, false, 8080, "modulix-network", "mcr.microsoft.com/dotnet/aspnet:10.0")]
@@ -347,6 +357,10 @@ public class DockerServiceTests
         }
     }
 
+    #endregion
+
+    #region Cleanup Failure Tests
+
     [Theory]
     [InlineData("inspect", 1)]
     [InlineData("stop", 2)]
@@ -376,6 +390,10 @@ public class DockerServiceTests
         if (failingOperation == "stop")
             Assert.DoesNotContain(requests, request => request.StartsWith("DELETE ", StringComparison.Ordinal));
     }
+
+    #endregion
+
+    #region Test Fakes & Helpers
 
     private static DockerService CreateService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder,
@@ -407,4 +425,6 @@ public class DockerServiceTests
             return handler;
         }
     }
+
+    #endregion
 }

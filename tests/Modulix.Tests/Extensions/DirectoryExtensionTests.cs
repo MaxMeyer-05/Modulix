@@ -18,6 +18,8 @@ public class DirectoryExtensionTests : IDisposable
     private readonly ModulixOptions _options;
     private readonly DirectoryExtension _sut;
 
+    #region Setup & Teardown
+
     public DirectoryExtensionTests()
     {
         Directory.CreateDirectory(_testRootDirectory);
@@ -30,6 +32,10 @@ public class DirectoryExtensionTests : IDisposable
         Directory.Delete(_testRootDirectory, recursive: true);
         GC.SuppressFinalize(this);
     }
+
+    #endregion
+
+    #region ValidateModuleArchive Tests
 
     [Theory]
     [InlineData(2, 4, true)]
@@ -52,6 +58,10 @@ public class DirectoryExtensionTests : IDisposable
 
         Assert.True(File.Exists(archivePath));
     }
+
+    #endregion
+
+    #region CreateModuleTargetPath Tests
 
     [Fact]
     public async Task CreateModuleTargetPathAsync_ValidArchive_ExtractsContentsAndReplacesOnlyTargetModule()
@@ -160,6 +170,10 @@ public class DirectoryExtensionTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
     }
 
+    #endregion
+
+    #region Cleanup Tests
+
     [Fact]
     public void DeleteTemporaryFile_ExistingOrMissingFile_IsIdempotentAndPreservesOtherFiles()
     {
@@ -191,6 +205,10 @@ public class DirectoryExtensionTests : IDisposable
         Assert.True(Directory.Exists(otherPath));
     }
 
+    #endregion
+
+    #region Helper Methods
+
     private static FormFile CreateFormFile(Stream contents, string fileName = "module.zip") =>
         new(contents, 0, contents.Length, "ModuleFile", fileName);
 
@@ -208,4 +226,6 @@ public class DirectoryExtensionTests : IDisposable
         contents.Position = 0;
         return contents;
     }
+
+    #endregion
 }
