@@ -5,6 +5,9 @@ using System.Text.Json;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 
+using Microsoft.Extensions.Options;
+
+using Modulix.Models.Options;
 using Modulix.Services.Interfaces;
 
 namespace Modulix.Services;
@@ -13,14 +16,9 @@ namespace Modulix.Services;
 public class DockerService : IDockerService, IDisposable
 {
     /// <summary>
-    /// The name of the Docker network used for module containers.
+    /// The shared module settings.
     /// </summary>
-    private const string NetworkName = "modulix-network";
-
-    /// <summary>
-    /// The base Docker image for module containers.
-    /// </summary>
-    private const string BaseImage = "mcr.microsoft.com/dotnet/aspnet:10.0";
+    private readonly ModulixOptions _options;
 
     /// <summary>
     /// The Docker client used to interact with the Docker daemon.
@@ -36,9 +34,11 @@ public class DockerService : IDockerService, IDisposable
     /// Initializes a new instance of the <see cref="DockerService"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    public DockerService(ILogger<DockerService> logger)
+    /// <param name="options">The shared module settings.</param>
+    public DockerService(ILogger<DockerService> logger, IOptions<ModulixOptions> options)
     {
         _logger = logger;
+        _options = options.Value;
 
         var dockerUri = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? new Uri("npipe://./pipe/docker_engine")
@@ -52,10 +52,12 @@ public class DockerService : IDockerService, IDisposable
     /// </summary>
     /// <param name="logger">The logger instance.</param>
     /// <param name="client">The Docker client owned by this service.</param>
-    public DockerService(ILogger<DockerService> logger, DockerClient client)
+    /// <param name="options">The shared module settings.</param>
+    public DockerService(ILogger<DockerService> logger, DockerClient client, IOptions<ModulixOptions> options)
     {
         _logger = logger;
         _client = client;
+        _options = options.Value;
     }
 
     /// <inheritdoc/>
@@ -63,14 +65,14 @@ public class DockerService : IDockerService, IDisposable
     {
         // Ensure the Docker network exists before building the container.
         var networks = await _client.Networks.ListNetworksAsync(new NetworksListParameters(), ct);
-        if (!networks.Any(n => n.Name == NetworkName)) 
+        if (!networks.Any(n => n.Name == _options.NetworkName)) 
         {
             await _client.Networks.CreateNetworkAsync(new NetworksCreateParameters
             {
-                Name = NetworkName,
+                Name = _options.NetworkName,
                 Driver = "bridge"
             }, ct);
-            _logger.LogInformation("Docker network '{NetworkName}' created.", NetworkName);
+            _logger.LogInformation("Docker network '{NetworkName}' created.", _options.NetworkName);
         }
 
         // Define the image and container names based on the module ID.
@@ -81,7 +83,7 @@ public class DockerService : IDockerService, IDisposable
         var dockerfilePath = Path.Combine(storagePath, "Dockerfile");
 
         var defaultDockerfile = $"""
-            FROM {BaseImage}
+            FROM {_options.BaseImage}
             WORKDIR /app
             COPY . .
             ENV ASPNETCORE_ENVIRONMENT=Production
@@ -139,7 +141,7 @@ public class DockerService : IDockerService, IDisposable
                 },
                 HostConfig = new HostConfig
                 {
-                    NetworkMode = NetworkName,
+                    NetworkMode = _options.NetworkName,
                     PublishAllPorts = false,
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {

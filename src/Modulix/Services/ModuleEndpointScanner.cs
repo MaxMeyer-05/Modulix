@@ -4,8 +4,11 @@ using System.Collections.Concurrent;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 
+using Microsoft.Extensions.Options;
+
 using Modulix.Models.Dtos;
 using Modulix.Models.Enums;
+using Modulix.Models.Options;
 
 using Modulix.Services.Interfaces;
 using Modulix.Database.DbContexts;
@@ -16,20 +19,15 @@ namespace Modulix.Services;
 public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
 {
     /// <summary>
-    /// The Docker image used for scanning modules.
+    /// The shared module settings.
     /// </summary>
-    private const string ScannerImage = "modulix-scanner:latest";
-
-    /// <summary>
-    /// The maximum number of concurrent scans allowed.
-    /// </summary>
-    private const int MaxConcurrentScans = 4;
+    private readonly ModulixOptions _options;
 
 
     /// <summary>
     /// Semaphore used to control the concurrency of scan jobs.
     /// </summary>
-    private readonly SemaphoreSlim _concurrencySemaphore = new(MaxConcurrentScans, MaxConcurrentScans);
+    private readonly SemaphoreSlim _concurrencySemaphore;
 
     /// <summary>
     /// Semaphore used to signal when items are available in the priority queue.
@@ -111,16 +109,20 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// <param name="logger">The logger instance for logging information and errors.</param>
     /// <param name="context">The server context for accessing the database and other services.</param>
     /// <param name="moduleService">The module service for handling module-related operations.</param>
+    /// <param name="options">The shared module settings.</param>
     public ModuleEndpointScanner(
         DockerClient dockerClient, 
         ILogger<ModuleEndpointScanner> logger, 
         ServerContext context, 
-        IModuleService moduleService)
+        IModuleService moduleService,
+        IOptions<ModulixOptions> options)
     {
         _dockerClient = dockerClient;
         _logger = logger;
         _context = context;
         _moduleService = moduleService;
+        _options = options.Value;
+        _concurrencySemaphore = new SemaphoreSlim(_options.MaxConcurrentScans, _options.MaxConcurrentScans);
         _ = ProcessQueueLoopAsync(_cts.Token);
     }
 
@@ -270,7 +272,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
 
         var createResponse = await _dockerClient.Containers.CreateContainerAsync(new CreateContainerParameters
         {
-            Image = ScannerImage,
+            Image = _options.ScannerImage,
             Name = containerName,
             Cmd = ["/scan-target"],
             NetworkDisabled = true,

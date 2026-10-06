@@ -8,15 +8,29 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
+using Modulix.Extensions;
 using Modulix.Infrastructure;
 using Modulix.Database.DbContexts;
+using Modulix.Models.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
 
+builder.Services.AddOptions<ModulixOptions>()
+    .Bind(builder.Configuration.GetSection(ModulixOptions.SectionName))
+    .ValidateDataAnnotations()
+    .PostConfigure<IHostEnvironment>((options, env) =>
+    {
+        if (!string.IsNullOrWhiteSpace(options.StorageBasePath))
+            options.StorageBasePath = Path.GetFullPath(options.StorageBasePath, env.ContentRootPath);
+    })
+    .ValidateOnStart();
+
 builder.Services.AddScoped<IModuleService, ModuleService>();
+builder.Services.AddScoped<DirectoryExtension>();
+builder.Services.AddScoped<ModuleEndpointExtension>();
 
 builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();

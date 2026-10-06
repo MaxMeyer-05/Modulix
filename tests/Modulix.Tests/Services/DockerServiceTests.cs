@@ -7,7 +7,9 @@ using Docker.DotNet;
 
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
+using Modulix.Models.Options;
 using Modulix.Services;
 
 namespace Modulix.Tests.Services;
@@ -164,11 +166,13 @@ public class DockerServiceTests
     }
 
     [Theory]
-    [InlineData(false, false, 8080)]
-    [InlineData(true, false, 8080)]
-    [InlineData(false, true, 8080)]
-    [InlineData(false, false, 5500)]
-    public async Task BuildContainerAsync_VersionedBuild_ChecksErrorsAndBuildContext(bool buildFails, bool createNetwork, int containerPort)
+    [InlineData(false, false, 8080, "modulix-network", "mcr.microsoft.com/dotnet/aspnet:10.0")]
+    [InlineData(true, false, 8080, "modulix-network", "mcr.microsoft.com/dotnet/aspnet:10.0")]
+    [InlineData(false, true, 8080, "modulix-network", "mcr.microsoft.com/dotnet/aspnet:10.0")]
+    [InlineData(false, false, 5500, "modulix-network", "mcr.microsoft.com/dotnet/aspnet:10.0")]
+    [InlineData(false, true, 8080, "custom-network", "custom-runtime:latest")]
+    public async Task BuildContainerAsync_VersionedBuild_ChecksErrorsAndBuildContext(
+        bool buildFails, bool createNetwork, int containerPort, string networkName, string baseImage)
     {
         var root = Path.Combine(Path.GetTempPath(), "Modulix_Docker_Tests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -186,13 +190,13 @@ public class DockerServiceTests
             {
                 var path = request.RequestUri!.AbsolutePath;
                 if (path.EndsWith("/networks", StringComparison.Ordinal))
-                    return JsonResponse(createNetwork ? [] : new[] { new { Name = "modulix-network" } });
+                    return JsonResponse(createNetwork ? [] : new[] { new { Name = networkName } });
 
                 if (path.EndsWith("/networks/create", StringComparison.Ordinal))
                 {
                     networkCreated = true;
                     using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
-                    Assert.Equal("modulix-network", body.RootElement.GetProperty("Name").GetString());
+                    Assert.Equal(networkName, body.RootElement.GetProperty("Name").GetString());
                     Assert.Equal("bridge", body.RootElement.GetProperty("Driver").GetString());
                     return JsonResponse(new { Id = "network" });
                 }
@@ -222,7 +226,7 @@ public class DockerServiceTests
                     Assert.Equal(1_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Interval").GetInt64());
                     Assert.Equal(2_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Timeout").GetInt64());
                     var hostConfig = body.RootElement.GetProperty("HostConfig");
-                    Assert.Equal("modulix-network", hostConfig.GetProperty("NetworkMode").GetString());
+                    Assert.Equal(networkName, hostConfig.GetProperty("NetworkMode").GetString());
                     Assert.False(hostConfig.TryGetProperty("PublishAllPorts", out var publishAllPorts) && publishAllPorts.GetBoolean());
                     var exposedPort = Assert.Single(body.RootElement.GetProperty("ExposedPorts").EnumerateObject());
                     Assert.Equal($"{containerPort}/tcp", exposedPort.Name);
@@ -240,7 +244,7 @@ public class DockerServiceTests
 
                 deletedImage |= request.Method == HttpMethod.Delete && path.Contains("/images/", StringComparison.Ordinal);
                 return JsonResponse(Array.Empty<object>());
-            });
+            }, new ModulixOptions { NetworkName = networkName, BaseImage = baseImage });
 
             if (buildFails)
             {
@@ -260,6 +264,8 @@ public class DockerServiceTests
             Assert.Contains("Dockerfile", archiveEntries);
             Assert.Contains("module.dll", archiveEntries);
             Assert.Equal(createNetwork, networkCreated);
+            var dockerfile = await File.ReadAllTextAsync(Path.Combine(root, "Dockerfile"));
+            Assert.StartsWith($"FROM {baseImage}", dockerfile.TrimStart());
         }
         finally
         {
@@ -325,11 +331,13 @@ public class DockerServiceTests
         }
     }
 
-    private static DockerService CreateService(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder)
+    private static DockerService CreateService(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder,
+        ModulixOptions? options = null)
     {
         var credentials = new FakeCredentials(new FakeDockerHandler(responder));
         var client = new DockerClientConfiguration(new Uri("http://docker.test"), credentials).CreateClient();
-        return new DockerService(NullLogger<DockerService>.Instance, client);
+        return new DockerService(NullLogger<DockerService>.Instance, client, Options.Create(options ?? new ModulixOptions()));
     }
 
     private static HttpResponseMessage JsonResponse(object body, HttpStatusCode status = HttpStatusCode.OK) => new(status)

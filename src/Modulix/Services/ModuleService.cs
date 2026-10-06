@@ -1,24 +1,24 @@
 using System.IO.Compression;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 using Modulix.Mappers;
 
 using Modulix.Models.Dtos;
 using Modulix.Models.Enums;
+using Modulix.Models.Options;
 
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
 using Modulix.Services.Interfaces;
+using Modulix.Extensions;
 
 namespace Modulix.Services;
 
 /// <inheritdoc cref="IModuleService"/>
 public class ModuleService : IModuleService
 {
-    private const int MaximumArchiveEntryCount = 1_000; // 1,000 entries maximum
-    private const long MaximumArchiveUncompressedBytes = 512L * 1024 * 1024; // 512 MB
-
     /// <summary>
     /// The database context used by the service.
     /// </summary>
@@ -40,30 +40,46 @@ public class ModuleService : IModuleService
     private readonly IDockerService _dockerService;
 
     /// <summary>
-    /// The base path for storing module-related files.
+    /// The shared module settings.
     /// </summary>
-    private readonly string _storageBasePath;
+    private readonly ModulixOptions _options;
+
+    /// <summary>
+    /// The directory extension for handling module directories and archives.
+    /// </summary>
+    private readonly DirectoryExtension _directoryExtension;
+
+    /// <summary>
+    /// The module endpoint extension for validating and reconciling endpoints.
+    /// </summary>
+    private readonly ModuleEndpointExtension _moduleEndpointExtension;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModuleService"/> class.
     /// </summary>
     /// <param name="context">The database context used by the service.</param>
     /// <param name="logger">The logger.</param>
-    /// <param name="env">The host environment.</param>
+    /// <param name="options">The shared module settings.</param>
     /// <param name="dockerService">The Docker service.</param>
     /// <param name="endpointScanner">The module endpoint scanner.</param>
+    /// <param name="directoryExtension">The directory extension for handling module directories and archives.</param>
+    /// <param name="moduleEndpointExtension">The extension for validating and reconciling module endpoints.</param>
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
-        IHostEnvironment env,
+        IOptions<ModulixOptions> options,
         IDockerService dockerService,
-        IModuleEndpointScanner endpointScanner)
+        IModuleEndpointScanner endpointScanner,
+        DirectoryExtension directoryExtension,
+        ModuleEndpointExtension moduleEndpointExtension)
     {
         _context = context;
         _logger = logger;
         _endpointScanner = endpointScanner;
         _dockerService = dockerService;
-        _storageBasePath = Path.Combine(env.ContentRootPath, "storage", "modules");
+        _options = options.Value;
+        _directoryExtension = directoryExtension;
+        _moduleEndpointExtension = moduleEndpointExtension;
     }
 
     /// <inheritdoc/>
@@ -155,11 +171,11 @@ public class ModuleService : IModuleService
         
         // Ensure the used container ports are not conflicting
         var usedPorts = await _context.Modules.Select(m => m.ContainerPort).ToListAsync(ct);
-        var availablePort = GetAvailablePort(usedPorts, dto.ContainerPort ?? 0);
+        var availablePort = PortExtension.GetAvailablePort(usedPorts, dto.ContainerPort ?? 0);
 
         // Ensure the used base endpoint paths are not conflicting
         var usedBasePaths = await _context.Modules.Select(m => m.BaseEndpointPath).ToListAsync(ct);
-        CheckBaseEndpointPathConflict(usedBasePaths, normalizedBasePath);
+        ModuleEndpointExtension.CheckBaseEndpointPathConflict(usedBasePaths, normalizedBasePath);
 
         // Create the module entity and set the available container port
         var module = dto.ToModuleEntity();
@@ -167,7 +183,7 @@ public class ModuleService : IModuleService
         module.ContainerPort = availablePort;
 
         // Prepare the target path for extracting the module file
-        var targetPath = await CreateModuleTargetPathAsync(module.Id, dto.ModuleFile, ct);
+        var targetPath = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, dto.ModuleFile, ct);
 
         // Set the storage path for the module
         module.StoragePath = targetPath;
@@ -197,12 +213,12 @@ public class ModuleService : IModuleService
         }
         catch
         {
-            DeleteModuleDirectory(module.StoragePath, module.Id);
+            _directoryExtension.DeleteModuleDirectory(module.StoragePath, module.Id);
             throw;
         }
 
         // Create a discrepancy report
-        var discrepancyReport = await CreateEndpointDiscrepancyReport(module, scanResponse.Result!.DiscoveredEndpoints, ct);
+        var discrepancyReport = await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResponse.Result!.DiscoveredEndpoints, ct);
 
         // Log the final status of the module after attempting to provision the Docker container
         try
@@ -214,7 +230,7 @@ public class ModuleService : IModuleService
             if (string.IsNullOrWhiteSpace(module.ContainerId) ||
                 await TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
-                DeleteModuleDirectory(module.StoragePath, module.Id);
+                _directoryExtension.DeleteModuleDirectory(module.StoragePath, module.Id);
             }
 
             _context.Entry(module).State = EntityState.Detached;
@@ -242,7 +258,7 @@ public class ModuleService : IModuleService
         var module = await _context.Modules.Include(m => m.SubEndpoints).FirstOrDefaultAsync(m => m.Id == moduleId, ct);
         if (module == null) return;
 
-        await CreateEndpointDiscrepancyReport(module, result.DiscoveredEndpoints, ct);
+        await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, result.DiscoveredEndpoints, ct);
     }
 
     /// <inheritdoc/>
@@ -358,7 +374,7 @@ public class ModuleService : IModuleService
 
         var previousVersion = (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status);
 
-        var versionDirectory = Path.Combine(_storageBasePath, $"{module.Id:N}.{Guid.NewGuid():N}");
+        var versionDirectory = Path.Combine(_options.StorageBasePath, $"{module.Id:N}.{Guid.NewGuid():N}");
         var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
         string? candidateId = null;
 
@@ -371,7 +387,7 @@ public class ModuleService : IModuleService
                 await file.ModuleFile.CopyToAsync(stream, ct);
             }
 
-            ValidateModuleArchive(tmpZipPath);
+            _directoryExtension.ValidateModuleArchive(tmpZipPath);
             Directory.CreateDirectory(versionDirectory);
             ZipFile.ExtractToDirectory(tmpZipPath, versionDirectory);
             ct.ThrowIfCancellationRequested();
@@ -385,7 +401,7 @@ public class ModuleService : IModuleService
                 .ToList();
 
             // Create a discrepancy report comparing the current endpoints with the discovered endpoints
-            var discrepancyReport = CreateEndpointDiscrepancyReport(module, scanResult.Result!.DiscoveredEndpoints, ct);
+            var discrepancyReport = _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResult.Result!.DiscoveredEndpoints, ct);
 
             module.ContainerId = candidateId;
             module.StoragePath = versionDirectory;
@@ -396,22 +412,22 @@ public class ModuleService : IModuleService
         catch (Exception ex)
         {
             (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status) = previousVersion;
-            
+
             if (candidateId is null || await TryRemoveModuleContainerAsync(candidateId, module.Id))
-                DeleteModuleDirectory(versionDirectory, module.Id);
+                _directoryExtension.DeleteModuleDirectory(versionDirectory, module.Id);
 
             _logger.LogError(ex, "An error occurred while updating module files for module with ID '{ModuleId}'.", moduleId);
             throw;
         }
         finally
         {
-            DeleteTemporaryFile(tmpZipPath, moduleId);
+            _directoryExtension.DeleteTemporaryFile(tmpZipPath, moduleId);
         }
 
         if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
             await TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))
         {
-            DeleteModuleDirectory(previousVersion.StoragePath, module.Id);
+            _directoryExtension.DeleteModuleDirectory(previousVersion.StoragePath, module.Id);
         }
 
         _logger.LogInformation("Activated replacement container '{ContainerId}' for module '{ModuleId}'.", candidateId, moduleId);
@@ -438,281 +454,4 @@ public class ModuleService : IModuleService
         }
     }
 
-    /// <summary>
-    /// Validates the contents of a module archive.
-    /// </summary>
-    /// <param name="archivePath">The path to the module archive to validate.</param>
-    private static void ValidateModuleArchive(string archivePath)
-    {
-        using var archive = ZipFile.OpenRead(archivePath);
-
-        if (archive.Entries.Count > MaximumArchiveEntryCount)
-            throw new InvalidOperationException("Module archive exceeds the maximum allowed number of entries.");
-
-        var totalUncompressedBytes = 0L;
-        foreach (var entry in archive.Entries)
-        {
-            if (entry.Length > MaximumArchiveUncompressedBytes - totalUncompressedBytes)
-                throw new InvalidOperationException("Module archive exceeds the maximum allowed uncompressed size.");
-
-            totalUncompressedBytes += entry.Length;
-        }
-    }
-
-    /// <summary>
-    /// Deletes a temporary file used during module update.
-    /// </summary>
-    /// <param name="filePath">The path to the temporary file to delete.</param>
-    /// <param name="moduleId">The ID of the module associated with the temporary file.</param>
-    private void DeleteTemporaryFile(string filePath, Guid moduleId)
-    {
-        try
-        {
-            if (File.Exists(filePath))
-                File.Delete(filePath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to delete temporary ZIP file for module with ID '{ModuleId}'.", moduleId);
-        }
-    }
-
-    /// <summary>
-    /// Deletes a directory used to store module files.
-    /// </summary>
-    /// <param name="directoryPath">The path to the staging directory to delete.</param>
-    /// <param name="moduleId">The ID of the module associated with the staging directory.</param>
-    private void DeleteModuleDirectory(string directoryPath, Guid moduleId)
-    {
-        try
-        {
-            if (Directory.Exists(directoryPath))
-                Directory.Delete(directoryPath, true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to delete module directory for module with ID '{ModuleId}'.", moduleId);
-        }
-    }
-
-    /// <summary>
-    /// Gets an available container port, 
-    /// either the selected port if it is not in use, 
-    /// or the first available port in the range 1024-49151.
-    /// </summary>
-    /// <param name="usedPorts">The list of currently used ports.</param>
-    /// <param name="selectedPort">The desired port, or 0 to automatically select an available port.</param>
-    /// <returns>The available port.</returns>
-    private static int GetAvailablePort(IEnumerable<int> usedPorts, int selectedPort)
-    {
-        int availablePort;
-        if (selectedPort > 0)
-        {
-            if (usedPorts.Contains(selectedPort))
-                throw new ArgumentException($"Container port '{selectedPort}' is already in use.");
-
-            availablePort = selectedPort;
-        }
-        else
-        {            
-            availablePort = Enumerable.Range(1024, 48127).Except(usedPorts).FirstOrDefault();
-        }
-
-        return availablePort;
-    }
-
-    /// <summary>
-    /// Checks for conflicts with existing base endpoint paths.
-    /// Throws an ArgumentException if a conflict is found.
-    /// </summary>
-    /// <param name="usedBasePaths">The list of currently used base endpoint paths.</param>
-    /// <param name="normalizedBasePath">The normalized base endpoint path to check.</param>
-    /// <exception cref="ArgumentException">Thrown if a conflict is found with existing base endpoint paths.</exception>
-    private static void CheckBaseEndpointPathConflict(IEnumerable<string> usedBasePaths, string normalizedBasePath)
-    {
-        if (usedBasePaths.Contains(normalizedBasePath))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");
-        else if (usedBasePaths.Any(ubp => ubp.StartsWith(normalizedBasePath)))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with an existing base endpoint path.");
-        else if (usedBasePaths.Any(ubp => normalizedBasePath.StartsWith(ubp)))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path.");
-    }
-
-    /// <summary>
-    /// Creates the target path for a module by extracting its files from the provided .zip archive.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="file">The .zip archive containing the module files.</param>
-    /// <param name="ct">A cancellation token.</param>
-    /// <returns>The path to the extracted module files.</returns>
-    private async Task<string> CreateModuleTargetPathAsync(Guid moduleId, IFormFile file, CancellationToken ct = default)
-    {
-        var targetPath = Path.Combine(_storageBasePath, moduleId.ToString());
-        if (file.Length == 0)
-            throw new ArgumentException("Module file cannot be empty.");
-        if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Module file must be a .zip archive.");
-            
-        if (Directory.Exists(targetPath))
-            Directory.Delete(targetPath, true);
-        
-        try
-        {
-            Directory.CreateDirectory(targetPath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create target directory '{TargetPath}'.", targetPath);
-            throw;
-        }
-
-        var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
-        try
-        {
-            using (var stream = new FileStream(tmpZipPath, FileMode.CreateNew))
-            {
-                await file.CopyToAsync(stream, ct);
-            }
-
-            ValidateModuleArchive(tmpZipPath);
-            ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
-            _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
-        }
-        catch
-        {
-            DeleteModuleDirectory(targetPath, moduleId);
-            throw;
-        }
-        finally
-        {
-            DeleteTemporaryFile(tmpZipPath, moduleId);
-        }
-
-        return targetPath;
-    }
-
-    /// <summary>
-    /// Creates a report detailing discrepancies between the initial and discovered endpoints for a module.
-    /// </summary>
-    /// <param name="module">The module entity containing the initially defined endpoints.</param>
-    /// <param name="discoveredEndpoints">The list of endpoints discovered for the module.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>
-    /// The task result contains a report detailing any discrepancies between the initial and discovered endpoints, 
-    /// or null if no discrepancies were found.
-    /// </returns>
-    private async Task<EndpointDiscrepancyReportDto?> CreateEndpointDiscrepancyReport(
-        Module module,
-        List<DiscoveredEndpointDto> discoveredEndpoints, 
-        CancellationToken ct)
-    {
-        var initialEndpoints = module.SubEndpoints.ToList();
-        EndpointDiscrepancyReportDto? report = null;
-
-        if (initialEndpoints is null || initialEndpoints.Count == 0)
-        {
-            foreach (var scanned in discoveredEndpoints)
-            {
-                module.SubEndpoints.Add(new ModuleEndpoint
-                {
-                    ModuleId = module.Id,
-                    HttpMethod = scanned.HttpMethod,
-                    EndpointPath = scanned.EndpointPath,
-                    Status = ModuleEndpointsStatus.Active
-                });
-            }
-
-            module.Status = ModuleStatus.Created;
-        }
-        else
-        {
-            var matched = new List<DiscoveredEndpointDto>();
-            var extra = new List<DiscoveredEndpointDto>();
-            var missing = new List<DiscoveredEndpointDto>();
-
-            foreach (var initial in initialEndpoints)
-            {
-                var found = discoveredEndpoints.Any(s => 
-                    s.HttpMethod.Equals(
-                        initial.HttpMethod, 
-                        StringComparison.OrdinalIgnoreCase)
-                    && s.EndpointPath.Equals(
-                        initial.EndpointPath, 
-                        StringComparison.OrdinalIgnoreCase)
-                );
-
-                if (found)
-                {
-                    initial.Status = ModuleEndpointsStatus.Active;
-                    matched.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
-                }
-                else
-                {
-                    initial.Status = ModuleEndpointsStatus.PendingConfirmation;
-                    extra.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
-                }
-            }
-
-            foreach (var scanned in discoveredEndpoints)
-            {
-                var isExpected = initialEndpoints.Any(i => 
-                    i.HttpMethod.Equals(
-                        scanned.HttpMethod, 
-                        StringComparison.OrdinalIgnoreCase) 
-                    && i.EndpointPath.Equals(
-                        scanned.EndpointPath, 
-                        StringComparison.OrdinalIgnoreCase)
-                );
-
-                if (!isExpected)
-                {
-                    module.SubEndpoints.Add(new ModuleEndpoint
-                    {
-                        ModuleId = module.Id,
-                        HttpMethod = scanned.HttpMethod,
-                        EndpointPath = scanned.EndpointPath,
-                        Status = ModuleEndpointsStatus.PendingConfirmation
-                    });
-                    missing.Add(scanned);
-                }
-            }
-
-            bool hasDiscrepancy = extra.Count > 0 || missing.Count > 0;
-
-            if (hasDiscrepancy)
-            {
-                report = new EndpointDiscrepancyReportDto
-                {
-                    ModuleId = module.Id,
-                    HasDiscrepancy = true,
-                    MatchedEndpoints = matched,
-                    ExtraEndpoints = extra,
-                    MissingEndpoints = missing
-                };
-
-                module.Status = ModuleStatus.PendingConfirmation;
-            }
-        }
-        
-        if (module.Status == ModuleStatus.Created)
-        {
-            try
-            {
-                module.Status = ModuleStatus.Starting;
-                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
-                module.ContainerId = containerId;
-                await _dockerService.RunContainerAsync(containerId, ct);
-                await _dockerService.WaitUntilReadyAsync(containerId, ct);
-                module.Status = ModuleStatus.Running;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to provision Docker container for module {ModuleId}.", module.Id);
-                module.Status = ModuleStatus.Failed;
-            }
-        }
-
-        await _context.SaveChangesAsync(ct);
-        return report;
-    }
 }

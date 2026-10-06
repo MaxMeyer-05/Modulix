@@ -3,6 +3,7 @@ using System.Text;
 using System.IO.Compression;
 
 using Microsoft.Data.Sqlite;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -10,12 +11,15 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
+using Modulix.Extensions;
 
 using Modulix.Models.Dtos;
 using Modulix.Models.Enums;
+using Modulix.Models.Options;
 
 using Modulix.Services;
 using Modulix.Services.Interfaces;
@@ -57,16 +61,21 @@ public class ModuleServiceTests : IDisposable
         _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_Tests_" + Guid.NewGuid());
         Directory.CreateDirectory(_testRootDirectory);
 
-        var fakeEnv = new FakeHostEnvironment(_testRootDirectory);
+        var moduleOptions = Options.Create(new ModulixOptions
+        {
+            StorageBasePath = Path.Combine(_testRootDirectory, "storage", "modules")
+        });
         _endpointScanner = new FakeModuleEndpointScanner();
         _dockerService = new FakeDockerService();
 
         _sut = new ModuleService(
             _context,
             NullLogger<ModuleService>.Instance,
-            fakeEnv,
+            moduleOptions,
             _dockerService,
-            _endpointScanner);
+                _endpointScanner,
+                new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, moduleOptions),
+                new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService));
     }
 
     public void Dispose()
@@ -1482,12 +1491,14 @@ public class ModuleServiceTests : IDisposable
         Assert.Empty(Directory.EnumerateDirectories(modulesStorageDirectory));
     }
 
-    private sealed class FakeHostEnvironment(string rootPath) : IHostEnvironment
+    private sealed class FakeHostEnvironment(string rootPath) : IWebHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Development";
         public string ApplicationName { get; set; } = "Modulix.Tests";
         public string ContentRootPath { get; set; } = rootPath;
         public IFileProvider ContentRootFileProvider { get; set; } = null!;
+        public string WebRootPath { get; set; } = rootPath;
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
     }
 
     private sealed class FakeModuleEndpointScanner : IModuleEndpointScanner
