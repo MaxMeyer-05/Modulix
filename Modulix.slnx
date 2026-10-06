@@ -5,10 +5,11 @@
     <File Path="readme.md" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Modulix/Modulix.csproj" />
     <Project Path="src/Modulix.Scanner/Modulix.Scanner.csproj" />
-    <Project Path="src/Server/Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Server/Server.csproj" />
+    <Project Path="tests/Modulix.Scanner.Tests/Modulix.Scanner.Tests.csproj" />
+    <Project Path="tests/Modulix.Tests/Modulix.Tests.csproj" />
   </Folder>
 </Solution>

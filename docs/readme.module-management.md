@@ -220,9 +220,9 @@ describe collection order, test variables, saved module IDs, confirmation
 reports, and manual cleanup.
 
 The implementation is split between the
-[controller](../src/Server/Controllers/ModulesManagementController.cs),
-[module service](../src/Server/Services/ModuleService.cs),
-[endpoint scanner](../src/Server/Services/ModuleEndpointScanner.cs), and
-[Docker service](../src/Server/Services/DockerService.cs).
+[controller](../src/Modulix/Controllers/ModulesManagementController.cs),
+[module service](../src/Modulix/Services/ModuleService.cs),
+[endpoint scanner](../src/Modulix/Services/ModuleEndpointScanner.cs), and
+[Docker service](../src/Modulix/Services/DockerService.cs).
 Request and response models are defined in
-[ModuleDtos.cs](../src/Server/Models/Dtos/ModuleDtos.cs).
+[ModuleDtos.cs](../src/Modulix/Models/Dtos/ModuleDtos.cs).

@@ -59,7 +59,7 @@ or role assignments.
 
 ## Database
 
-The `InitialCreate` migration in `src/Server/Database/Migrations` creates
+The `InitialCreate` migration in `src/Modulix/Database/Migrations` creates
 the module and module-endpoint tables. No local user or refresh-token tables
 are included. Startup applies pending migrations with `Database.Migrate()`.
 
@@ -89,4 +89,4 @@ Serilog records errors and configured operational logs.
 The [Postman testing conventions](../postman/documents/testing-conventions.md)
 describe externally supplied access tokens, module requests, and manual cleanup,
 including how to store sensitive test values.
-Server tests live in [tests/Server](../tests/Server).
+Server tests live in [tests/Modulix.Tests](../tests/Modulix.Tests).

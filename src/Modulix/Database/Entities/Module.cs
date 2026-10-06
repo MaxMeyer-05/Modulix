@@ -1,0 +1,87 @@
+using Microsoft.EntityFrameworkCore;
+
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+using Modulix.Models.Enums;
+
+namespace Modulix.Database.Entities;
+
+/// <summary>
+/// Represents a module within the system.
+/// </summary>
+[Table("modules")]
+[Index(nameof(BaseEndpointPath), IsUnique = true)]
+[Index(nameof(StoragePath), IsUnique = true)]
+[Index(nameof(ContainerPort), IsUnique = true)]
+public class Module
+{
+    /// <summary>
+    /// The unique identifier of the module.
+    /// </summary>
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>
+    /// The name of the module.
+    /// </summary>
+    [Required]
+    [MaxLength(100)]
+    public string ModuleName { get; set; } = null!;
+
+    /// <summary>
+    /// The description of the module.
+    /// </summary>
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// The base endpoint path of the module.
+    /// </summary>
+    [Required]
+    [MaxLength(200)]
+    public string BaseEndpointPath { get; set; } = null!;
+
+    /// <summary>
+    /// The container ID of the module.
+    /// </summary>
+    [ConcurrencyCheck]
+    public string? ContainerId { get; set; }
+
+    /// <summary>
+    /// The internal TCP port of the module, not its dynamically assigned loopback host port.
+    /// </summary>
+    [Required]
+    public int ContainerPort { get; set; }
+
+    /// <summary>
+    /// The storage path of the module.
+    /// </summary>
+    [Required]
+    [MaxLength(500)]
+    [ConcurrencyCheck]
+    public string StoragePath { get; set; } = null!;
+
+    /// <summary>
+    /// The entry assembly file name of the module.
+    /// </summary>
+    [Required]
+    public string ModuleEntryAssemblyFileName { get; set; } = null!;
+
+    /// <summary>
+    /// The status of the module.
+    /// </summary>
+    [Required]
+    public ModuleStatus Status { get; set; } = ModuleStatus.Created;
+
+    /// <summary>
+    /// The creation time of the module.
+    /// </summary>
+    [Required]
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// The sub-endpoints of the module.
+    /// </summary>
+    public ICollection<ModuleEndpoint> SubEndpoints { get; set; } = [];
+}
