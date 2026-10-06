@@ -31,7 +31,7 @@ a reverse proxy that forwards requests to module endpoints.
 ### Configure and Run
 
 Run these commands from the repository root. Review
-[appsettings.Template.json](src/Server/appsettings.Template.json) for the local
+[appsettings.Template.json](src/Modulix/appsettings.Template.json) for the local
 SQLite, logging, and Keycloak settings. Configuration keys and deployment
 guidance are documented in the
 [server guide](docs/readme.server.md#configuration).
@@ -42,11 +42,11 @@ The API does not need a local JWT signing key.
 
 ```sh
 dotnet restore
-dotnet run --project src/Server
+dotnet run --project src/Modulix
 ```
 
 Pending database migrations are applied automatically. `InitialCreate` in
-`src/Server/Database/Migrations` provisions the module-only schema for a new
+`src/Modulix/Database/Migrations` provisions the module-only schema for a new
 database. Existing databases from before the Keycloak migration require
 their previous migration history to be reconciled before applying it.
 
@@ -81,8 +81,8 @@ For collection-based testing, follow the
 
 | Path | Responsibility |
 | --- | --- |
-| `src/Server` | API host, module controllers and services, token validation, and database persistence. |
-| `tests/Server` | Unit tests for module services, endpoint discovery, and Docker operations. |
+| `src/Modulix` | API host, module controllers and services, token validation, and database persistence. |
+| `tests/Modulix.Tests` | Unit tests for module services, endpoint discovery, and Docker operations. |
 | `docs` | Detailed server and module documentation. |
 | `postman` | API collection, environment templates, and testing conventions. |
 
