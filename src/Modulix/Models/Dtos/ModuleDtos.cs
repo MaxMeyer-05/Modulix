@@ -291,6 +291,11 @@ public class ModuleCreationResultDto
     /// The report detailing any discrepancies between the module's actual endpoints and the expected endpoints.
     /// </summary>
     public EndpointDiscrepancyReportDto? DiscrepancyReport { get; set; }
+
+    /// <summary>
+    /// An optional message providing additional information about the result of the operation.
+    /// </summary>
+    public string? Message { get; set; }
 }
 
 /// <summary>

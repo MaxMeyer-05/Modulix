@@ -69,7 +69,15 @@ public interface IModuleService
     /// <param name="ct">The cancellation token.</param>
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the module is not in a state that allows file updates.</exception>
-    Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
+    Task<bool> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
+
+    /// <summary>
+    /// Processes the result of a previously queued module scan.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module whose scan result is being processed.</param>
+    /// <param name="result">The result of the module scan.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes a module, cleans up its storage files, and removes all associated records.

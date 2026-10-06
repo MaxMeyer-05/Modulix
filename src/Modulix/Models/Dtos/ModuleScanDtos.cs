@@ -44,3 +44,19 @@ public class ModuleScanResultDto
     /// </summary>
     public List<DiscoveredEndpointDto> DiscoveredEndpoints { get; set; } = [];
 }
+
+/// <summary>
+/// Result indicating if a scan was executed immediately or queued.
+/// </summary>
+public class ScanEnqueueResponse
+{
+    /// <summary>
+    /// Indicates whether the scan job was queued or executed immediately.
+    /// </summary>
+    public bool WasQueued { get; set; }
+    
+    /// <summary>
+    /// The result of the scan if it was executed immediately; otherwise, <c>null</c>.
+    /// </summary>
+    public ModuleScanResultDto? Result { get; set; }
+}

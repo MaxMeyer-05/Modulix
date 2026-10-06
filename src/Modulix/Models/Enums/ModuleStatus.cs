@@ -9,6 +9,11 @@ public enum ModuleStatus
     /// The module requires user confirmation regarding endpoint discrepancies.
     /// </summary>
     PendingConfirmation,
+
+    /// <summary>
+    /// The module is waiting in the queue to be scanned.
+    /// </summary>
+    QueuedForScan,
     
     /// <summary>
     /// The module has been created but not yet started.

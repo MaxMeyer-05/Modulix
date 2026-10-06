@@ -175,11 +175,11 @@ public class ModuleService : IModuleService
         // Set the storage path for the module
         module.StoragePath = targetPath;
 
-        ModuleScanResultDto result;
+        ScanEnqueueResponse scanResponse;
         try
         {
-            result = await _endpointScanner.ScanDirectoryAsync(module.StoragePath, ct);
-            module.ModuleEntryAssemblyFileName = result.EntryAssemblyFileName;
+            scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, module.StoragePath, ScanPriority.Create, ct);
+            module.ModuleEntryAssemblyFileName = scanResponse.Result!.EntryAssemblyFileName;
         }
         catch
         {
@@ -187,7 +187,7 @@ public class ModuleService : IModuleService
             throw;
         }
 
-        var discoveredEndpoints = result.DiscoveredEndpoints;
+        var discoveredEndpoints = scanResponse.Result!.DiscoveredEndpoints;
 
         // Create a discrepancy report
         var discrepancyReport = CreateEndpointDiscrepancyReport(dto.InitialEndpoints?.ToList(), discoveredEndpoints, module.Id);
@@ -202,7 +202,7 @@ public class ModuleService : IModuleService
             {
                 module.Status = ModuleStatus.Starting;
 
-                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, result.EntryAssemblyFileName, module.ContainerPort, ct);
+                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, scanResponse.Result!.EntryAssemblyFileName, module.ContainerPort, ct);
                 module.ContainerId = containerId;
 
                 await _dockerService.RunContainerAsync(containerId, ct);
@@ -245,6 +245,12 @@ public class ModuleService : IModuleService
             Module = module.ToModuleDetailDto(),
             DiscrepancyReport = discrepancyReport
         };
+    }
+
+        /// <inheritdoc/>
+    public async Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
     }
 
     /// <inheritdoc/>
@@ -340,7 +346,7 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
+    public async Task<bool> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
     {
         var module = await _context.Modules
             .Include(module => module.SubEndpoints)
@@ -376,11 +382,11 @@ public class ModuleService : IModuleService
             ZipFile.ExtractToDirectory(tmpZipPath, versionDirectory);
             ct.ThrowIfCancellationRequested();
 
-            var scanResult = await _endpointScanner.ScanDirectoryAsync(versionDirectory, ct);
+            var scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
             var registeredEndpoints = module.SubEndpoints
                 .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
                 .ToHashSet();
-            var discoveredEndpoints = scanResult.DiscoveredEndpoints
+            var discoveredEndpoints = scanResponse.Result!.DiscoveredEndpoints
                 .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
                 .ToHashSet();
 
@@ -388,13 +394,13 @@ public class ModuleService : IModuleService
                 throw new InvalidOperationException("The updated module changes its endpoint contract. The active version has been preserved.");
 
             candidateId = await _dockerService.BuildContainerAsync(
-                module.Id, versionDirectory, scanResult.EntryAssemblyFileName, module.ContainerPort, ct);
+                module.Id, versionDirectory, scanResponse.Result!.EntryAssemblyFileName, module.ContainerPort, ct);
             await _dockerService.RunContainerAsync(candidateId, ct);
             await _dockerService.WaitUntilReadyAsync(candidateId, ct);
 
             module.ContainerId = candidateId;
             module.StoragePath = versionDirectory;
-            module.ModuleEntryAssemblyFileName = scanResult.EntryAssemblyFileName;
+            module.ModuleEntryAssemblyFileName = scanResponse.Result!.EntryAssemblyFileName;
             module.Status = ModuleStatus.Running;
 
             await _context.SaveChangesAsync(ct);
@@ -420,6 +426,7 @@ public class ModuleService : IModuleService
         }
 
         _logger.LogInformation("Activated replacement container '{ContainerId}' for module '{ModuleId}'.", candidateId, moduleId);
+        return true;
     }
 
     /// <summary>
