@@ -81,7 +81,15 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
             }
             catch (ReflectionTypeLoadException ex)
             {
-                types = ex.Types.Where(t => t != null).ToArray()!;
+                var loaderErrors = string.Join(Environment.NewLine, ex.LoaderExceptions
+                    .OfType<Exception>()
+                    .Select(exception => $"{exception.GetType().Name}: {exception.Message}")
+                    .Distinct(StringComparer.Ordinal));
+
+                throw new InvalidOperationException(
+                    $"Cannot scan module '{entryAssemblyFileName}' because not all assembly types could be loaded." +
+                    Environment.NewLine + loaderErrors,
+                    ex);
             }
 
             // Scan for endpoints
