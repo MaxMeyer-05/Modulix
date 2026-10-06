@@ -178,14 +178,37 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
             {
                 ct.ThrowIfCancellationRequested();
 
-                var httpMethodAttributes = method.GetCustomAttributes().OfType<IActionHttpMethodProvider>().ToList();
+                var attributes = method.GetCustomAttributes().ToList();
+                var httpMethodAttributes = attributes.OfType<IActionHttpMethodProvider>().ToList();
+                var routeTemplateProviders = attributes.OfType<IRouteTemplateProvider>().ToList();
+                var routeAttributes = routeTemplateProviders
+                    .Where(route => route.Template is not null || route.Order is not null || route.Name is not null)
+                    .ToList();
+                var sharedHttpMethodAttributes = httpMethodAttributes
+                    .Where(attribute => attribute is not IRouteTemplateProvider route || !routeAttributes.Contains(route))
+                    .ToList();
+                var actionRoutes = routeAttributes.Cast<IRouteTemplateProvider?>().ToList();
 
-                foreach (var attr in httpMethodAttributes)
+                if (routeAttributes.Count == 0 ||
+                    (routeAttributes.All(route => route is IActionHttpMethodProvider) &&
+                     routeTemplateProviders.Count > routeAttributes.Count))
+                {
+                    actionRoutes.Add(null);
+                }
+
+                foreach (var actionRoute in actionRoutes)
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    var actionTemplate = (attr as IRouteTemplateProvider)?.Template ?? string.Empty;
-                    var httpMethods = attr.HttpMethods?.Any() == true ? attr.HttpMethods : ["GET"];
+                    var actionTemplate = actionRoute?.Template ?? string.Empty;
+                    IEnumerable<IActionHttpMethodProvider> applicableHttpMethodAttributes =
+                        actionRoute is IActionHttpMethodProvider routeHttpMethodProvider
+                            ? [routeHttpMethodProvider]
+                            : sharedHttpMethodAttributes;
+                    var httpMethods = applicableHttpMethodAttributes
+                        .SelectMany(attribute => attribute.HttpMethods?.Any() == true ? attribute.HttpMethods : ["GET"])
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
 
                     foreach (var baseRouteTemplate in baseRouteTemplates)
                     {
