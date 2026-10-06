@@ -304,7 +304,8 @@ public class ModuleCreationResultDto
 public class ConfirmEndpointsDto
 {
     /// <summary>
-    /// The list of endpoints that have been confirmed for the module.
+    /// The discrepancy report that was generated during the upload/update.
+    /// The user confirms these exact missing and extra endpoints.
     /// </summary>
     [Required]
     public List<EndpointDiscrepancyReportDto> ConfirmedEndpoints { get; set; } = [];

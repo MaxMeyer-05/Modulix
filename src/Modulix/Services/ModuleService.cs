@@ -111,11 +111,15 @@ public class ModuleService : IModuleService
         string? candidateId = null;
         try
         {
+            if (!string.IsNullOrWhiteSpace(previousContainerId))
+            {
+                await TryRemoveModuleContainerAsync(previousContainerId, module.Id);
+                module.ContainerId = null;
+            }
+
             module.Status = ModuleStatus.Starting;
-
             candidateId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
-            module.ContainerId = candidateId;
-
+            module.ContainerId = candidateId;            
             await _dockerService.RunContainerAsync(candidateId, ct);
             module.Status = ModuleStatus.Running;
         }
@@ -133,16 +137,9 @@ public class ModuleService : IModuleService
         {
             if (candidateId is not null)
                 await TryRemoveModuleContainerAsync(candidateId, module.Id);
-
+            
             module.ContainerId = previousContainerId;
             module.Status = ModuleStatus.PendingConfirmation;
-            _context.Entry(module).State = EntityState.Unchanged;
-            foreach (var endpoint in pendingEndpoints)
-            {
-                endpoint.Status = ModuleEndpointsStatus.PendingConfirmation;
-                _context.Entry(endpoint).State = EntityState.Unchanged;
-            }
-
             throw;
         }
         return module.ToModuleDetailDto();
@@ -346,6 +343,7 @@ public class ModuleService : IModuleService
         var module = await _context.Modules
             .Include(module => module.SubEndpoints)
             .SingleOrDefaultAsync(module => module.Id == moduleId, ct);
+
         if (module is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
@@ -359,6 +357,7 @@ public class ModuleService : IModuleService
         }
 
         var previousVersion = (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status);
+
         var versionDirectory = Path.Combine(_storageBasePath, $"{module.Id:N}.{Guid.NewGuid():N}");
         var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
         string? candidateId = null;
@@ -377,32 +376,27 @@ public class ModuleService : IModuleService
             ZipFile.ExtractToDirectory(tmpZipPath, versionDirectory);
             ct.ThrowIfCancellationRequested();
 
-            var scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
-            var registeredEndpoints = module.SubEndpoints
-                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
-                .ToHashSet();
-            var discoveredEndpoints = scanResponse.Result!.DiscoveredEndpoints
-                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
-                .ToHashSet();
+            // Scan the module's directory for endpoints
+            var scanResult = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
 
-            if (!registeredEndpoints.SetEquals(discoveredEndpoints))
-                throw new InvalidOperationException("The updated module changes its endpoint contract. The active version has been preserved.");
+            // Compare the registered endpoints with the discovered endpoints
+            var currentEndpointsDtoList = module.SubEndpoints
+                .Select(e => new CreateModuleEndpointDto { HttpMethod = e.HttpMethod, EndpointPath = e.EndpointPath })
+                .ToList();
 
-            candidateId = await _dockerService.BuildContainerAsync(
-                module.Id, versionDirectory, scanResponse.Result!.EntryAssemblyFileName, module.ContainerPort, ct);
-            await _dockerService.RunContainerAsync(candidateId, ct);
-            await _dockerService.WaitUntilReadyAsync(candidateId, ct);
+            // Create a discrepancy report comparing the current endpoints with the discovered endpoints
+            var discrepancyReport = CreateEndpointDiscrepancyReport(module, scanResult.Result!.DiscoveredEndpoints, ct);
 
             module.ContainerId = candidateId;
             module.StoragePath = versionDirectory;
-            module.ModuleEntryAssemblyFileName = scanResponse.Result!.EntryAssemblyFileName;
-            module.Status = ModuleStatus.Running;
+            module.ModuleEntryAssemblyFileName = scanResult.Result.EntryAssemblyFileName;
 
             await _context.SaveChangesAsync(ct);
         }
         catch (Exception ex)
         {
             (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status) = previousVersion;
+            
             if (candidateId is null || await TryRemoveModuleContainerAsync(candidateId, module.Id))
                 DeleteModuleDirectory(versionDirectory, module.Id);
 
@@ -695,6 +689,8 @@ public class ModuleService : IModuleService
                     ExtraEndpoints = extra,
                     MissingEndpoints = missing
                 };
+
+                module.Status = ModuleStatus.PendingConfirmation;
             }
         }
         
@@ -706,6 +702,7 @@ public class ModuleService : IModuleService
                 var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
                 module.ContainerId = containerId;
                 await _dockerService.RunContainerAsync(containerId, ct);
+                await _dockerService.WaitUntilReadyAsync(containerId, ct);
                 module.Status = ModuleStatus.Running;
             }
             catch (Exception ex)
