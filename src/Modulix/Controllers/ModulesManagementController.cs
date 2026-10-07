@@ -132,12 +132,12 @@ public class ModulesManagementController : ControllerBase
     /// A 200 OK response with a list of sub-endpoints for the specified module.
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
-    [HttpGet("{moduleId}/sub-endpoints")]
+    [HttpGet("{moduleId}/endpoints")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(IEnumerable<ModuleEndpointDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleSubEndpointsAsync(Guid moduleId)
+    public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId)
     {
-        var result = await _moduleService.GetModuleSubEndpointsAsync(moduleId, HttpContext.RequestAborted);
+        var result = await _moduleService.GetModuleEndpointsAsync(moduleId, HttpContext.RequestAborted);
         return Ok(result);
     }
 
@@ -174,14 +174,11 @@ public class ModulesManagementController : ControllerBase
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> UpdateModuleFilesAsync(Guid moduleId, [FromForm] UpdateModuleFilesDto dto)
+    [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ModuleCreationResultDto>> UpdateModuleFilesAsync(Guid moduleId, [FromForm] UpdateModuleFilesDto dto)
     {
-        await _moduleService.UpdateModuleFilesAsync(moduleId, dto, HttpContext.RequestAborted);
-        return NoContent();
+        var result = await _moduleService.UpdateModuleFilesAsync(moduleId, dto, HttpContext.RequestAborted);
+        return Ok(result);
     }
 
     /// <summary>
@@ -191,7 +188,7 @@ public class ModulesManagementController : ControllerBase
     /// <returns>
     /// A 204 No Content response indicating that the module was successfully deleted.
     /// </returns>
-    [HttpDelete("{moduleId}")]
+    [HttpDelete("{moduleId}/delete")]
     [Authorize(Roles = nameof(Roles.Admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteModuleAsync(Guid moduleId)
