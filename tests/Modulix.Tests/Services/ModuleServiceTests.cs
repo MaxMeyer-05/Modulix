@@ -1019,7 +1019,7 @@ public class ModuleServiceTests : IDisposable
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _sut.GetModuleSubEndpointsAsync(nonExistentId));
+            _sut.GetModuleEndpointsAsync(nonExistentId));
 
         Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
     }
@@ -1038,7 +1038,7 @@ public class ModuleServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Act
-        var result = (await _sut.GetModuleSubEndpointsAsync(module.Id)).ToList();
+        var result = (await _sut.GetModuleEndpointsAsync(module.Id)).ToList();
 
         // Assert
         Assert.Equal(2, result.Count);
