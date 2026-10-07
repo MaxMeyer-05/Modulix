@@ -50,7 +50,7 @@ public interface IModuleService
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all registered sub-endpoints for the specified module.</returns> 
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default);
+    Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
     /// Updates metadata for an existing module.
@@ -69,7 +69,7 @@ public interface IModuleService
     /// <param name="ct">The cancellation token.</param>
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the module is not in a state that allows file updates.</exception>
-    Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
+    Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
 
     /// <summary>
     /// Processes the result of a previously queued module scan.

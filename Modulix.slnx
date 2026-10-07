@@ -6,6 +6,8 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Modulix/Modulix.csproj" />
+    <Project Path="src/Modulix.Client.Abstraction/Modulix.Client.Abstraction.csproj" />
+    <Project Path="src/Modulix.Client/Modulix.Client.csproj" />
     <Project Path="src/Modulix.Scanner/Modulix.Scanner.csproj" />
   </Folder>
   <Folder Name="/tests/">

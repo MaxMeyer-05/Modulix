@@ -275,7 +275,8 @@ public class ModuleService : IModuleService
                     HttpMethod = endpoint.HttpMethod,
                     EndpointPath = endpoint.EndpointPath
                 }).ToList()
-            }
+            },
+            Message = scanResponse.WasQueued ? "Scan was queued." : "Scan completed."
         };
     }
 
@@ -348,7 +349,7 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default)
+    public async Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
     {
         var exists = await _context.Modules.FindAsync([moduleId], ct);
         if (exists is null)
@@ -383,7 +384,7 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
+    public async Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default)
     {
         var module = await _context.Modules
             .Include(module => module.SubEndpoints)
@@ -423,30 +424,25 @@ public class ModuleService : IModuleService
 
             // Scan the module's directory for endpoints
             var scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
+            module.StoragePath = versionDirectory;
+
             if (scanResponse.WasQueued)
             {
-                _endpointScanner.CancelScan(module.Id);
-                throw new InvalidOperationException("Module file replacement requires an available scanner. Retry after queued scans complete.");
+                _logger.LogInformation("Module scan for module with ID '{ModuleId}' was queued.", moduleId);
+
+                module.Status = ModuleStatus.QueuedForScan;
+                await _context.SaveChangesAsync(ct);
+
+                return new ModuleCreationResultDto
+                {
+                    Module = module.ToModuleDetailDto(),
+                    Message = "Alle Scanner-Container sind besetzt. Das Update wurde in die Warteschlange aufgenommen."
+                };
             }
-            var scanResult = scanResponse.Result ?? throw new InvalidOperationException("The scanner did not return a scan result.");
+            var report = await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResponse.Result!.DiscoveredEndpoints, ct);
 
-            var registeredEndpoints = module.SubEndpoints
-                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath))
-                .ToHashSet();
-            var discoveredEndpoints = scanResult.DiscoveredEndpoints
-                .Select(endpoint => (endpoint.HttpMethod.ToUpperInvariant(), endpoint.EndpointPath));
-            if (!registeredEndpoints.SetEquals(discoveredEndpoints))
-                throw new InvalidOperationException("Replacement module endpoints do not match the registered endpoint contract.");
+            module.ModuleEntryAssemblyFileName = scanResponse.Result.EntryAssemblyFileName;
 
-            candidateId = await _dockerService.BuildContainerAsync(module.Id, versionDirectory, scanResult.EntryAssemblyFileName, module.ContainerPort, ct);
-            await _dockerService.RunContainerAsync(candidateId, ct);
-            await _dockerService.WaitUntilReadyAsync(candidateId, ct);
-            ct.ThrowIfCancellationRequested();
-
-            module.ContainerId = candidateId;
-            module.StoragePath = versionDirectory;
-            module.ModuleEntryAssemblyFileName = scanResult.EntryAssemblyFileName;
-            module.Status = ModuleStatus.Running;
 
             await _context.SaveChangesAsync(ct);
         }
@@ -466,13 +462,18 @@ public class ModuleService : IModuleService
             _directoryExtension.DeleteTemporaryFile(tmpZipPath, moduleId);
         }
 
-        if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
-            await TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))
+        if (!string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
+            await TryRemoveModuleContainerAsync(previousVersion.ContainerId!, module.Id))
         {
             _directoryExtension.DeleteModuleDirectory(previousVersion.StoragePath, module.Id);
         }
 
         _logger.LogInformation("Activated replacement container '{ContainerId}' for module '{ModuleId}'.", candidateId, moduleId);
+        return new ModuleCreationResultDto 
+        {
+            Module = module.ToModuleDetailDto(),
+            Message = "Replacement container activated successfully." 
+        };
     }
 
     /// <summary>
