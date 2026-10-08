@@ -12,6 +12,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Database.DbContexts;
@@ -39,6 +40,7 @@ public class ModuleEndpointScannerTests : IDisposable
     private readonly RecordingModuleService _moduleService = new();
     private readonly SqliteConnection _connection;
     private readonly ServerContext _context;
+    private readonly ServiceProvider _serviceProvider;
     private readonly DockerClient _client;
     private readonly ModuleEndpointScanner _sut;
     private Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _responder;
@@ -53,6 +55,10 @@ public class ModuleEndpointScannerTests : IDisposable
         _connection.Open();
         _context = new ServerContext(new DbContextOptionsBuilder<ServerContext>().UseSqlite(_connection).Options);
         _context.Database.EnsureCreated();
+        _serviceProvider = new ServiceCollection()
+            .AddSingleton(_context)
+            .AddSingleton<IModuleService>(_moduleService)
+            .BuildServiceProvider();
         _responder = RespondAsync;
         _client = new DockerClientConfiguration(new Uri("http://docker.test"),
             new FakeCredentials(new FakeDockerHandler((request, cancellationToken) =>
@@ -60,13 +66,15 @@ public class ModuleEndpointScannerTests : IDisposable
                 _requests.Enqueue(request.Method + " " + request.RequestUri!.AbsolutePath);
                 return _responder(request, cancellationToken);
             }))).CreateClient();
-        _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance, _context,
-            _moduleService, Options.Create(new ModulixOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
+        _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance,
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new ModulixOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
     }
 
     public void Dispose()
     {
         _sut.Dispose();
+        _serviceProvider.Dispose();
         _client.Dispose();
         _context.Dispose();
         _connection.Dispose();
