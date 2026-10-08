@@ -6,7 +6,9 @@ using Docker.DotNet.Models;
 
 using Microsoft.Extensions.Options;
 
-using Modulix.Models.Dtos;
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
+
 using Modulix.Models.Enums;
 using Modulix.Models.Options;
 

@@ -1,4 +1,5 @@
-using Modulix.Models.Dtos;
+using Modulix.Client.Models.Dtos;
+
 using Modulix.Database.Entities;
 
 namespace Modulix.Mappers;

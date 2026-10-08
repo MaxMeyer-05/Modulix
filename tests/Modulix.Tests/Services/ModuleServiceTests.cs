@@ -1,23 +1,27 @@
-using System.Buffers.Binary;
 using System.Text;
+using System.Buffers.Binary;
 using System.IO.Compression;
 
 using Microsoft.Data.Sqlite;
-using Microsoft.AspNetCore.Hosting;
+
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Hosting;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
+
 using Modulix.Extensions;
 
-using Modulix.Models.Dtos;
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
+
 using Modulix.Models.Enums;
 using Modulix.Models.Options;
 

@@ -1,22 +1,28 @@
-using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using System.Net;
+using System.Buffers.Binary;
+using System.Threading.Channels;
+using System.Collections.Concurrent;
+
 using System.Text;
 using System.Text.Json;
-using System.Threading.Channels;
 
 using Docker.DotNet;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
+
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
-using Modulix.Models.Dtos;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
+
 using Modulix.Models.Enums;
 using Modulix.Models.Options;
+
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 

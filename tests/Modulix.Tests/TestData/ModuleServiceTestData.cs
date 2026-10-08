@@ -1,4 +1,4 @@
-using Modulix.Models.Dtos;
+using Modulix.Client.Models.Dtos;
 
 namespace Modulix.Tests.TestData;
 

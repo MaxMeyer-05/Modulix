@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
-using Modulix.Models.Dtos;
 using Modulix.Models.Enums;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
 
 using Modulix.Services.Interfaces;
 

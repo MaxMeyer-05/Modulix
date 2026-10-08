@@ -1,8 +1,10 @@
 using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
-using Modulix.Models.Dtos;
-using Modulix.Models.Enums;
+
 using Modulix.Services.Interfaces;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
 
 namespace Modulix.Extensions;
 
