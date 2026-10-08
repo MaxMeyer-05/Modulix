@@ -63,14 +63,9 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     private readonly ILogger<ModuleEndpointScanner> _logger;
 
     /// <summary>
-    /// The server context.
+    /// The service scope factory for creating scoped services.
     /// </summary>
-    private readonly ServerContext _context;
-
-    /// <summary>
-    /// The module service for handling module-related operations.
-    /// </summary>
-    private readonly IModuleService _moduleService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     /// <summary>
     /// The cancellation token.
@@ -109,21 +104,18 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// </summary>
     /// <param name="dockerClient">The Docker client used to interact with Docker containers.</param>
     /// <param name="logger">The logger instance for logging information and errors.</param>
-    /// <param name="context">The server context for accessing the database and other services.</param>
-    /// <param name="moduleService">The module service for handling module-related operations.</param>
+    /// <param name="scopeFactory">The service scope factory for creating scoped services.</param>
     /// <param name="options">The shared module settings.</param>
     public ModuleEndpointScanner(
         DockerClient dockerClient, 
-        ILogger<ModuleEndpointScanner> logger, 
-        ServerContext context, 
-        IModuleService moduleService,
+        ILogger<ModuleEndpointScanner> logger,
+        IServiceScopeFactory scopeFactory,
         IOptions<ModulixOptions> options)
     {
         _dockerClient = dockerClient;
         _logger = logger;
-        _context = context;
-        _moduleService = moduleService;
         _options = options.Value;
+        _scopeFactory = scopeFactory;
         _concurrencySemaphore = new SemaphoreSlim(_options.MaxConcurrentScans, _options.MaxConcurrentScans);
         _ = ProcessQueueLoopAsync(_cts.Token);
     }
@@ -230,6 +222,10 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                     try
                     {
                         var result = await RunDockerScannerAsync(nextJob.HostDirectoryPath, nextJob.CancellationToken);
+
+                        await using var scope = _scopeFactory.CreateAsyncScope();
+                        var _moduleService = scope.ServiceProvider.GetRequiredService<IModuleService>();
+
                         await _moduleService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, nextJob.CancellationToken);
                     }
                     catch (OperationCanceledException)
@@ -239,6 +235,9 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Background scan failed for module {ModuleId}.", nextJob.ModuleId);
+                        
+                        await using var scope = _scopeFactory.CreateAsyncScope();
+                        var _context = scope.ServiceProvider.GetRequiredService<ServerContext>();
                         
                         var module = await _context.Modules.FindAsync([nextJob.ModuleId], stoppingToken);
                         if (module != null)
