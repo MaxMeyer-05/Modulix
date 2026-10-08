@@ -2,12 +2,15 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Modulix.Database.DbContexts;
-using Modulix.Database.Entities;
 using Modulix.Extensions;
-using Modulix.Models.Dtos;
-using Modulix.Models.Enums;
+
+using Modulix.Database.Entities;
+using Modulix.Database.DbContexts;
+
 using Modulix.Services.Interfaces;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
 
 namespace Modulix.Tests.Extensions;
 

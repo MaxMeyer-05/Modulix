@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
-using Modulix.Models.Dtos;
 using Modulix.Models.Enums;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
 
 using Modulix.Services.Interfaces;
 
@@ -51,7 +53,7 @@ public class ModulesManagementController : ControllerBase
     /// A 400 Bad Request response if the input data is invalid.
     /// </returns>
     [HttpPost("create")]
-    [Authorize(Roles = nameof(Roles.Admin))]
+    [Authorize(Roles = nameof(Roles.admin))]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
@@ -81,7 +83,7 @@ public class ModulesManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
-    [Authorize(Roles = nameof(Roles.Admin))]
+    [Authorize(Roles = nameof(Roles.admin))]
     [HttpPost("{moduleId}/confirm-endpoints")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -151,7 +153,7 @@ public class ModulesManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
     [HttpPut("{moduleId}")]
-    [Authorize(Roles = nameof(Roles.Admin))]
+    [Authorize(Roles = nameof(Roles.admin))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto)
@@ -170,7 +172,7 @@ public class ModulesManagementController : ControllerBase
     /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
     [HttpPut("{moduleId}/files")]
-    [Authorize(Roles = nameof(Roles.Admin))]
+    [Authorize(Roles = nameof(Roles.admin))]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
@@ -189,7 +191,7 @@ public class ModulesManagementController : ControllerBase
     /// A 204 No Content response indicating that the module was successfully deleted.
     /// </returns>
     [HttpDelete("{moduleId}/delete")]
-    [Authorize(Roles = nameof(Roles.Admin))]
+    [Authorize(Roles = nameof(Roles.admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteModuleAsync(Guid moduleId)
     {
@@ -207,7 +209,7 @@ public class ModulesManagementController : ControllerBase
     /// A 409 Conflict response if the scan has already started or completed.
     /// </returns>
     [HttpDelete("{moduleId}/cancel-scan")]
-    [Authorize(Roles = nameof(Roles.Admin))]
+    [Authorize(Roles = nameof(Roles.admin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

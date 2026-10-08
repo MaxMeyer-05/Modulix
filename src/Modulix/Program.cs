@@ -1,5 +1,7 @@
 using Serilog;
 
+using Docker.DotNet;
+
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -34,6 +36,14 @@ builder.Services.AddScoped<ModuleEndpointExtension>();
 
 builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
+builder.Services.AddSingleton<DockerClient>(_ =>
+{
+    var dockerUri = OperatingSystem.IsWindows()
+        ? new Uri("npipe://./pipe/docker_engine")
+        : new Uri("unix:///var/run/docker.sock");
+
+    return new DockerClientConfiguration(dockerUri).CreateClient();
+});
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
@@ -49,9 +59,28 @@ builder.Services.AddSwaggerGen(options =>
 
     options.IncludeXmlComments(
         Path.Combine(
-            AppContext.BaseDirectory, 
+            AppContext.BaseDirectory,
             $"{typeof(Program).Assembly.GetName().Name}.xml")
     );
+
+    // Ermöglicht die Token-Eingabe in Swagger UI
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Copy the JWT-Access-Token from Keycloak here:"
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecuritySchemeReference("Bearer", document),
+            new List<string>()
+        }
+    });
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -64,7 +93,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Keycloak:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Keycloak:Audience"],
+            ValidateLifetime = true,
             RoleClaimType = "roles"
         };
     });

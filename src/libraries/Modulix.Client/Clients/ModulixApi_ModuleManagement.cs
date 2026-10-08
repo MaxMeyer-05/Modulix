@@ -1,31 +1,17 @@
 using System.Text.Json;
 using System.Net.Http.Json;
 
+using Modulix.Client.Clients;
 using Modulix.Client.Models.Dtos;
 
-namespace Modulix.Client.Clients;
+namespace Modulix.Client;
 
-/// <inheritdoc cref="IModuleManagementClient"/>
-public class ModuleManagementClient : IModuleManagementClient
+internal partial class ModulixApi : IModuleManagementClient
 {
     /// <summary>
     /// The endpoint for module management within the Modulix API.
     /// </summary>
     private const string ModuleManagementEndpoint = "api/modules-management/modules";
-
-    /// <summary>
-    /// The HTTP client used for making requests to the Modulix API.
-    /// </summary>
-    private readonly HttpClient _httpClient;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ModuleManagementClient"/> class.
-    /// </summary>
-    /// <param name="httpClient">The HTTP client used for making requests.</param>
-    public ModuleManagementClient(HttpClient httpClient)
-    {
-        _httpClient = httpClient;
-    }
 
     /// <inheritdoc/>
     public async Task CancelModuleScanAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)

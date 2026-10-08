@@ -3,10 +3,12 @@ using Modulix.Client.Clients;
 namespace Modulix.Client;
 
 /// <inheritdoc cref="IModulixApi"/>
-public class ModulixApi : IModulixApi
+internal partial class ModulixApi : IModulixApi
 {
+    private readonly HttpClient _httpClient;
+
     /// <inheritdoc/>
-    public IModuleManagementClient ModuleManagement { get; }
+    public IModuleManagementClient ModuleManagement => this;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModulixApi"/> class with the specified <see cref="HttpClient"/>.
@@ -14,6 +16,6 @@ public class ModulixApi : IModulixApi
     /// <param name="httpClient">The <see cref="HttpClient"/> instance used to initialize the API clients.</param>
     public ModulixApi(HttpClient httpClient)
     {
-        ModuleManagement = new ModuleManagementClient(httpClient);
+        _httpClient = httpClient;
     }
 }

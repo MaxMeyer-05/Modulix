@@ -35,16 +35,15 @@ public class DockerService : IDockerService, IDisposable
     /// </summary>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The shared module settings.</param>
-    public DockerService(ILogger<DockerService> logger, IOptions<ModulixOptions> options)
+    /// <param name="client">The Docker client owned by this service.</param>
+    public DockerService(
+        ILogger<DockerService> logger, 
+        IOptions<ModulixOptions> options,
+        DockerClient client)
     {
         _logger = logger;
         _options = options.Value;
-
-        var dockerUri = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? new Uri("npipe://./pipe/docker_engine")
-            : new Uri("unix:///var/run/docker.sock");
-
-        _client = new DockerClientConfiguration(dockerUri).CreateClient();
+        _client = client;
     }
 
     /// <summary>
