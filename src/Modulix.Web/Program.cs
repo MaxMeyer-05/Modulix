@@ -30,6 +30,13 @@ builder.Services.AddAuthentication(options =>
         options.ResponseType = "code"; 
         options.SaveTokens = true;
         options.RequireHttpsMetadata = false;
+
+        options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+        options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        
+        options.NonceCookie.SameSite = SameSiteMode.Lax;
+        options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = builder.Configuration["Keycloak:Issuer"],

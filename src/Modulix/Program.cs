@@ -71,7 +71,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Hier den JWT-Access-Token aus Keycloak einfügen (ohne 'Bearer ' davor):"
+        Description = "Copy the JWT-Access-Token from Keycloak here:"
     });
 
     options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
