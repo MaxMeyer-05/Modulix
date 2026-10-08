@@ -49,9 +49,28 @@ builder.Services.AddSwaggerGen(options =>
 
     options.IncludeXmlComments(
         Path.Combine(
-            AppContext.BaseDirectory, 
+            AppContext.BaseDirectory,
             $"{typeof(Program).Assembly.GetName().Name}.xml")
     );
+
+    // Ermöglicht die Token-Eingabe in Swagger UI
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Hier den JWT-Access-Token aus Keycloak einfügen (ohne 'Bearer ' davor):"
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecuritySchemeReference("Bearer", document),
+            new List<string>()
+        }
+    });
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -64,7 +83,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Keycloak:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Keycloak:Audience"],
+            ValidateLifetime = true,
             RoleClaimType = "roles"
         };
     });

@@ -8,10 +8,10 @@ public enum Roles
     /// <summary>
     /// Represents the administrator role.
     /// </summary>
-    Admin,
+    admin,
     
     /// <summary>
     /// Represents the regular user role.
     /// </summary>
-    User
+    user
 }
