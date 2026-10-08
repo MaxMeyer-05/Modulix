@@ -1,5 +1,7 @@
 using Serilog;
 
+using Docker.DotNet;
+
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -34,6 +36,14 @@ builder.Services.AddScoped<ModuleEndpointExtension>();
 
 builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
+builder.Services.AddSingleton<DockerClient>(_ =>
+{
+    var dockerUri = OperatingSystem.IsWindows()
+        ? new Uri("npipe://./pipe/docker_engine")
+        : new Uri("unix:///var/run/docker.sock");
+
+    return new DockerClientConfiguration(dockerUri).CreateClient();
+});
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
