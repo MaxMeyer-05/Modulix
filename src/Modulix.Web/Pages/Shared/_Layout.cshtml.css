@@ -1,48 +1,179 @@
-﻿/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-for details on configuring this project to bundle and minify static web assets. */
-
-a.navbar-brand {
-  white-space: normal;
-  text-align: center;
-  word-break: break-all;
+﻿.app-shell {
+  --sidebar-width: 248px;
+  --sidebar-background: #10151e;
+  --sidebar-border: #252c36;
+  --sidebar-text: #b8c0cd;
+  --sidebar-accent: #54d4da;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: 100dvh;
+  transition: grid-template-columns 180ms ease;
 }
 
-a {
-  color: #0077cc;
+.app-shell.sidebar-collapsed {
+  --sidebar-width: 72px;
 }
 
-.btn-primary {
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  background: var(--sidebar-background);
+  border-right: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 80px;
+  padding: 16px;
+}
+
+.sidebar ::deep .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #f2f5f8;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sidebar ::deep .sidebar-brand svg {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--sidebar-accent);
+}
+
+.sidebar-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-text);
+  cursor: pointer;
+}
+
+.sidebar-toggle ::deep svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 180ms ease;
+}
+
+.sidebar-toggle:hover {
+  background: #222c38;
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
 }
 
-.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+.sidebar-toggle:focus-visible,
+.sidebar ::deep .sidebar-link:focus-visible,
+.sidebar ::deep .sidebar-brand:focus-visible {
+  outline: 2px solid var(--sidebar-accent);
+  outline-offset: 3px;
 }
 
-.border-top {
-  border-top: 1px solid #e5e5e5;
-}
-.border-bottom {
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.box-shadow {
-  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+.sidebar-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px;
 }
 
-button.accept-policy {
-  font-size: 1rem;
-  line-height: inherit;
-}
-
-.footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
+.sidebar ::deep .sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: var(--sidebar-text);
+  font-size: 14px;
+  text-decoration: none;
   white-space: nowrap;
-  line-height: 60px;
+}
+
+.sidebar ::deep .sidebar-link svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  stroke-width: 1.75;
+}
+
+.sidebar ::deep a.sidebar-link:hover {
+  background: #1c2631;
+  color: #fff;
+}
+
+.sidebar ::deep .sidebar-link.active {
+  background: #153140;
+  color: var(--sidebar-accent);
+}
+
+.sidebar-link.is-unavailable {
+  color: #8a96a7;
+  cursor: default;
+}
+
+.sidebar-collapsed .sidebar-label {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-header {
+  flex-direction: column;
+  gap: 12px;
+  padding-inline: 10px;
+}
+
+.sidebar-collapsed .sidebar-toggle ::deep svg {
+  transform: rotate(180deg);
+}
+
+.sidebar-collapsed ::deep .sidebar-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-content {
+  min-width: 0;
+  padding: 28px;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    --sidebar-width: 220px;
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    z-index: 2;
+    width: var(--sidebar-width);
+    transition: width 180ms ease;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar {
+    box-shadow: 8px 0 24px rgb(0 0 0 / 20%);
+  }
+
+  .app-content {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell,
+  .sidebar,
+  .sidebar-toggle ::deep svg {
+    transition: none;
+  }
 }

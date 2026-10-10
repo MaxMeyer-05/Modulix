@@ -9,18 +9,55 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Modulix.Web.styles.css" asp-append-version="true" />
 </head>
-<body>
-    <header>
-        
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+<body class="modulix-app">
+    <div class="app-shell" id="app-shell">
+        <aside class="sidebar" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <a class="sidebar-brand" asp-page="/Index" title="Modulix Dashboard" aria-label="Modulix Dashboard">
+                    <i data-lucide="box" aria-hidden="true"></i>
+                    <span class="sidebar-label">MODULIX</span>
+                </a>
+                <button class="sidebar-toggle" id="sidebar-toggle" type="button"
+                        aria-controls="sidebar-navigation" aria-expanded="true"
+                        aria-label="Hide menu" title="Hide menu">
+                    <i data-lucide="chevrons-left" aria-hidden="true"></i>
+                </button>
+            </div>
+            <nav class="sidebar-navigation" id="sidebar-navigation" aria-label="Sections">
+                <a class="sidebar-link active" asp-page="/Index" aria-current="page" title="Dashboard">
+                    <i data-lucide="house" aria-hidden="true"></i>
+                    <span class="sidebar-label">Dashboard</span>
+                </a>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Modules: not yet available">
+                    <i data-lucide="layout-grid" aria-hidden="true"></i>
+                    <span class="sidebar-label">Modules</span>
+                </span>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Docker containers: not yet available">
+                    <i data-lucide="container" aria-hidden="true"></i>
+                    <span class="sidebar-label">Docker containers</span>
+                </span>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Scan queue: not yet available">
+                    <i data-lucide="list-checks" aria-hidden="true"></i>
+                    <span class="sidebar-label">Scan queue</span>
+                </span>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="API endpoints: not yet available">
+                    <i data-lucide="link" aria-hidden="true"></i>
+                    <span class="sidebar-label">API endpoints</span>
+                </span>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: not yet available">
+                    <i data-lucide="settings" aria-hidden="true"></i>
+                    <span class="sidebar-label">Settings</span>
+                </span>
+            </nav>
+        </aside>
+        <main role="main" class="app-content">
             @RenderBody()
         </main>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/lucide.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
