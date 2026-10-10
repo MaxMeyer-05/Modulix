@@ -1,4 +1,5 @@
 using Serilog;
+using Modulix.Client;
 
 using Microsoft.IdentityModel.Tokens;
 
@@ -13,6 +14,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddModulixApi();
 
 builder.Services.AddAuthentication(options =>
     {
