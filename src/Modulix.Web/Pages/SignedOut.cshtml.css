@@ -1,0 +1,152 @@
+.signed-out-page {
+  --signed-out-background: #10151e;
+  --signed-out-text: #f2f5f8;
+  --signed-out-muted: #a5afbd;
+  --signed-out-accent: #54d4da;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background-color: var(--signed-out-background);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px);
+  background-size: 64px 64px;
+  color: var(--signed-out-text);
+}
+
+.signed-out-header {
+  display: flex;
+  align-items: center;
+  min-height: 80px;
+  padding: 20px 32px;
+  border-bottom: 1px solid #252c36;
+  background: var(--signed-out-background);
+}
+
+.signed-out-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.signed-out-brand ::deep svg {
+  width: 28px;
+  height: 28px;
+  color: var(--signed-out-accent);
+}
+
+.signed-out-main {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: 48px 24px 80px;
+}
+
+.signed-out-content {
+  width: 100%;
+  max-width: 440px;
+  text-align: center;
+  animation: signed-out-arrive 240ms ease-out;
+}
+
+.signed-out-status {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 24px;
+  border: 1px solid #306b55;
+  border-radius: 50%;
+  background: #142e25;
+  color: #72d6a6;
+}
+
+.signed-out-status ::deep svg {
+  width: 34px;
+  height: 34px;
+  stroke-width: 1.5;
+}
+
+.signed-out-eyebrow {
+  margin: 0 0 12px;
+  color: #72d6a6;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.signed-out-content h1 {
+  margin: 0 0 14px;
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.signed-out-message {
+  max-width: 320px;
+  margin: 0 auto 32px;
+  color: var(--signed-out-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.signed-out-content ::deep .signed-out-sign-in {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 240px;
+  min-height: 44px;
+  padding: 12px 20px;
+  border: 1px solid var(--signed-out-accent);
+  border-radius: 6px;
+  background: var(--signed-out-accent);
+  color: #10151e;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.signed-out-content ::deep .signed-out-sign-in:hover {
+  border-color: #83e7eb;
+  background: #83e7eb;
+}
+
+.signed-out-content ::deep .signed-out-sign-in:focus-visible {
+  outline: 2px solid var(--signed-out-text);
+  outline-offset: 4px;
+}
+
+.signed-out-content ::deep .signed-out-sign-in svg {
+  width: 18px;
+  height: 18px;
+}
+
+@keyframes signed-out-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .signed-out-header {
+    padding-inline: 24px;
+  }
+
+  .signed-out-content h1 {
+    font-size: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signed-out-content {
+    animation: none;
+  }
+}

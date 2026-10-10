@@ -67,20 +67,38 @@
                         <p id="search-empty" class="panel-empty" role="status" hidden>No results found.</p>
                     </div>
                 </div>
-                <div class="notifications">
-                    <button class="topbar-icon" id="notifications-toggle" type="button"
-                            aria-label="Notifications" title="Notifications"
-                            aria-controls="notifications-panel" aria-expanded="false">
-                        <i data-lucide="bell" aria-hidden="true"></i>
-                    </button>
-                    <section class="topbar-panel notifications-panel" id="notifications-panel"
-                             aria-labelledby="notifications-heading" hidden>
-                        <h2 id="notifications-heading">Notifications</h2>
-                        <div class="notifications-empty">
+                <div class="topbar-actions">
+                    <div class="notifications">
+                        <button class="topbar-icon" id="notifications-toggle" type="button"
+                                aria-label="Notifications" title="Notifications"
+                                aria-controls="notifications-panel" aria-expanded="false">
                             <i data-lucide="bell" aria-hidden="true"></i>
-                            <p>No notifications yet.</p>
+                        </button>
+                        <section class="topbar-panel notifications-panel" id="notifications-panel"
+                                 aria-labelledby="notifications-heading" hidden>
+                            <h2 id="notifications-heading">Notifications</h2>
+                            <div class="notifications-empty">
+                                <i data-lucide="bell" aria-hidden="true"></i>
+                                <p>No notifications yet.</p>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="user-menu">
+                        <button class="topbar-icon" id="user-menu-toggle" type="button"
+                                aria-label="User menu" title="User menu" aria-haspopup="menu"
+                                aria-controls="user-menu-panel" aria-expanded="false">
+                            <i data-lucide="user-round" aria-hidden="true"></i>
+                        </button>
+                        <div class="topbar-panel user-menu-panel" id="user-menu-panel" role="menu"
+                             aria-label="User menu" hidden>
+                            <form method="post" asp-page="/Logout" role="none">
+                                <button class="sign-out-button" id="sign-out-button" type="submit" role="menuitem">
+                                    <i data-lucide="log-out" aria-hidden="true"></i>
+                                    <span>Sign out</span>
+                                </button>
+                            </form>
                         </div>
-                    </section>
+                    </div>
                 </div>
             </header>
             <main role="main" class="app-content">

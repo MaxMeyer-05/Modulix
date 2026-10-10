@@ -1,0 +1,43 @@
+@page
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signed out - Modulix</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Modulix.Web.styles.css" asp-append-version="true" />
+</head>
+<body class="modulix-app">
+    <div class="signed-out-page">
+        <header class="signed-out-header">
+            <div class="signed-out-brand">
+                <i data-lucide="box" aria-hidden="true"></i>
+                <span>MODULIX</span>
+            </div>
+        </header>
+        <main class="signed-out-main">
+            <div class="signed-out-content">
+                <div class="signed-out-status">
+                    <i data-lucide="circle-check" aria-hidden="true"></i>
+                </div>
+                <p class="signed-out-eyebrow">SESSION CLOSED</p>
+                <h1>You're signed out.</h1>
+                <p class="signed-out-message">Your session has ended.</p>
+                <a class="signed-out-sign-in" asp-page="/Index">
+                    <i data-lucide="log-in" aria-hidden="true"></i>
+                    <span>Sign in</span>
+                </a>
+            </div>
+        </main>
+    </div>
+    <script src="~/js/lucide.min.js" asp-append-version="true"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
