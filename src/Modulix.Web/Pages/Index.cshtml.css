@@ -1,0 +1,476 @@
+.dashboard {
+  --dashboard-background: #0b1018;
+  --dashboard-surface: #171e29;
+  --dashboard-border: #2b3442;
+  --dashboard-text: #eef2f6;
+  --dashboard-muted: #a5afbd;
+  --dashboard-accent: #54d4da;
+  min-height: calc(100dvh - 80px);
+  margin: -28px;
+  padding: 24px 28px 32px;
+  background: var(--dashboard-background);
+  color: var(--dashboard-text);
+  font-size: 14px;
+}
+
+.dashboard-header,
+.dashboard-title,
+.metric-heading,
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-header {
+  margin-bottom: 20px;
+}
+
+.dashboard-title {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.dashboard h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.preview-label {
+  padding: 3px 7px;
+  border: 1px solid #384453;
+  border-radius: 4px;
+  color: var(--dashboard-muted);
+  font-size: 11px;
+}
+
+.add-module-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--dashboard-accent);
+  border-radius: 6px;
+  background: var(--dashboard-accent);
+  color: #0b1018;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.add-module-button:disabled {
+  cursor: not-allowed;
+}
+
+.add-module-button ::deep svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.metric {
+  --metric-color: var(--dashboard-accent);
+  min-width: 0;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 6px;
+  background: var(--dashboard-surface);
+}
+
+.metric-scans {
+  --metric-color: #e9b16c;
+}
+
+.metric-containers {
+  --metric-color: #4ad3a4;
+}
+
+.metric-heading h2 {
+  margin: 0;
+  color: #d5dbe4;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.metric-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--metric-color) 12%, transparent);
+  color: var(--metric-color);
+}
+
+.metric-icon ::deep svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.75;
+}
+
+.metric-value {
+  margin: 6px 0 12px;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-total {
+  color: var(--dashboard-muted);
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.metric-chart {
+  display: block;
+  width: 100%;
+  height: 36px;
+  overflow: visible;
+  color: var(--metric-color);
+}
+
+.chart-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-fill {
+  fill: currentColor;
+  opacity: 0.07;
+}
+
+.chart-point {
+  fill: currentColor;
+  stroke: var(--dashboard-surface);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-track {
+  opacity: 0.18;
+}
+
+.dashboard-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  gap: 24px;
+}
+
+.module-section,
+.activity-section {
+  min-width: 0;
+}
+
+.section-heading {
+  min-height: 48px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--dashboard-border);
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.section-count,
+.session-label {
+  color: var(--dashboard-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.module-table-scroll {
+  overflow-x: auto;
+  scrollbar-color: #384453 var(--dashboard-background);
+}
+
+.module-table-scroll:focus-visible {
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: 2px;
+}
+
+.module-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.module-table th {
+  height: 38px;
+  padding: 8px 12px;
+  background: #171e29;
+  color: var(--dashboard-muted);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.module-table td {
+  height: 56px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #252e3b;
+  white-space: nowrap;
+}
+
+.module-table tbody tr:nth-child(even) {
+  background: #101721;
+}
+
+.module-table tbody tr:hover {
+  background: #172936;
+}
+
+.module-name {
+  font-weight: 500;
+}
+
+.module-path {
+  display: block;
+  max-width: 156px;
+  overflow: hidden;
+  color: #c0c9d5;
+  text-overflow: ellipsis;
+}
+
+.module-port {
+  color: #c0c9d5;
+  font-variant-numeric: tabular-nums;
+}
+
+.module-status {
+  --status-color: #a5afbd;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--status-color) 12%, transparent);
+  color: var(--status-color);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-running {
+  --status-color: #62dba6;
+}
+
+.status-starting {
+  --status-color: #6bcce6;
+}
+
+.status-pending {
+  --status-color: #e9b16c;
+}
+
+.status-queued {
+  --status-color: #e4d17c;
+}
+
+.actions-heading,
+.module-actions {
+  text-align: right;
+}
+
+.module-action-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #98a5b7;
+  cursor: not-allowed;
+}
+
+.module-action-button ::deep svg {
+  width: 18px;
+  height: 18px;
+}
+
+.module-table-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px;
+  color: var(--dashboard-muted);
+  font-size: 12px;
+}
+
+.activity-list {
+  margin: 0;
+  padding: 20px 0 0;
+  list-style: none;
+}
+
+.activity-item {
+  --activity-color: #68bce8;
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  padding: 0 0 24px;
+}
+
+.activity-item:not(:last-child)::before {
+  position: absolute;
+  top: 30px;
+  bottom: 2px;
+  left: 13px;
+  width: 1px;
+  background: #2b3442;
+  content: "";
+}
+
+.activity-success {
+  --activity-color: #62dba6;
+}
+
+.activity-warning {
+  --activity-color: #e9b16c;
+}
+
+.activity-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--activity-color) 12%, transparent);
+  color: var(--activity-color);
+}
+
+.activity-icon ::deep svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.75;
+}
+
+.activity-item p {
+  margin: 3px 0 6px;
+  color: #c0c9d5;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.activity-item strong {
+  color: var(--dashboard-text);
+  font-weight: 500;
+}
+
+.activity-time {
+  color: #8d9bae;
+  font-size: 11px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .activity-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 24px;
+  }
+
+  .activity-item::before {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard {
+    min-height: calc(100dvh - 120px);
+    margin: -16px;
+    padding: 20px 16px;
+  }
+
+  .dashboard-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .dashboard h1 {
+    font-size: 22px;
+  }
+
+  .dashboard-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 124px), 1fr));
+    gap: 10px;
+  }
+
+  .metric {
+    padding: 12px;
+  }
+
+  .metric-heading {
+    align-items: flex-start;
+    gap: 4px;
+    min-height: 38px;
+  }
+
+  .metric-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .metric-heading h2 {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .metric-value {
+    font-size: 26px;
+  }
+
+  .metric-total {
+    font-size: 20px;
+  }
+
+  .section-heading {
+    flex-wrap: wrap;
+  }
+
+  .activity-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

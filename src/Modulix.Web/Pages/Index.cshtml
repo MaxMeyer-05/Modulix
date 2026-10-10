@@ -1,9 +1,156 @@
 ﻿@page
 @model IndexModel
+@using Modulix.Client.Models.Dtos
+@using Modulix.Client.Models.Enums
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Dashboard";
+    var modules = new ModuleDto[]
+    {
+        new() { ModuleName = "AnalyticsModule", BaseEndpointPath = "/api/analytics", ContainerPort = 8080, Status = ModuleStatus.Running },
+        new() { ModuleName = "IdentityService", BaseEndpointPath = "/api/identity", ContainerPort = 8081, Status = ModuleStatus.Starting },
+        new() { ModuleName = "ClientExtension", BaseEndpointPath = "/api/client", ContainerPort = 8082, Status = ModuleStatus.PendingConfirmation },
+        new() { ModuleName = "ReportsModule", BaseEndpointPath = "/api/reports", ContainerPort = 8083, Status = ModuleStatus.QueuedForScan },
+        new() { ModuleName = "NotificationService", BaseEndpointPath = "/api/notifications", ContainerPort = 8084, Status = ModuleStatus.Running },
+        new() { ModuleName = "StorageModule", BaseEndpointPath = "/api/storage", ContainerPort = 8085, Status = ModuleStatus.Running },
+        new() { ModuleName = "SearchService", BaseEndpointPath = "/api/search", ContainerPort = 8086, Status = ModuleStatus.Running },
+        new() { ModuleName = "BillingService", BaseEndpointPath = "/api/billing", ContainerPort = 8087, Status = ModuleStatus.Stopped }
+    };
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
+<div class="dashboard">
+    <header class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>Dashboard</h1>
+            <span class="preview-label">Preview</span>
+        </div>
+        <span title="Module creation is not available yet">
+            <button class="add-module-button" type="button" disabled>
+                <i data-lucide="plus" aria-hidden="true"></i>
+                <span>Add module</span>
+            </button>
+        </span>
+    </header>
+
+    <section class="dashboard-metrics" aria-label="Module overview">
+        <article class="metric metric-modules">
+            <div class="metric-heading">
+                <h2>Active modules</h2>
+                <span class="metric-icon"><i data-lucide="activity" aria-hidden="true"></i></span>
+            </div>
+            <p class="metric-value">@modules.Count(module => module.Status == ModuleStatus.Running)</p>
+            <svg class="metric-chart" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true">
+                <path class="chart-fill" d="M0 34 L24 22 L48 24 L72 18 L96 22 L120 10 L144 14 L168 6 L192 14 L216 9 L240 2 L240 40 L0 40 Z" />
+                <path class="chart-line" d="M0 34 L24 22 L48 24 L72 18 L96 22 L120 10 L144 14 L168 6 L192 14 L216 9 L240 2" />
+            </svg>
+        </article>
+        <article class="metric metric-scans">
+            <div class="metric-heading">
+                <h2>Waiting scans</h2>
+                <span class="metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
+            </div>
+            <p class="metric-value">@modules.Count(module => module.Status == ModuleStatus.QueuedForScan)</p>
+            <svg class="metric-chart" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true">
+                <path class="chart-fill" d="M0 33 L24 23 L48 23 L72 23 L96 23 L120 8 L144 20 L168 20 L192 20 L216 20 L240 18 L240 40 L0 40 Z" />
+                <path class="chart-line" d="M0 33 L24 23 L48 23 L72 23 L96 23 L120 8 L144 20 L168 20 L192 20 L216 20 L240 18" />
+                <circle class="chart-point" cx="120" cy="8" r="4" />
+            </svg>
+        </article>
+        <article class="metric metric-containers">
+            <div class="metric-heading">
+                <h2>Docker containers</h2>
+                <span class="metric-icon"><i data-lucide="container" aria-hidden="true"></i></span>
+            </div>
+            <p class="metric-value">@modules.Count(module => module.Status == ModuleStatus.Running)<span class="metric-total">/@modules.Length</span></p>
+            <svg class="metric-chart" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true">
+                <path class="chart-line chart-track" d="M8 22 L232 22" />
+                <path class="chart-line" d="M8 22 L120 22" />
+                <circle class="chart-point" cx="8" cy="22" r="4" />
+                <circle class="chart-point" cx="120" cy="22" r="4" />
+            </svg>
+        </article>
+    </section>
+
+    <div class="dashboard-details">
+        <section class="module-section" aria-labelledby="modules-heading">
+            <header class="section-heading">
+                <h2 id="modules-heading">Module management</h2>
+                <span class="section-count">@modules.Length modules</span>
+            </header>
+            <div class="module-table-scroll" role="region" aria-label="Modules" tabindex="0">
+                <table class="module-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Base path</th>
+                            <th scope="col">Port</th>
+                            <th scope="col" class="actions-heading">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var module in modules)
+                        {
+                            var statusClass = module.Status switch
+                            {
+                                ModuleStatus.Running => "running",
+                                ModuleStatus.Starting => "starting",
+                                ModuleStatus.PendingConfirmation => "pending",
+                                ModuleStatus.QueuedForScan => "queued",
+                                _ => "stopped"
+                            };
+                            var statusLabel = module.Status switch
+                            {
+                                ModuleStatus.PendingConfirmation => "Pending confirmation",
+                                ModuleStatus.QueuedForScan => "Queued for scan",
+                                _ => module.Status.ToString()
+                            };
+                            <tr>
+                                <td class="module-name">@module.ModuleName</td>
+                                <td><span class="module-status status-@statusClass"><span class="status-dot" aria-hidden="true"></span>@statusLabel</span></td>
+                                <td><span class="module-path" title="@module.BaseEndpointPath">@module.BaseEndpointPath</span></td>
+                                <td class="module-port">@module.ContainerPort</td>
+                                <td class="module-actions">
+                                    <span title="Actions for @module.ModuleName are not available yet">
+                                        <button type="button" class="module-action-button" aria-label="Actions for @module.ModuleName" disabled>
+                                            <i data-lucide="ellipsis" aria-hidden="true"></i>
+                                        </button>
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="module-table-footer">@modules.Length modules <span aria-hidden="true">/</span> @modules.Count(module => module.Status == ModuleStatus.Running) running</footer>
+        </section>
+
+        <section class="activity-section" aria-labelledby="activity-heading">
+            <header class="section-heading">
+                <h2 id="activity-heading">Your activity</h2>
+                <span class="session-label">This session</span>
+            </header>
+            <ol class="activity-list">
+                <li class="activity-item activity-success">
+                    <span class="activity-icon"><i data-lucide="play" aria-hidden="true"></i></span>
+                    <div><p>Started <strong>AnalyticsModule</strong></p><span class="activity-time">2 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-success">
+                    <span class="activity-icon"><i data-lucide="check" aria-hidden="true"></i></span>
+                    <div><p>Confirmed endpoints for <strong>NotificationService</strong></p><span class="activity-time">8 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-update">
+                    <span class="activity-icon"><i data-lucide="upload" aria-hidden="true"></i></span>
+                    <div><p>Updated files for <strong>IdentityService</strong></p><span class="activity-time">14 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-update">
+                    <span class="activity-icon"><i data-lucide="plus" aria-hidden="true"></i></span>
+                    <div><p>Added <strong>ReportsModule</strong></p><span class="activity-time">21 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-warning">
+                    <span class="activity-icon"><i data-lucide="square" aria-hidden="true"></i></span>
+                    <div><p>Stopped <strong>BillingService</strong></p><span class="activity-time">32 minutes ago</span></div>
+                </li>
+            </ol>
+        </section>
+    </div>
 </div>
