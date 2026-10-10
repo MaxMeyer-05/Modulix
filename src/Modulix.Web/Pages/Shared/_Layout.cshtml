@@ -50,9 +50,43 @@
                 </span>
             </nav>
         </aside>
-        <main role="main" class="app-content">
-            @RenderBody()
-        </main>
+        <div class="app-workspace">
+            <header class="topbar" aria-label="Workspace toolbar">
+                <div class="workspace-search" role="search">
+                    <div class="search-field">
+                        <i data-lucide="search" aria-hidden="true"></i>
+                        <input id="workspace-search" type="search" placeholder="Search modules, endpoints..."
+                               aria-label="Search" aria-controls="search-results" autocomplete="off" />
+                        <button class="topbar-icon search-clear" id="search-clear" type="button"
+                                aria-label="Clear search" title="Clear search" hidden>
+                            <i data-lucide="x" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="topbar-panel search-results" id="search-results" aria-label="Search results" hidden>
+                        <ul id="search-result-list"></ul>
+                        <p id="search-empty" class="panel-empty" role="status" hidden>No results found.</p>
+                    </div>
+                </div>
+                <div class="notifications">
+                    <button class="topbar-icon" id="notifications-toggle" type="button"
+                            aria-label="Notifications" title="Notifications"
+                            aria-controls="notifications-panel" aria-expanded="false">
+                        <i data-lucide="bell" aria-hidden="true"></i>
+                    </button>
+                    <section class="topbar-panel notifications-panel" id="notifications-panel"
+                             aria-labelledby="notifications-heading" hidden>
+                        <h2 id="notifications-heading">Notifications</h2>
+                        <div class="notifications-empty">
+                            <i data-lucide="bell" aria-hidden="true"></i>
+                            <p>No notifications yet.</p>
+                        </div>
+                    </section>
+                </div>
+            </header>
+            <main role="main" class="app-content">
+                @RenderBody()
+            </main>
+        </div>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
