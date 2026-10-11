@@ -14,7 +14,9 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
 // Add services to the container.
 builder.Services.AddRazorPages();
-builder.Services.AddModulixApi();
+builder.Services.AddModulixApi(
+    builder.Configuration["ModulixApi:BaseUrl"]
+        ?? throw new InvalidOperationException("ModulixApi:BaseUrl fehlt."));
 
 builder.Services.AddAuthentication(options =>
     {
@@ -67,7 +69,9 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapStaticAssets().AllowAnonymous();
+app.MapStaticAssets()
+    .AllowAnonymous();
+    
 app.MapRazorPages()
    .WithStaticAssets();
 

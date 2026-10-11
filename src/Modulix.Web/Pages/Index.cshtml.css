@@ -27,6 +27,37 @@
   margin-bottom: 20px;
 }
 
+.dashboard-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-left: 3px solid #ff9299;
+  background: #321e26;
+  color: #ffd7db;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-error > div {
+  min-width: 0;
+}
+
+.dashboard-error ::deep svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: #ff9299;
+}
+
+.dashboard-error ::deep ul {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .dashboard-title {
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -132,39 +163,6 @@
   color: var(--dashboard-muted);
   font-size: 24px;
   font-weight: 400;
-}
-
-.metric-chart {
-  display: block;
-  width: 100%;
-  height: 36px;
-  overflow: visible;
-  color: var(--metric-color);
-}
-
-.chart-line {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.chart-fill {
-  fill: currentColor;
-  opacity: 0.07;
-}
-
-.chart-point {
-  fill: currentColor;
-  stroke: var(--dashboard-surface);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.chart-track {
-  opacity: 0.18;
 }
 
 .dashboard-details {
