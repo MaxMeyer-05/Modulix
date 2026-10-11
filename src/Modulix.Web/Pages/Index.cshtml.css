@@ -77,31 +77,6 @@
   font-size: 11px;
 }
 
-.add-module-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 8px 12px;
-  border: 1px solid var(--dashboard-accent);
-  border-radius: 6px;
-  background: var(--dashboard-accent);
-  color: #0b1018;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.add-module-button:disabled {
-  cursor: not-allowed;
-}
-
-.add-module-button ::deep svg {
-  width: 16px;
-  height: 16px;
-}
-
 .dashboard-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

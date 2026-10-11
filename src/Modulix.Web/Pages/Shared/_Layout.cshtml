@@ -1,4 +1,9 @@
-﻿<!DOCTYPE html>
+﻿@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+    var isModulesPage = currentPage.StartsWith("/Modules/", StringComparison.OrdinalIgnoreCase);
+    var isDashboardPage = currentPage == "/Index";
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -8,6 +13,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Modulix.Web.styles.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
 </head>
 <body class="modulix-app">
     <div class="app-shell" id="app-shell">
@@ -24,14 +30,14 @@
                 </button>
             </div>
             <nav class="sidebar-navigation" id="sidebar-navigation" aria-label="Sections">
-                <a class="sidebar-link active" asp-page="/Index" aria-current="page" title="Dashboard">
+                <a class="sidebar-link @(isDashboardPage ? "active" : "")" asp-page="/Index" aria-current="@(isDashboardPage ? "page" : null)" title="Dashboard">
                     <i data-lucide="house" aria-hidden="true"></i>
                     <span class="sidebar-label">Dashboard</span>
                 </a>
-                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Modules: not yet available">
+                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/Modules/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
                     <i data-lucide="layout-grid" aria-hidden="true"></i>
                     <span class="sidebar-label">Modules</span>
-                </span>
+                </a>
                 <span class="sidebar-link is-unavailable" aria-disabled="true" title="Docker containers: not yet available">
                     <i data-lucide="container" aria-hidden="true"></i>
                     <span class="sidebar-label">Docker containers</span>
