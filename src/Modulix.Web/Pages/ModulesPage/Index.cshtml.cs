@@ -44,20 +44,15 @@ public class IndexModel : PageModel
     /// </summary>
     /// <returns>An <see cref="IActionResult"/> representing the result of the request.</returns>
     public async Task<IActionResult> OnGetAsync()
-    {
-        var accessToken = await HttpContext.GetTokenAsync("access_token");
-
-        if (string.IsNullOrEmpty(accessToken))
-        {
-            _logger.LogWarning("Access token is missing.");
-            return Challenge();
-        }
-
+    {        
         try
         {
+            _logger.LogDebug("Loading all modules.");
+
             Modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                ct: HttpContext.RequestAborted,
-                authToken: accessToken);
+                ct: HttpContext.RequestAborted);
+
+            _logger.LogDebug("Successfully loaded {ModuleCount} modules.", Modules.Count);
         }
         catch (HttpRequestException exception)
         {

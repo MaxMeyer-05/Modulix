@@ -42,6 +42,8 @@ public class DetailModel : PageModel
     {
         try
         {
+            _logger.LogDebug("Loading module detail for ID {ModuleId}", id);
+
             Module = await _modulixApiClient.ModuleManagement.GetModuleByIdAsync(
                 moduleId: id,
                 ct: HttpContext.RequestAborted);
