@@ -50,7 +50,7 @@
         @foreach (var module in modules)
         {
             <a class="module-card" asp-page="/Modules/Detail" asp-route-id="@module.Id"
-               data-name="@module.ModuleName" data-description="@module.Description" data-path="@module.BaseEndpointPath"
+               data-name="@module.ModuleName" data-description="@module.Description" data-path="@module.BaseUrlPath"
                data-id="@module.Id" data-status="@module.Status" data-created="@module.CreatedAtUtc.ToString("O")">
                 <div class="module-card-heading">
                     <span class="module-symbol"><i data-lucide="box" aria-hidden="true"></i></span>
@@ -60,7 +60,7 @@
                 <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
                 <p class="module-description">@module.Description</p>
                 <dl class="module-card-facts">
-                    <div><dt>Base path</dt><dd class="module-code">@module.BaseEndpointPath</dd></div>
+                    <div><dt>Base path</dt><dd class="module-code">@module.BaseUrlPath</dd></div>
                     <div><dt>Port</dt><dd>@module.ContainerPort</dd></div>
                     <div><dt>Created</dt><dd>@module.CreatedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
                 </dl>
@@ -84,7 +84,7 @@
                 <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
                 <label>Description<textarea name="Description" rows="3" maxlength="500" placeholder="Optional description"></textarea></label>
                 <div class="module-form-row">
-                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseEndpointPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
+                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
                     <label>Container port<input name="ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
                 </div>
                 <span class="module-field-label">Module archive <span class="required-mark">*</span></span>

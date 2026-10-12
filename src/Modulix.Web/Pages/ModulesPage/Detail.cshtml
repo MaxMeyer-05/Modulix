@@ -31,7 +31,7 @@
                     <h2 id="module-info-heading">Module information</h2>
                     <dl class="module-detail-facts">
                         <div class="module-fact-wide"><dt>Module ID</dt><dd class="module-copy-value"><span class="module-code">@module.Id</span><button class="module-icon-button" type="button" data-copy="@module.Id" aria-label="Copy module ID" title="Copy module ID"><i data-lucide="copy" aria-hidden="true"></i></button></dd></div>
-                        <div><dt>Base path</dt><dd class="module-code">@module.BaseEndpointPath</dd></div>
+                        <div><dt>Base path</dt><dd class="module-code">@module.BaseUrlPath</dd></div>
                         <div><dt>Container port</dt><dd>@module.ContainerPort</dd></div>
                         <div class="module-fact-wide"><dt>Created</dt><dd>@module.CreatedAtUtc.ToString("MMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture)</dd></div>
                     </dl>
@@ -48,7 +48,7 @@
                             @foreach (var endpoint in module.Endpoints)
                             {
                                 <li>
-                                    <div class="endpoint-route"><span class="endpoint-method @(endpoint.HttpMethod == "GET" ? "method-get" : "method-post")">@endpoint.HttpMethod</span><span class="module-code">@module.BaseEndpointPath@endpoint.EndpointPath</span></div>
+                                    <div class="endpoint-route"><span class="endpoint-method @(endpoint.HttpMethod == "GET" ? "method-get" : "method-post")">@endpoint.HttpMethod</span><span class="module-code">@module.BaseUrlPath@endpoint.EndpointPath</span></div>
                                     <span class="endpoint-state">@(endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation ? "Pending confirmation" : endpoint.Status.ToString())</span>
                                     <div class="endpoint-metadata"><span>Created @endpoint.CreatedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span><span class="module-code">@endpoint.Id</span></div>
                                 </li>

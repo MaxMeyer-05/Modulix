@@ -32,11 +32,11 @@ public class ModuleDto
     public string? Description { get; set; }
 
     /// <summary>
-    /// The base endpoint path of the module.
+    /// The base URL path of the module.
     /// </summary>
-    /// <value>e.g., /modules/analytics</value>
-    /// <example>/modules/analytics</example>
-    public string BaseEndpointPath { get; set; } = null!;
+    /// <value>e.g., /module/analytics</value>
+    /// <example>/module/analytics</example>
+    public string BaseUrlPath { get; set; } = null!;
 
     /// <summary>
     /// The container port of the module.
@@ -149,13 +149,13 @@ public class CreateModuleDto
     public string? Description { get; set; }
 
     /// <summary>
-    /// The unique base endpoint path (e.g. "/module/resource").
+    /// The unique base URL path (e.g. "/module/resource").
     /// </summary>
     /// <value>e.g., /module/resource</value>
     /// <example>/module/resource</example>
-    [Required(ErrorMessage = "Base endpoint path is required.")]
-    [MaxLength(200, ErrorMessage = "Base endpoint path cannot exceed 200 characters.")]
-    public string BaseEndpointPath { get; set; } = null!;
+    [Required(ErrorMessage = "Base URL path is required.")]
+    [MaxLength(200, ErrorMessage = "Base URL path cannot exceed 200 characters.")]
+    public string BaseUrlPath { get; set; } = null!;
 
     /// <summary>
     /// An optional container port that the module listens to.

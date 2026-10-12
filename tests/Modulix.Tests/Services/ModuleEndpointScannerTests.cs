@@ -372,7 +372,7 @@ public class ModuleEndpointScannerTests : IDisposable
             {
                 Id = failedModuleId,
                 ModuleName = "Queued module",
-                BaseEndpointPath = "api/queued",
+                BaseUrlPath = "api/queued",
                 ContainerPort = 8080,
                 StoragePath = _testRootDirectory,
                 ModuleEntryAssemblyFileName = "module.dll",

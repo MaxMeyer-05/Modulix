@@ -107,15 +107,15 @@ public class ModuleServiceTests : IDisposable
     #region CreateModule Tests
 
     [Theory]
-    [ClassData(typeof(InvalidBaseEndpointPathsTestData))]
+    [ClassData(typeof(InvalidBaseUrlPathsTestData))]
     [Trait("Feature", "CreateModule")]
-    public async Task CreateModuleAsync_InvalidBaseEndpointPath_ThrowsArgumentException(string? invalidPath)
+    public async Task CreateModuleAsync_InvalidBaseUrlPath_ThrowsArgumentException(string? invalidPath)
     {
         // Arrange
         var dto = new CreateModuleDto
         {
             ModuleName = "Test Module",
-            BaseEndpointPath = invalidPath!,
+            BaseUrlPath = invalidPath!,
             ModuleFile = CreateDummyZipFile()
         };
 
@@ -138,7 +138,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "New Module",
-            BaseEndpointPath = "api/v1/new",
+            BaseUrlPath = "api/v1/new",
             ContainerPort = 8080,
             ModuleFile = CreateDummyZipFile()
         };
@@ -162,7 +162,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Auto Port Module",
-            BaseEndpointPath = "api/v1/autoport",
+            BaseUrlPath = "api/v1/autoport",
             ContainerPort = null,
             ModuleFile = CreateDummyZipFile()
         };
@@ -180,7 +180,7 @@ public class ModuleServiceTests : IDisposable
     }
 
     [Theory]
-    [ClassData(typeof(ConflictingBaseEndpointPathsTestData))]
+    [ClassData(typeof(ConflictingBaseUrlPathsTestData))]
     [Trait("Feature", "CreateModule")]
     public async Task CreateModuleAsync_ConflictingBasePath_ThrowsArgumentException(string existingPath, string newPath)
     {
@@ -192,7 +192,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Conflicting Module",
-            BaseEndpointPath = newPath,
+            BaseUrlPath = newPath,
             ContainerPort = 8081,
             ModuleFile = CreateDummyZipFile()
         };
@@ -211,7 +211,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Empty File Module",
-            BaseEndpointPath = "api/v1/empty",
+            BaseUrlPath = "api/v1/empty",
             ModuleFile = emptyFile
         };
 
@@ -234,7 +234,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Invalid Ext Module",
-            BaseEndpointPath = "api/v1/invalidext",
+            BaseUrlPath = "api/v1/invalidext",
             ModuleFile = invalidFile
         };
 
@@ -257,7 +257,7 @@ public class ModuleServiceTests : IDisposable
         {
             ModuleName = "Valid Analytics",
             Description = "Processes real-time analytics",
-            BaseEndpointPath = "/api/v1/analytics/",
+            BaseUrlPath = "/api/v1/analytics/",
             ContainerPort = 9000,
             ModuleFile = zipFile
         };
@@ -268,7 +268,7 @@ public class ModuleServiceTests : IDisposable
         // Assert - Return DTO
         Assert.NotNull(result);
         Assert.Equal("Valid Analytics", result.Module.ModuleName);
-        Assert.Equal("api/v1/analytics", result.Module.BaseEndpointPath);
+        Assert.Equal("api/v1/analytics", result.Module.BaseUrlPath);
         Assert.Equal(9000, result.Module.ContainerPort);
         Assert.True(Directory.Exists(result.Module.StoragePath));
         Assert.True(File.Exists(Path.Combine(result.Module.StoragePath, entryName)));
@@ -279,7 +279,7 @@ public class ModuleServiceTests : IDisposable
         // Assert - Database state
         var persisted = await _context.Modules.FindAsync(result.Module.Id);
         Assert.NotNull(persisted);
-        Assert.Equal("api/v1/analytics", persisted.BaseEndpointPath);
+        Assert.Equal("api/v1/analytics", persisted.BaseUrlPath);
         Assert.Equal(result.Module.StoragePath, persisted.StoragePath);
     }
 
@@ -297,7 +297,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Scanned Module",
-            BaseEndpointPath = "api/v1/scanned",
+            BaseUrlPath = "api/v1/scanned",
             ModuleFile = CreateDummyZipFile()
         };
 
@@ -338,7 +338,7 @@ public class ModuleServiceTests : IDisposable
             var result = await _sut.CreateModuleAsync(new CreateModuleDto
             {
                 ModuleName = "Safe Upload",
-                BaseEndpointPath = "api/v1/safe-upload",
+                BaseUrlPath = "api/v1/safe-upload",
                 ModuleFile = CreateDummyZipFile(fileName)
             });
 
@@ -381,7 +381,7 @@ public class ModuleServiceTests : IDisposable
             _sut.CreateModuleAsync(new CreateModuleDto
             {
                 ModuleName = "Unsaved Module",
-                BaseEndpointPath = "api/v1/unsaved",
+                BaseUrlPath = "api/v1/unsaved",
                 ModuleFile = CreateDummyZipFile(),
                 InitialEndpoints = scenario == "pending"
                     ? [new CreateModuleEndpointDto { HttpMethod = "POST", EndpointPath = "/jobs" }]
@@ -417,7 +417,7 @@ public class ModuleServiceTests : IDisposable
         var result = await _sut.CreateModuleAsync(new CreateModuleDto
         {
             ModuleName = "Queued module",
-            BaseEndpointPath = "api/queued",
+            BaseUrlPath = "api/queued",
             ModuleFile = CreateDummyZipFile(),
             InitialEndpoints = [new CreateModuleEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
         });
@@ -446,7 +446,7 @@ public class ModuleServiceTests : IDisposable
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.CreateModuleAsync(new CreateModuleDto
         {
             ModuleName = "Queued module",
-            BaseEndpointPath = "api/queued",
+            BaseUrlPath = "api/queued",
             ModuleFile = CreateDummyZipFile()
         }));
 
@@ -472,7 +472,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Matched Module",
-            BaseEndpointPath = "api/v1/matched",
+            BaseUrlPath = "api/v1/matched",
             ModuleFile = CreateDummyZipFile(),
             InitialEndpoints =
             [
@@ -500,7 +500,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Invalid Module",
-            BaseEndpointPath = "api/v1/invalid",
+            BaseUrlPath = "api/v1/invalid",
             ModuleFile = CreateDummyZipFile()
         };
 
@@ -523,7 +523,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Oversized Archive Module",
-            BaseEndpointPath = "api/v1/oversized-archive",
+            BaseUrlPath = "api/v1/oversized-archive",
             ModuleFile = exceedsEntryCount
                 ? CreateZipFileWithEntries(1_001)
                 : CreateZipFileWithClaimedUncompressedSize(512U * 1024 * 1024 + 1)
@@ -552,7 +552,7 @@ public class ModuleServiceTests : IDisposable
         var result = await _sut.CreateModuleAsync(new CreateModuleDto
         {
             ModuleName = "Failed Module",
-            BaseEndpointPath = "api/v1/failed",
+            BaseUrlPath = "api/v1/failed",
             ModuleFile = CreateDummyZipFile()
         });
 
@@ -578,7 +578,7 @@ public class ModuleServiceTests : IDisposable
         var dto = new CreateModuleDto
         {
             ModuleName = "Reconciled Module",
-            BaseEndpointPath = "api/v1/reconciled",
+            BaseUrlPath = "api/v1/reconciled",
             ModuleFile = CreateDummyZipFile(),
             InitialEndpoints =
             [
@@ -1688,7 +1688,7 @@ public class ModuleServiceTests : IDisposable
         Id = Guid.NewGuid(),
         ModuleName = name,
         Description = "Description for " + name,
-        BaseEndpointPath = basePath.TrimStart('/'),
+        BaseUrlPath = basePath.TrimStart('/'),
         ContainerPort = port,
         StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
         ModuleEntryAssemblyFileName = "module.dll",

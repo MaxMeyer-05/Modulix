@@ -20,7 +20,7 @@ public static class ModuleMapper
         Id = module.Id,
         ModuleName = module.ModuleName,
         Description = module.Description,
-        BaseEndpointPath = module.BaseEndpointPath,
+        BaseUrlPath = module.BaseUrlPath,
         ContainerPort = module.ContainerPort,
         Status = module.Status,
         CreatedAtUtc = module.CreatedAtUtc
@@ -36,7 +36,7 @@ public static class ModuleMapper
         Id = module.Id,
         ModuleName = module.ModuleName,
         Description = module.Description,
-        BaseEndpointPath = module.BaseEndpointPath,
+        BaseUrlPath = module.BaseUrlPath,
         ContainerId = module.ContainerId,
         ContainerPort = module.ContainerPort,
         Status = module.Status,
