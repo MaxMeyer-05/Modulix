@@ -97,17 +97,12 @@ public class IndexModel : PageModel
             var statusCode = (int)response.StatusCode;
             var moduleUrl = statusCode is 201 or 202
                 ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : null;
-            var description = response.StatusCode switch
-            {
-                HttpStatusCode.Created => $"'{module.ModuleName}' was created. Current status: {ModuleStatusDisplay.StatusLabel(module.Status)}.",
-                HttpStatusCode.Accepted => $"'{module.ModuleName}' was accepted for processing. Current status: {ModuleStatusDisplay.StatusLabel(module.Status)}.",
-                _ => "The API returned an unexpected success response."
-            };
-            if (!string.IsNullOrWhiteSpace(response.Result.Message))
-                description += $" {response.Result.Message}";
+            var description = !string.IsNullOrWhiteSpace(response.Result.Message)
+                ? response.Result.Message
+                : ReasonPhrases.GetReasonPhrase(statusCode);
 
             _logger.LogInformation("Module creation returned HTTP {StatusCode} for {ModuleId}.", statusCode, module.Id);
-            
+
             if (statusCode == 201 && moduleUrl is not null)
                 Response.Headers.Location = moduleUrl;
             return CreationResponse(statusCode, description, moduleUrl);
@@ -115,22 +110,8 @@ public class IndexModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error creating module.");
-            var description = exception.StatusCode switch
-            {
-                HttpStatusCode.BadRequest => "The API rejected the module data or ZIP archive. Check the form and try again.",
-                HttpStatusCode.Unauthorized => "Your access token was rejected. Please sign in again.",
-                HttpStatusCode.Forbidden => "You do not have permission to create modules.",
-                HttpStatusCode.NotFound => "The module creation endpoint could not be found.",
-                HttpStatusCode.Conflict => "The module conflicts with an existing module. Check its name and base URL path.",
-                HttpStatusCode.RequestEntityTooLarge => "The upload exceeds the server's size limit.",
-                HttpStatusCode.UnsupportedMediaType => "The API rejected the upload format. A ZIP archive is required.",
-                HttpStatusCode.UnprocessableEntity => "The API could not process the module data or archive.",
-                HttpStatusCode.TooManyRequests => "Too many requests were sent. Please try again later.",
-                HttpStatusCode statusCode when (int)statusCode >= 500 => "The API encountered a server error. Check the module list before retrying.",
-                null => "The API could not be reached. No API response was received. Check the module list before retrying.",
-                _ => "The API rejected module creation."
-            };
-            return CreationResponse((int?)exception.StatusCode ?? 503, description);
+            var statusCode = (int?)exception.StatusCode ?? 503;
+            return CreationResponse(statusCode, ReasonPhrases.GetReasonPhrase(statusCode));
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
