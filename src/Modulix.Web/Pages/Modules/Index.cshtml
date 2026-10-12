@@ -76,7 +76,7 @@
 
     <dialog class="module-dialog" id="add-module-dialog" aria-labelledby="add-module-heading">
         <div class="module-dialog-heading">
-            <div class="modules-title"><h2 id="add-module-heading">Add module</h2><span class="module-preview-label">Preview</span></div>
+            <div class="modules-title"><h2 id="add-module-heading">Add module</h2></div>
             <button class="module-icon-button" type="button" data-close-dialog aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
         </div>
         <form id="add-module-form">
@@ -84,7 +84,7 @@
                 <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
                 <label>Description<textarea name="Description" rows="3" maxlength="500" placeholder="Optional description"></textarea></label>
                 <div class="module-form-row">
-                    <label><span>Base path <span class="required-mark">*</span></span><input name="BaseEndpointPath" required maxlength="200" pattern="/.*" placeholder="/api/analytics" /></label>
+                    <label><span>Base path <span class="required-mark">*</span></span><input name="BaseEndpointPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
                     <label>Container port<input name="ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
                 </div>
                 <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
