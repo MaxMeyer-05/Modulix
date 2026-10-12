@@ -73,4 +73,30 @@ public class IndexModel : PageModel
 
         return Page();
     }
+
+    public async Task<IActionResult> OnPostAsync([FromForm] CreateModuleDto input)
+    {
+        if (!ModelState.IsValid)
+        {
+            return await OnGetAsync();
+        }
+
+        try
+        {
+            _logger.LogDebug("Creating a new module with name {ModuleName}.", input.ModuleName);
+
+            await _modulixApiClient.ModuleManagement.CreateModuleAsync(
+                input, ct: HttpContext.RequestAborted);
+
+            _logger.LogInformation("Successfully created module with name {ModuleName}.", input.ModuleName);
+
+            return RedirectToPage();
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error creating module.");
+            ModelState.AddModelError(string.Empty, "Could not create the module.");
+            return await OnGetAsync();
+        }
+    }
 }

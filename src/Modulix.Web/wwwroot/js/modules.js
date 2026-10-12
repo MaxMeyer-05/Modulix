@@ -53,7 +53,13 @@
                 dialog.close();
             }
         });
-        document.getElementById("add-module-form").addEventListener("submit", event => event.preventDefault());
+        const form = document.getElementById("add-module-form");
+        form.addEventListener("submit", () => {
+            const submitButton = form.querySelector('[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.querySelector("span").textContent = "Creating...";
+            form.setAttribute("aria-busy", "true");
+        });
         const archive = document.getElementById("module-archive");
         const upload = document.getElementById("module-upload-area");
         const updateArchive = () => {
