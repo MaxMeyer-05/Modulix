@@ -7,10 +7,10 @@
     <link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
 }
 
-<div class="logs-page">
+<div class="logs-page" data-files-url="@Url.Page("/LogsPage/Index", "Files")" data-read-url="@Url.Page("/LogsPage/Index", "Read")">
     <header class="logs-header">
         <h1>Logs</h1>
-        <span class="logs-preview"><span aria-hidden="true"></span>Sample data</span>
+        <span class="logs-preview"><span aria-hidden="true"></span>Modulix.Web</span>
     </header>
 
     <div class="logs-workspace">
@@ -23,7 +23,6 @@
                 <label class="log-field" for="log-service">Application
                     <select id="log-service">
                         <option value="">All applications</option>
-                        <option value="Modulix">Modulix</option>
                         <option value="Modulix.Web">Modulix.Web</option>
                     </select>
                 </label>
@@ -36,7 +35,7 @@
             <nav class="log-file-list" id="log-file-list" aria-label="Log files" tabindex="0"></nav>
             <div class="log-archive-empty" id="log-archive-empty" hidden>
                 <i data-lucide="folder-search" aria-hidden="true"></i>
-                <p>No files for this selection.</p>
+                <p id="log-archive-message" role="status">No files for this selection.</p>
                 <button class="log-text-button" id="log-reset-archive" type="button">Reset filters</button>
             </div>
             <footer class="log-archive-footer"><i data-lucide="archive" aria-hidden="true"></i><span id="log-archive-range"></span></footer>
@@ -62,6 +61,8 @@
                     <option value="WARN">Warning</option>
                     <option value="INFO">Information</option>
                     <option value="DEBUG">Debug</option>
+                    <option value="TRACE">Verbose</option>
+                    <option value="FATAL">Fatal</option>
                 </select>
                 <label class="log-wrap"><input id="log-wrap" type="checkbox" checked />Wrap lines</label>
             </div>
