@@ -1,6 +1,6 @@
 using Modulix.Client.Models.Enums;
 
-namespace Modulix.Web.Pages.Modules;
+namespace Modulix.Web.Pages.ModulesPage;
 
 public static class ModuleStatusDisplay
 {

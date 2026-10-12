@@ -2,6 +2,7 @@
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
     var isModulesPage = currentPage.StartsWith("/Modules/", StringComparison.OrdinalIgnoreCase);
     var isDashboardPage = currentPage == "/Index";
+    var isLogsPage = currentPage == "/Logs/Index";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -34,7 +35,7 @@
                     <i data-lucide="house" aria-hidden="true"></i>
                     <span class="sidebar-label">Dashboard</span>
                 </a>
-                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/Modules/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
+                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/ModulesPage/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
                     <i data-lucide="layout-grid" aria-hidden="true"></i>
                     <span class="sidebar-label">Modules</span>
                 </a>
@@ -46,10 +47,10 @@
                     <i data-lucide="link" aria-hidden="true"></i>
                     <span class="sidebar-label">API endpoints</span>
                 </span>
-                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Logs: not yet available">
+                <a class="sidebar-link @(isLogsPage ? "active" : "")" asp-page="/LogsPage/Index" aria-current="@(isLogsPage ? "page" : null)" title="Logs">
                     <i data-lucide="logs" aria-hidden="true"></i>
                     <span class="sidebar-label">Logs</span>
-                </span>
+                </a>
                 <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: not yet available">
                     <i data-lucide="settings" aria-hidden="true"></i>
                     <span class="sidebar-label">Settings</span>

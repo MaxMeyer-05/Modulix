@@ -2,13 +2,14 @@ using System.Net;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Authentication;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 
-namespace Modulix.Web.Pages.Modules;
+namespace Modulix.Web.Pages.ModulesPage;
 
-public class DetailModel : PageModel
+public class IndexModel : PageModel
 {
     /// <summary>
     /// The Modulix API client.
@@ -18,49 +19,59 @@ public class DetailModel : PageModel
     /// <summary>
     /// The logger instance.
     /// </summary>
-    private readonly ILogger<DetailModel> _logger;
+    private readonly ILogger<IndexModel> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DetailModel"/> class.
+    /// Initializes a new instance of the <see cref="IndexModel"/> class.
     /// </summary>
     /// <param name="modulixApiClient">The Modulix API client.</param>
     /// <param name="logger">The logger instance.</param>
-    public DetailModel(
+    public IndexModel(
         IModulixApi modulixApiClient, 
-        ILogger<DetailModel> logger)
+        ILogger<IndexModel> logger)
     {
         _modulixApiClient = modulixApiClient;
         _logger = logger;
     }
-    
-    /// <summary>
-    /// Gets the module detail.
-    /// </summary>
-    public ModuleDetailDto? Module { get; private set; }
 
-    public async Task<IActionResult> OnGetAsync(Guid id)
+    /// <summary>
+    /// Gets the list of modules.
+    /// </summary>
+    public List<ModuleDto> Modules { get; private set; } = [];
+
+    /// <summary>
+    /// Handles the GET request for the index page.
+    /// </summary>
+    /// <returns>An <see cref="IActionResult"/> representing the result of the request.</returns>
+    public async Task<IActionResult> OnGetAsync()
     {
+        var accessToken = await HttpContext.GetTokenAsync("access_token");
+
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            _logger.LogWarning("Access token is missing.");
+            return Challenge();
+        }
+
         try
         {
-            Module = await _modulixApiClient.ModuleManagement.GetModuleByIdAsync(
-                moduleId: id,
-                ct: HttpContext.RequestAborted);
+            Modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+                ct: HttpContext.RequestAborted,
+                authToken: accessToken);
         }
         catch (HttpRequestException exception)
         {
-            _logger.LogError(exception, "ERROR loading module detail.");
+            _logger.LogError(exception, "ERROR loading modules.");
             var message = exception.StatusCode switch
             {
                 HttpStatusCode.Unauthorized =>
                     "401 Unauthorized: The API rejected your access token. Please sign in again.",
-                HttpStatusCode.NotFound =>
-                    "404 Not Found: The requested module could not be found.",
                 HttpStatusCode.InternalServerError =>
-                    "500 Internal Server Error: The API could not load the module detail. Please try again later.",
+                    "500 Internal Server Error: The API could not load the modules. Please try again later.",
                 HttpStatusCode statusCode when (int)statusCode >= 500 =>
                     $"API server error (HTTP {(int)statusCode}). Please try again later.",
                 HttpStatusCode statusCode =>
-                    $"Failed to load module detail (HTTP {(int)statusCode}).",
+                    $"Failed to load modules (HTTP {(int)statusCode}).",
                 _ => "The API could not be reached. Please try again later."
             };
             ModelState.AddModelError(string.Empty, message);
