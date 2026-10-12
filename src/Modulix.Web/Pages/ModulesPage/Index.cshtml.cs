@@ -111,7 +111,18 @@ public class IndexModel : PageModel
         {
             _logger.LogError(exception, "Error creating module.");
             var statusCode = (int?)exception.StatusCode ?? 503;
-            return CreationResponse(statusCode, ReasonPhrases.GetReasonPhrase(statusCode));
+            var description = exception.StatusCode.HasValue
+                ? exception.Message : ReasonPhrases.GetReasonPhrase(statusCode);
+            try
+            {
+                var problem = JsonSerializer.Deserialize<ProblemDetails>(description, JsonSerializerOptions.Web);
+                if (!string.IsNullOrWhiteSpace(problem?.Detail))
+                    description = problem.Detail;
+            }
+            catch (JsonException)
+            {
+            }
+            return CreationResponse(statusCode, description);
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {

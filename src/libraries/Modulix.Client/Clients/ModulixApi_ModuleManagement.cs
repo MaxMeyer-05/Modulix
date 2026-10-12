@@ -61,7 +61,13 @@ internal partial class ModulixApi : IModuleManagementClient
                 new AuthenticationHeaderValue("Bearer", authToken);
 
         using var response = await _httpClient.SendAsync(message, ct);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                string.IsNullOrWhiteSpace(errorContent) ? response.ReasonPhrase : errorContent,
+                null, response.StatusCode);
+        }
         var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
             cancellationToken: ct) ?? throw new JsonException("The API returned an empty response.");
         return (response.StatusCode, result);
