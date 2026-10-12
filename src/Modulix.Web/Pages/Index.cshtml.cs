@@ -2,7 +2,6 @@ using System.Net;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Authentication;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
@@ -34,6 +33,9 @@ public class IndexModel : PageModel
         _logger = logger;
     }
 
+    /// <summary>
+    /// Gets the list of modules.
+    /// </summary>
     public List<ModuleDto> Modules { get; private set; } = [];
 
     /// <summary>
@@ -42,19 +44,10 @@ public class IndexModel : PageModel
     /// <returns>An <see cref="IActionResult"/> representing the result of the request.</returns>
     public async Task<IActionResult> OnGetAsync()
     {
-        var accessToken = await HttpContext.GetTokenAsync("access_token");
-
-        if (string.IsNullOrEmpty(accessToken))
-        {
-            _logger.LogWarning("Access token is missing.");
-            return Challenge();
-        }
-
         try
         {
             Modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                ct: HttpContext.RequestAborted,
-                authToken: accessToken);
+                ct: HttpContext.RequestAborted);
         }
         catch (HttpRequestException exception)
         {

@@ -23,6 +23,22 @@
 .modules-title { flex-wrap: wrap; min-width: 0; }
 .module-preview-label { padding: 3px 7px; border: 1px solid #384453; border-radius: 4px; color: var(--module-muted); font-size: 11px; }
 
+.modules-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-left: 3px solid #ff9299;
+  background: #321e26;
+  color: #ffd7db;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.modules-error > div { min-width: 0; }
+.modules-error svg { width: 20px; height: 20px; margin-top: 2px; color: #ff9299; }
+.modules-error ul { margin: 4px 0 0; padding: 0; list-style: none; }
+
 .module-button, .module-icon-button {
   display: inline-flex;
   align-items: center;

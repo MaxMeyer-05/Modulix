@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
+using Duende.AccessTokenManagement.OpenIdConnect;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
@@ -16,7 +18,10 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddRazorPages();
 builder.Services.AddModulixApi(
     builder.Configuration["ModulixApi:BaseUrl"]
-        ?? throw new InvalidOperationException("ModulixApi:BaseUrl fehlt."));
+        ?? throw new InvalidOperationException("ModulixApi:BaseUrl is missing."))
+        .AddUserAccessTokenHandler();
+
+builder.Services.AddOpenIdConnectAccessTokenManagement();
 
 builder.Services.AddAuthentication(options =>
     {

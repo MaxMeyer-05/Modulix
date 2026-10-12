@@ -1,7 +1,6 @@
 @page "/modules/{id:guid}"
 @model Modulix.Web.Pages.Modules.DetailModel
 @using System.Globalization
-@using Modulix.Web.Pages.Modules
 @{
     var module = Model.Module;
     ViewData["Title"] = module?.ModuleName ?? "Module not found";
@@ -14,7 +13,7 @@
     @if (module is null)
     {
         <div class="module-empty-state">
-            <i data-lucide="box" aria-hidden="true"></i><h1>Module not found</h1><p>This module is not available in the preview.</p>
+            <i data-lucide="box" aria-hidden="true"></i><h1>Module not found</h1>
         </div>
     }
     else
@@ -22,9 +21,9 @@
         <header class="module-detail-header">
             <div class="module-detail-title">
                 <span class="module-symbol module-symbol-large"><i data-lucide="box" aria-hidden="true"></i></span>
-                <div><div class="modules-title"><h1>@module.ModuleName</h1><span class="module-preview-label">Preview</span></div><p>@module.Description</p></div>
+                <div><div class="modules-title"><h1>@module.ModuleName</h1></div><p>@module.Description</p></div>
             </div>
-            <span class="module-badge badge-@ModulePreview.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModulePreview.StatusLabel(module.Status)</span>
+            <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
         </header>
         <div class="module-detail-layout">
             <div class="module-detail-main">
