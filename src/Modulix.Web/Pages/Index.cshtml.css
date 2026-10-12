@@ -269,9 +269,19 @@
 }
 
 .activity-list {
+  max-height: min(480px, 60dvh);
   margin: 0;
-  padding: 20px 0 0;
+  padding: 20px 8px 0 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #384453 var(--dashboard-background);
+}
+
+.activity-list:focus-visible {
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: 2px;
 }
 
 .activity-item {
