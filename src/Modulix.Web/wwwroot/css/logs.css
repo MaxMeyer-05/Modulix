@@ -95,6 +95,9 @@
 .log-selected-file p { margin: 0; color: var(--log-muted); font-size: 11px; overflow-wrap: anywhere; }
 .log-icon-button { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 0; border-radius: 4px; background: transparent; color: var(--log-muted); }
 .log-icon-button:hover:not(:disabled) { background: #222c38; color: var(--log-text); }
+.log-file-actions { display: flex; align-items: center; gap: 4px; }
+.log-delete-button { color: #ff9299; }
+.log-delete-button:hover:not(:disabled) { background: #34212a; color: #ffb7bc; }
 .logs-page button:disabled { opacity: .4; cursor: default; }
 .log-toolbar { display: flex; align-items: center; gap: 12px; padding: 14px 20px; }
 .log-search { flex: 1; }
@@ -135,6 +138,18 @@
 .log-empty > svg, .log-archive-empty > svg { width: 26px; height: 26px; margin-bottom: 12px; }
 .log-empty h3 { margin: 0 0 12px; font-size: 14px; }
 .log-archive-empty p { font-size: 12px; }
+.log-delete-feedback { margin: 12px 0 0; color: var(--log-muted); font-size: 12px; overflow-wrap: anywhere; }
+.log-delete-dialog { width: 440px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); padding: 24px; border: 1px solid var(--log-border); border-radius: 8px; background: var(--log-surface); color: var(--log-text); overflow-y: auto; }
+.log-delete-dialog::backdrop { background: rgb(3 7 13 / 75%); }
+.log-delete-dialog h2 { margin: 0 0 16px; font-size: 18px; }
+.log-delete-dialog p { margin: 0 0 20px; color: var(--log-muted); line-height: 1.6; overflow-wrap: anywhere; }
+.log-delete-dialog strong { color: var(--log-text); font-weight: 500; }
+.log-delete-dialog .log-delete-error { color: #ff9299; }
+.log-dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.log-dialog-button { min-height: 38px; padding: 8px 14px; border: 1px solid var(--log-border); border-radius: 4px; background: #171e29; color: var(--log-text); font-size: 13px; }
+.log-dialog-button:hover:not(:disabled) { background: #222c38; }
+.log-dialog-button-danger { border-color: #a83746; background: #a83746; color: #fff; }
+.log-dialog-button-danger:hover:not(:disabled) { background: #c64252; }
 
 @media (max-width: 1100px) {
   .logs-workspace { grid-template-columns: 250px minmax(0, 1fr); }

@@ -11,6 +11,13 @@
 	const content = document.getElementById("log-content");
 	const table = document.getElementById("log-table");
 	const download = document.getElementById("log-download");
+	const deleteButton = document.getElementById("log-delete");
+	const deleteDialog = document.getElementById("log-delete-dialog");
+	const deleteForm = document.getElementById("log-delete-form");
+	const deleteCancel = document.getElementById("log-delete-cancel");
+	const deleteConfirm = document.getElementById("log-delete-confirm");
+	const deleteError = document.getElementById("log-delete-error");
+	const deleteFeedback = document.getElementById("log-delete-feedback");
 	const bottom = document.getElementById("log-bottom");
 	const logPage = fileList.closest(".logs-page");
 	const archiveMessage = document.getElementById("log-archive-message");
@@ -29,6 +36,7 @@
 	let archiveError = "";
 	let readError = "";
 	let readController = null;
+	let deletingFile = false;
 	dateFilter.max = dateKey(today);
 
 	const parseEntries = (text) => {
@@ -119,6 +127,7 @@
 		document.getElementById("log-warning-label").textContent = warnings === 1 ? "warning" : "warnings";
 		const loaded = selectedFile?.text != null;
 		download.disabled = !loaded;
+		deleteButton.disabled = !selectedFile || deletingFile;
 		search.disabled = !loaded;
 		levelFilter.disabled = !loaded;
 		for (const button of fileList.querySelectorAll("button")) {
@@ -195,6 +204,8 @@
 		fileList.hidden = matches.length === 0;
 		fileList.setAttribute("aria-busy", String(loadingFiles));
 		clearDate.disabled = !dateFilter.value;
+		document.getElementById("log-archive-range").textContent = files.length
+			? `${formatDate(files.at(-1).date)} - ${formatDate(files[0].date)}` : "No log files";
 		renderSelectedFile();
 	};
 	const loadFiles = async () => {
@@ -220,8 +231,6 @@
 					text: null
 				};
 			}).filter(Boolean).sort((first, second) => second.name.localeCompare(first.name));
-			document.getElementById("log-archive-range").textContent = files.length
-				? `${formatDate(files.at(-1).date)} - ${formatDate(files[0].date)}` : "No log files";
 		} catch (error) {
 			archiveError = error instanceof TypeError ? "Could not load logs. Check your connection and sign-in session." : error.message;
 		} finally {
@@ -263,6 +272,64 @@
 		link.download = selectedFile.name;
 		link.click();
 		setTimeout(() => URL.revokeObjectURL(url), 1000);
+	});
+	deleteButton.addEventListener("click", () => {
+		if (!selectedFile || deletingFile) return;
+		document.getElementById("log-delete-file").value = selectedFile.name;
+		document.getElementById("log-delete-name").textContent = selectedFile.name;
+		deleteError.hidden = true;
+		deleteFeedback.hidden = true;
+		deleteDialog.showModal();
+	});
+	deleteCancel.addEventListener("click", () => deleteDialog.close());
+	deleteDialog.addEventListener("cancel", event => {
+		if (deletingFile) event.preventDefault();
+	});
+	deleteDialog.addEventListener("keydown", event => {
+		if (event.key === "Escape") {
+			event.preventDefault();
+			if (!deletingFile) deleteDialog.close();
+		}
+	});
+	deleteForm.addEventListener("submit", async event => {
+		event.preventDefault();
+		if (deletingFile) return;
+		const body = new FormData(deleteForm);
+		const name = body.get("name");
+		deletingFile = true;
+		deleteConfirm.disabled = true;
+		deleteCancel.disabled = true;
+		deleteConfirm.textContent = "Deleting...";
+		deleteError.hidden = true;
+		try {
+			const response = await fetch(deleteForm.action, { method: "POST", body, redirect: "error" });
+			if (response.status !== 204 && response.status !== 404) {
+				const messages = {
+					400: "Could not delete the file. Reload the page and try again.",
+					401: "Please sign in again to delete logs.",
+					403: "You do not have permission to delete this log file.",
+					503: "The log file is in use or temporarily unavailable. Try again later."
+				};
+				throw new Error(messages[response.status] ?? `Could not delete the file (HTTP ${response.status}).`);
+			}
+			files = files.filter(file => file.name !== name);
+			deleteDialog.close();
+			deleteFeedback.textContent = response.status === 404 ? `${name} no longer exists.` : `${name} deleted.`;
+			deleteFeedback.hidden = false;
+		} catch (error) {
+			deleteError.textContent = error instanceof TypeError ? "Could not delete the file. Check your connection and sign-in session." : error.message;
+			deleteError.hidden = false;
+		} finally {
+			deletingFile = false;
+			deleteConfirm.disabled = false;
+			deleteCancel.disabled = false;
+			deleteConfirm.textContent = "Delete file";
+			renderFiles();
+			if (!deleteDialog.open) {
+				if (selectedFile) deleteButton.focus();
+				else resetArchive.focus();
+			}
+		}
 	});
 	void loadFiles();
 })();

@@ -81,4 +81,29 @@ public class IndexModel : PageModel
         catch (IOException) { return StatusCode(503); }
         catch (UnauthorizedAccessException) { return StatusCode(403); }
     }
+
+    public IActionResult OnPostDelete(string? name)
+    {
+        if (name is null || !LogName.IsMatch(name))
+            return BadRequest();
+
+        try
+        {
+            var file = new FileInfo(Path.Combine(_directory, name));
+            if (!file.Exists) return NotFound();
+            if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+                return BadRequest();
+
+            file.Delete();
+            return new NoContentResult();
+        }
+        catch (IOException)
+        {
+            return StatusCode(503);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403);
+        }
+    }
 }

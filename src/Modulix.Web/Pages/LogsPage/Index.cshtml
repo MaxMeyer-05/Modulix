@@ -47,7 +47,10 @@
                     <span class="log-file-symbol"><i data-lucide="file-text" aria-hidden="true"></i></span>
                     <div><h2 id="log-selected-name">Select a log file</h2><p id="log-selected-meta">No file selected</p></div>
                 </div>
-                <button id="log-download" class="log-icon-button" type="button" title="Download selected file" aria-label="Download selected file" disabled><i data-lucide="download" aria-hidden="true"></i></button>
+                <div class="log-file-actions">
+                    <button id="log-download" class="log-icon-button" type="button" title="Download selected file" aria-label="Download selected file" disabled><i data-lucide="download" aria-hidden="true"></i></button>
+                    <button id="log-delete" class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" disabled><i data-lucide="trash-2" aria-hidden="true"></i></button>
+                </div>
             </header>
 
             <div class="log-toolbar">
@@ -92,6 +95,19 @@
             </footer>
         </section>
     </div>
+    <p id="log-delete-feedback" class="log-delete-feedback" role="status" hidden></p>
+    <dialog id="log-delete-dialog" class="log-delete-dialog" aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
+        <form method="post" asp-page-handler="Delete" id="log-delete-form">
+            <h2 id="log-delete-heading">Delete log file?</h2>
+            <p id="log-delete-description">Permanently delete <strong id="log-delete-name"></strong>? This cannot be undone.</p>
+            <input type="hidden" name="name" id="log-delete-file" />
+            <p id="log-delete-error" class="log-delete-error" role="alert" hidden></p>
+            <div class="log-dialog-actions">
+                <button id="log-delete-cancel" class="log-dialog-button" type="button" autofocus>Cancel</button>
+                <button id="log-delete-confirm" class="log-dialog-button log-dialog-button-danger" type="submit">Delete file</button>
+            </div>
+        </form>
+    </dialog>
 </div>
 @section Scripts {
     <script src="~/js/logs.js" asp-append-version="true"></script>
