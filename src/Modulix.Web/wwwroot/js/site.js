@@ -39,11 +39,6 @@
 		}
 	});
 
-	const searchInput = document.getElementById("workspace-search");
-	const searchClear = document.getElementById("search-clear");
-	const searchResults = document.getElementById("search-results");
-	const searchResultList = document.getElementById("search-result-list");
-	const searchEmpty = document.getElementById("search-empty");
 	const notificationsToggle = document.getElementById("notifications-toggle");
 	const notificationsPanel = document.getElementById("notifications-panel");
 	const userMenuToggle = document.getElementById("user-menu-toggle");
@@ -60,65 +55,17 @@
 		notificationsPanel.hidden = !open;
 		notificationsToggle.setAttribute("aria-expanded", String(open));
 	};
-	const updateSearch = () => {
-		const query = searchInput.value.trim().toLowerCase();
-		searchClear.hidden = searchInput.value.length === 0;
-		searchResultList.replaceChildren();
-		searchResults.hidden = query.length === 0;
-		if (!query) {
-			return;
-		}
-
-		setNotificationsOpen(false);
-		setUserMenuOpen(false);
-		const matches = Array.from(document.querySelectorAll(".sidebar-link"))
-			.filter(entry => entry.textContent.trim().toLowerCase().includes(query));
-		searchEmpty.hidden = matches.length !== 0;
-		for (const entry of matches) {
-			const item = document.createElement("li");
-			const result = document.createElement(entry.matches("a") ? "a" : "div");
-			result.className = "search-result";
-			result.textContent = entry.textContent.trim();
-			if (entry.matches("a")) {
-				result.href = entry.href;
-			} else {
-				result.setAttribute("aria-disabled", "true");
-				const availability = document.createElement("small");
-				availability.textContent = "Not yet available";
-				result.append(availability);
-			}
-			item.append(result);
-			searchResultList.append(item);
-		}
-	};
-
-	searchInput.addEventListener("input", updateSearch);
-	searchInput.addEventListener("focus", updateSearch);
-	searchInput.addEventListener("keydown", (event) => {
-		if (event.key === "Enter" && !searchResults.hidden) {
-			event.preventDefault();
-			searchResultList.querySelector("a")?.click();
-		}
-	});
-	searchClear.addEventListener("click", () => {
-		searchInput.value = "";
-		updateSearch();
-		searchInput.focus();
-	});
 	notificationsToggle.addEventListener("click", () => {
-		searchResults.hidden = true;
 		setUserMenuOpen(false);
 		setNotificationsOpen(notificationsPanel.hidden);
 	});
 	userMenuToggle.addEventListener("click", () => {
-		searchResults.hidden = true;
 		setNotificationsOpen(false);
 		setUserMenuOpen(userMenuPanel.hidden);
 	});
 	userMenuToggle.addEventListener("keydown", (event) => {
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
-			searchResults.hidden = true;
 			setNotificationsOpen(false);
 			setUserMenuOpen(true);
 		}
@@ -135,9 +82,6 @@
 		}
 	});
 	document.addEventListener("click", (event) => {
-		if (!event.target.closest(".workspace-search")) {
-			searchResults.hidden = true;
-		}
 		if (!event.target.closest(".notifications")) {
 			setNotificationsOpen(false);
 		}
@@ -154,10 +98,6 @@
 			if (!notificationsPanel.hidden) {
 				setNotificationsOpen(false);
 				notificationsToggle.focus();
-			}
-			if (!searchResults.hidden) {
-				searchInput.focus();
-				searchResults.hidden = true;
 			}
 		}
 	});
