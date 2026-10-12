@@ -79,7 +79,7 @@
 
 .dashboard-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 24px;
 }
@@ -95,10 +95,6 @@
 
 .metric-scans {
   --metric-color: #e9b16c;
-}
-
-.metric-containers {
-  --metric-color: #4ad3a4;
 }
 
 .metric-heading h2 {
@@ -132,12 +128,6 @@
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-}
-
-.metric-total {
-  color: var(--dashboard-muted);
-  font-size: 24px;
-  font-weight: 400;
 }
 
 .dashboard-details {
@@ -267,29 +257,6 @@
 
 .status-queued {
   --status-color: #e4d17c;
-}
-
-.actions-heading,
-.module-actions {
-  text-align: right;
-}
-
-.module-action-button {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: #98a5b7;
-  cursor: not-allowed;
-}
-
-.module-action-button ::deep svg {
-  width: 18px;
-  height: 18px;
 }
 
 .module-table-footer {

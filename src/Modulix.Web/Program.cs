@@ -32,6 +32,7 @@ builder.Services.AddAuthentication(options =>
         options.ClientSecret = builder.Configuration["Keycloak:ClientSecret"];
         
         options.ResponseType = "code"; 
+        options.ResponseMode = "query";
         options.SaveTokens = true;
         options.RequireHttpsMetadata = false;
 
