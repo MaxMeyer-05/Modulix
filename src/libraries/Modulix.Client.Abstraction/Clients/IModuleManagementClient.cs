@@ -1,3 +1,5 @@
+using System.Net;
+
 using Modulix.Client.Models.Dtos;
 
 namespace Modulix.Client.Clients;
@@ -20,6 +22,20 @@ public interface IModuleManagementClient
     /// when the HTTP response indicates a failure.
     /// </exception>
     Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null);
+
+    /// <summary>
+    /// Creates a module and returns the API's HTTP status code with the result.
+    /// </summary>
+    /// <param name="request">The module creation request containing necessary details.</param>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>The HTTP status code and the result of the module creation operation.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<(HttpStatusCode StatusCode, ModuleCreationResultDto Result)> CreateModuleWithStatusAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
     /// Confirms the endpoint for a specific module.

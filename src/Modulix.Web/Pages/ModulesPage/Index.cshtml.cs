@@ -1,7 +1,9 @@
 using System.Net;
+using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.WebUtilities;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
@@ -78,25 +80,73 @@ public class IndexModel : PageModel
     {
         if (!ModelState.IsValid)
         {
-            return await OnGetAsync();
+            var errors = ModelState.Values.SelectMany(value => value.Errors)
+                .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? "A form field has an invalid value." : error.ErrorMessage);
+            return CreationResponse(400, string.Join(" ", errors));
         }
 
         try
         {
             _logger.LogDebug("Creating a new module with name {ModuleName}.", input.ModuleName);
 
-            await _modulixApiClient.ModuleManagement.CreateModuleAsync(
+            var response = await _modulixApiClient.ModuleManagement.CreateModuleWithStatusAsync(
                 input, ct: HttpContext.RequestAborted);
 
-            _logger.LogInformation("Successfully created module with name {ModuleName}.", input.ModuleName);
+            var module = response.Result.Module;
+            var statusCode = (int)response.StatusCode;
+            var moduleUrl = statusCode is 201 or 202
+                ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : null;
+            var description = response.StatusCode switch
+            {
+                HttpStatusCode.Created => $"'{module.ModuleName}' was created. Current status: {ModuleStatusDisplay.StatusLabel(module.Status)}.",
+                HttpStatusCode.Accepted => $"'{module.ModuleName}' was accepted for processing. Current status: {ModuleStatusDisplay.StatusLabel(module.Status)}.",
+                _ => "The API returned an unexpected success response."
+            };
+            if (!string.IsNullOrWhiteSpace(response.Result.Message))
+                description += $" {response.Result.Message}";
 
-            return RedirectToPage();
+            _logger.LogInformation("Module creation returned HTTP {StatusCode} for {ModuleId}.", statusCode, module.Id);
+            
+            if (statusCode == 201 && moduleUrl is not null)
+                Response.Headers.Location = moduleUrl;
+            return CreationResponse(statusCode, description, moduleUrl);
         }
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error creating module.");
-            ModelState.AddModelError(string.Empty, "Could not create the module.");
-            return await OnGetAsync();
+            var description = exception.StatusCode switch
+            {
+                HttpStatusCode.BadRequest => "The API rejected the module data or ZIP archive. Check the form and try again.",
+                HttpStatusCode.Unauthorized => "Your access token was rejected. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to create modules.",
+                HttpStatusCode.NotFound => "The module creation endpoint could not be found.",
+                HttpStatusCode.Conflict => "The module conflicts with an existing module. Check its name and base URL path.",
+                HttpStatusCode.RequestEntityTooLarge => "The upload exceeds the server's size limit.",
+                HttpStatusCode.UnsupportedMediaType => "The API rejected the upload format. A ZIP archive is required.",
+                HttpStatusCode.UnprocessableEntity => "The API could not process the module data or archive.",
+                HttpStatusCode.TooManyRequests => "Too many requests were sent. Please try again later.",
+                HttpStatusCode statusCode when (int)statusCode >= 500 => "The API encountered a server error. Check the module list before retrying.",
+                null => "The API could not be reached. No API response was received. Check the module list before retrying.",
+                _ => "The API rejected module creation."
+            };
+            return CreationResponse((int?)exception.StatusCode ?? 503, description);
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Module creation timed out.");
+            return CreationResponse(504, "The API did not respond in time. Check the module list before retrying.");
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogError(exception, "Invalid module creation response.");
+            return CreationResponse(502, "The API returned an invalid response. Check the module list before retrying.");
         }
     }
+
+    private static JsonResult CreationResponse(int statusCode, string description, string? moduleUrl = null) =>
+        new(new { statusCode, title = ReasonPhrases.GetReasonPhrase(statusCode), description, moduleUrl })
+        {
+            StatusCode = statusCode
+        };
 }

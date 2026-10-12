@@ -80,7 +80,11 @@
             <button class="module-icon-button" type="button" data-close-dialog aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
         </div>
         <form id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data">
-            <div class="module-form-fields">
+            <div class="module-creation-progress" id="module-creation-progress" role="status" aria-live="polite" hidden>
+                <i class="module-spinner" data-lucide="loader-circle" aria-hidden="true"></i>
+                <span>Uploading and creating module...</span>
+            </div>
+            <fieldset class="module-form-fields" id="module-creation-fields">
                 <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
                 <label>Description<textarea name="Description" rows="3" maxlength="500" placeholder="Optional description"></textarea></label>
                 <div class="module-form-row">
@@ -93,12 +97,30 @@
                     <strong id="module-file-name">Choose a ZIP archive</strong><span id="module-file-size">.zip</span>
                     <input id="module-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
                 </label>
-            </div>
+            </fieldset>
             <div class="module-dialog-footer">
                 <button class="module-button" type="button" data-close-dialog>Cancel</button>
                 <button class="module-button module-button-primary" type="submit"><i data-lucide="plus" aria-hidden="true"></i><span>Create</span></button>
             </div>
         </form>
+    </dialog>
+
+    <dialog class="module-dialog module-result-dialog" id="module-result-dialog" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
+        <div class="module-dialog-heading">
+            <div class="modules-title">
+                <span class="module-result-symbol"><i data-lucide="message-square" aria-hidden="true"></i></span>
+                <h2 id="module-result-heading">Module creation result</h2>
+            </div>
+            <button class="module-icon-button" type="button" data-close-dialog aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="module-result-body">
+            <span class="module-result-code module-code" id="module-result-code"></span>
+            <p id="module-result-description"></p>
+        </div>
+        <div class="module-dialog-footer">
+            <button class="module-button" type="button" data-close-dialog>Close</button>
+            <a class="module-button module-button-primary" id="module-result-link" hidden><i data-lucide="arrow-up-right" aria-hidden="true"></i><span>Go to module</span></a>
+        </div>
     </dialog>
 </div>
 @section Scripts {

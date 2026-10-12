@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Net;
 using System.Net.Http.Json;
 using System.Globalization;
 
@@ -34,6 +35,13 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
+        var response = await CreateModuleWithStatusAsync(request, ct, authToken);
+        return response.Result;
+    }
+
+    /// <inheritdoc/>
+    public async Task<(HttpStatusCode StatusCode, ModuleCreationResultDto Result)> CreateModuleWithStatusAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
+    {
         using var content = new MultipartFormDataContent();
 
         content.Add(new StringContent(request.ModuleName), nameof(request.ModuleName));
@@ -54,8 +62,9 @@ internal partial class ModulixApi : IModuleManagementClient
 
         using var response = await _httpClient.SendAsync(message, ct);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
+        var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
             cancellationToken: ct) ?? throw new JsonException("The API returned an empty response.");
+        return (response.StatusCode, result);
     }
 
     /// <inheritdoc/>

@@ -39,26 +39,107 @@
         });
 
         const dialog = document.getElementById("add-module-dialog");
+        const resultDialog = document.getElementById("module-result-dialog");
+        let isCreating = false;
+        let creationSucceeded = false;
         document.getElementById("open-add-module").addEventListener("click", () => dialog.showModal());
-        dialog.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => dialog.close()));
-        dialog.addEventListener("keydown", event => {
-            if (event.key === "Escape") {
-                event.preventDefault();
-                dialog.close();
-            }
+        [dialog, resultDialog].forEach(target => {
+            const close = () => {
+                if (target !== dialog || !isCreating) {
+                    target.close();
+                }
+            };
+            target.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", close));
+            target.addEventListener("cancel", event => {
+                if (target === dialog && isCreating) {
+                    event.preventDefault();
+                }
+            });
+            target.addEventListener("click", event => {
+                const bounds = target.getBoundingClientRect();
+                if (event.target === target && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) {
+                    close();
+                }
+            });
         });
-        dialog.addEventListener("click", event => {
-            const bounds = dialog.getBoundingClientRect();
-            if (event.target === dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) {
-                dialog.close();
+        resultDialog.addEventListener("close", () => {
+            if (creationSucceeded) {
+                location.reload();
+            } else {
+                dialog.showModal();
             }
         });
         const form = document.getElementById("add-module-form");
-        form.addEventListener("submit", () => {
+        const fields = document.getElementById("module-creation-fields");
+        const progress = document.getElementById("module-creation-progress");
+        const setCreating = busy => {
+            isCreating = busy;
+            fields.disabled = busy;
+            dialog.querySelectorAll("button").forEach(button => button.disabled = busy);
             const submitButton = form.querySelector('[type="submit"]');
-            submitButton.disabled = true;
-            submitButton.querySelector("span").textContent = "Creating...";
-            form.setAttribute("aria-busy", "true");
+            submitButton.querySelector("span").textContent = busy ? "Creating..." : "Create";
+            progress.hidden = !busy;
+            form.setAttribute("aria-busy", String(busy));
+        };
+        const showResult = result => {
+            creationSucceeded = result.statusCode === 201 || result.statusCode === 202;
+            resultDialog.dataset.result = result.statusCode === 202 ? "accepted" : creationSucceeded ? "success" : "error";
+            document.getElementById("module-result-heading").textContent = result.title;
+            document.getElementById("module-result-code").textContent = result.statusCode === null
+                ? "No HTTP response" : `HTTP ${result.statusCode}`;
+            document.getElementById("module-result-description").textContent = result.description;
+            const link = document.getElementById("module-result-link");
+            link.hidden = !creationSucceeded || !result.moduleUrl;
+            if (!link.hidden) {
+                link.href = result.moduleUrl;
+            } else {
+                link.removeAttribute("href");
+            }
+            if (creationSucceeded) {
+                form.reset();
+                updateArchive();
+            }
+            dialog.close();
+            resultDialog.showModal();
+        };
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+            if (isCreating) {
+                return;
+            }
+            const body = new FormData(form);
+            setCreating(true);
+            let result;
+            try {
+                const response = await fetch(form.action, {
+                    method: "POST",
+                    body,
+                    headers: { "Accept": "application/json" },
+                    credentials: "same-origin"
+                });
+                const payload = await response.json().catch(() => null);
+                result = response.redirected ? {
+                    statusCode: 401,
+                    title: "Sign in required",
+                    description: "Your session may have expired. Please sign in again."
+                } : {
+                    statusCode: response.status,
+                    title: payload?.title || response.statusText || "Module creation result",
+                    description: payload?.description || (response.ok
+                        ? "The server returned an unexpected response. Check the module list before retrying."
+                        : "The server rejected the request. Check your session and upload, then try again."),
+                    moduleUrl: payload?.moduleUrl
+                };
+            } catch {
+                result = {
+                    statusCode: null,
+                    title: "Connection error",
+                    description: "No response was received. Check your connection and the module list before retrying."
+                };
+            } finally {
+                setCreating(false);
+            }
+            showResult(result);
         });
         const archive = document.getElementById("module-archive");
         const upload = document.getElementById("module-upload-area");
