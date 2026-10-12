@@ -178,21 +178,21 @@ public class ModuleService : IModuleService
     public async Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default)
     {
         // Normalize the base endpoint path
-        if (string.IsNullOrWhiteSpace(dto.BaseEndpointPath))
+        if (string.IsNullOrWhiteSpace(dto.BaseUrlPath))
             throw new ArgumentException("Base endpoint path cannot be empty.");
-        var normalizedBasePath = dto.BaseEndpointPath.Trim().TrimEnd('/').TrimStart('/');
+        var normalizedBasePath = dto.BaseUrlPath.Trim().TrimEnd('/').TrimStart('/');
         
         // Ensure the used container ports are not conflicting
         var usedPorts = await _context.Modules.Select(m => m.ContainerPort).ToListAsync(ct);
         var availablePort = PortExtension.GetAvailablePort(usedPorts, dto.ContainerPort ?? 0);
 
         // Ensure the used base endpoint paths are not conflicting
-        var usedBasePaths = await _context.Modules.Select(m => m.BaseEndpointPath).ToListAsync(ct);
-        ModuleEndpointExtension.CheckBaseEndpointPathConflict(usedBasePaths, normalizedBasePath);
+        var usedBasePaths = await _context.Modules.Select(m => m.BaseUrlPath).ToListAsync(ct);
+        ModuleEndpointExtension.CheckBaseUrlPathConflict(usedBasePaths, normalizedBasePath);
 
         // Create the module entity and set the available container port
         var module = dto.ToModuleEntity();
-        module.BaseEndpointPath = normalizedBasePath;
+        module.BaseUrlPath = normalizedBasePath;
         module.ContainerPort = availablePort;
 
         // Prepare the target path for extracting the module file

@@ -43,24 +43,24 @@ public class ModuleEndpointExtensionTests : IDisposable
 
     #endregion
 
-    #region CheckBaseEndpointPathConflict Tests
+    #region CheckBaseUrlPathConflict Tests
 
     [Theory]
     [InlineData("api/modules", "api/modules")]
     [InlineData("api/modules/items", "api/modules")]
     [InlineData("api/modules", "api/modules/items")]
-    public void CheckBaseEndpointPathConflict_EqualOrNestedRoutes_Throws(string usedPath, string requestedPath)
+    public void CheckBaseUrlPathConflict_EqualOrNestedRoutes_Throws(string usedPath, string requestedPath)
     {
         var exception = Assert.Throws<ArgumentException>(() =>
-            ModuleEndpointExtension.CheckBaseEndpointPathConflict([usedPath], requestedPath));
+            ModuleEndpointExtension.CheckBaseUrlPathConflict([usedPath], requestedPath));
 
         Assert.Contains(requestedPath, exception.Message);
     }
 
     [Fact]
-    public void CheckBaseEndpointPathConflict_DistinctRoutes_DoesNotRejectSiblingModule()
+    public void CheckBaseUrlPathConflict_DistinctRoutes_DoesNotRejectSiblingModule()
     {
-        ModuleEndpointExtension.CheckBaseEndpointPathConflict(["api/orders", "api/products"], "api/customers");
+        ModuleEndpointExtension.CheckBaseUrlPathConflict(["api/orders", "api/products"], "api/customers");
     }
 
     #endregion
@@ -175,7 +175,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         var module = new Module
         {
             ModuleName = "Test module",
-            BaseEndpointPath = "api/module",
+            BaseUrlPath = "api/module",
             ContainerPort = 8080,
             StoragePath = "/test/module",
             ModuleEntryAssemblyFileName = "module.dll",

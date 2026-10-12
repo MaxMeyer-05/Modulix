@@ -15,7 +15,7 @@ namespace Modulix.Database.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
 
             modelBuilder.Entity("Modulix.Database.Entities.Module", b =>
                 {
@@ -23,7 +23,7 @@ namespace Modulix.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("BaseEndpointPath")
+                    b.Property<string>("BaseUrlPath")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
@@ -63,7 +63,7 @@ namespace Modulix.Database.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BaseEndpointPath")
+                    b.HasIndex("BaseUrlPath")
                         .IsUnique();
 
                     b.HasIndex("ContainerPort")

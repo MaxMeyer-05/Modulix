@@ -18,7 +18,7 @@ namespace Modulix.Database.Migrations
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     ModuleName = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    BaseEndpointPath = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    BaseUrlPath = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     ContainerId = table.Column<string>(type: "TEXT", nullable: true),
                     ContainerPort = table.Column<int>(type: "INTEGER", nullable: false),
                     StoragePath = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
@@ -60,9 +60,9 @@ namespace Modulix.Database.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_modules_BaseEndpointPath",
+                name: "IX_modules_BaseUrlPath",
                 table: "modules",
-                column: "BaseEndpointPath",
+                column: "BaseUrlPath",
                 unique: true);
 
             migrationBuilder.CreateIndex(

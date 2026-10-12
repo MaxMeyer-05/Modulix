@@ -1,8 +1,11 @@
 using System.Text.Json;
+using System.Net;
 using System.Net.Http.Json;
+using System.Globalization;
 
 using Modulix.Client.Clients;
 using Modulix.Client.Models.Dtos;
+using System.Net.Http.Headers;
 
 namespace Modulix.Client;
 
@@ -32,12 +35,42 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/create";
-        using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
-        response.EnsureSuccessStatusCode();
+        var response = await CreateModuleWithStatusAsync(request, ct, authToken);
+        return response.Result;
+    }
 
-        return await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>() 
-            ?? throw new JsonException("The API returned an empty response.");
+    /// <inheritdoc/>
+    public async Task<(HttpStatusCode StatusCode, ModuleCreationResultDto Result)> CreateModuleWithStatusAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
+    {
+        using var content = new MultipartFormDataContent();
+
+        content.Add(new StringContent(request.ModuleName), nameof(request.ModuleName));
+        content.Add(new StringContent(request.BaseUrlPath), nameof(request.BaseUrlPath));
+
+        if (request.Description is not null)
+            content.Add(new StringContent(request.Description), nameof(request.Description));
+        if (request.ContainerPort is int port)
+            content.Add(new StringContent(port.ToString(CultureInfo.InvariantCulture)), nameof(request.ContainerPort));
+
+        content.Add(new StreamContent(request.ModuleFile.OpenReadStream()),
+            nameof(request.ModuleFile), Path.GetFileName(request.ModuleFile.FileName));
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"{ModuleManagementEndpoint}/create") { Content = content };
+        if (!string.IsNullOrWhiteSpace(authToken))
+            message.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", authToken);
+
+        using var response = await _httpClient.SendAsync(message, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                string.IsNullOrWhiteSpace(errorContent) ? response.ReasonPhrase : errorContent,
+                null, response.StatusCode);
+        }
+        var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
+            cancellationToken: ct) ?? throw new JsonException("The API returned an empty response.");
+        return (response.StatusCode, result);
     }
 
     /// <inheritdoc/>

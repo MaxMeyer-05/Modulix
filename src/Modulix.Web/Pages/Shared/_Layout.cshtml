@@ -1,4 +1,10 @@
-﻿<!DOCTYPE html>
+﻿@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+    var isModulesPage = currentPage.StartsWith("/Modules/", StringComparison.OrdinalIgnoreCase);
+    var isDashboardPage = currentPage == "/Index";
+    var isLogsPage = currentPage == "/Logs/Index";
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -8,43 +14,94 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Modulix.Web.styles.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">Modulix.Web</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
+<body class="modulix-app">
+    <div class="app-shell" id="app-shell">
+        <aside class="sidebar" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <a class="sidebar-brand" asp-page="/Index" title="Modulix Dashboard" aria-label="Modulix Dashboard">
+                    <i data-lucide="box" aria-hidden="true"></i>
+                    <span class="sidebar-label">MODULIX</span>
+                </a>
+                <button class="sidebar-toggle" id="sidebar-toggle" type="button"
+                        aria-controls="sidebar-navigation" aria-expanded="true"
+                        aria-label="Hide menu" title="Hide menu">
+                    <i data-lucide="chevrons-left" aria-hidden="true"></i>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
-                        </li>
-                    </ul>
-                </div>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - Modulix.Web - <a asp-area="" asp-page="/Privacy">Privacy</a>
+            <nav class="sidebar-navigation" id="sidebar-navigation" aria-label="Sections">
+                <a class="sidebar-link @(isDashboardPage ? "active" : "")" asp-page="/Index" aria-current="@(isDashboardPage ? "page" : null)" title="Dashboard">
+                    <i data-lucide="house" aria-hidden="true"></i>
+                    <span class="sidebar-label">Dashboard</span>
+                </a>
+                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/ModulesPage/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
+                    <i data-lucide="layout-grid" aria-hidden="true"></i>
+                    <span class="sidebar-label">Modules</span>
+                </a>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Scan queue: not yet available">
+                    <i data-lucide="list-checks" aria-hidden="true"></i>
+                    <span class="sidebar-label">Scan queue</span>
+                </span>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="API endpoints: not yet available">
+                    <i data-lucide="link" aria-hidden="true"></i>
+                    <span class="sidebar-label">API endpoints</span>
+                </span>
+                <a class="sidebar-link @(isLogsPage ? "active" : "")" asp-page="/LogsPage/Index" aria-current="@(isLogsPage ? "page" : null)" title="Logs">
+                    <i data-lucide="logs" aria-hidden="true"></i>
+                    <span class="sidebar-label">Logs</span>
+                </a>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: not yet available">
+                    <i data-lucide="settings" aria-hidden="true"></i>
+                    <span class="sidebar-label">Settings</span>
+                </span>
+            </nav>
+        </aside>
+        <div class="app-workspace">
+            <header class="topbar" aria-label="Workspace toolbar">
+                <div class="topbar-actions">
+                    <div class="notifications">
+                        <button class="topbar-icon" id="notifications-toggle" type="button"
+                                aria-label="Notifications" title="Notifications"
+                                aria-controls="notifications-panel" aria-expanded="false">
+                            <i data-lucide="bell" aria-hidden="true"></i>
+                        </button>
+                        <section class="topbar-panel notifications-panel" id="notifications-panel"
+                                 aria-labelledby="notifications-heading" hidden>
+                            <h2 id="notifications-heading">Notifications</h2>
+                            <div class="notifications-empty">
+                                <i data-lucide="bell" aria-hidden="true"></i>
+                                <p>No notifications yet.</p>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="user-menu">
+                        <button class="topbar-icon" id="user-menu-toggle" type="button"
+                                aria-label="User menu" title="User menu" aria-haspopup="menu"
+                                aria-controls="user-menu-panel" aria-expanded="false">
+                            <i data-lucide="user-round" aria-hidden="true"></i>
+                        </button>
+                        <div class="topbar-panel user-menu-panel" id="user-menu-panel" role="menu"
+                             aria-label="User menu" hidden>
+                            <form method="post" asp-page="/Logout" role="none">
+                                <button class="sign-out-button" id="sign-out-button" type="submit" role="menuitem">
+                                    <i data-lucide="log-out" aria-hidden="true"></i>
+                                    <span>Sign out</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <main role="main" class="app-content">
+                @RenderBody()
+            </main>
         </div>
-    </footer>
+    </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/lucide.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)

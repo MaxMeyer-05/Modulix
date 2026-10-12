@@ -1,48 +1,325 @@
-﻿/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-for details on configuring this project to bundle and minify static web assets. */
-
-a.navbar-brand {
-  white-space: normal;
-  text-align: center;
-  word-break: break-all;
+﻿.app-shell {
+  --sidebar-width: 248px;
+  --sidebar-background: #10151e;
+  --sidebar-border: #252c36;
+  --sidebar-text: #b8c0cd;
+  --sidebar-accent: #54d4da;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: 100dvh;
+  transition: grid-template-columns 180ms ease;
 }
 
-a {
-  color: #0077cc;
+.app-shell.sidebar-collapsed {
+  --sidebar-width: 72px;
 }
 
-.btn-primary {
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  background: var(--sidebar-background);
+  border-right: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 80px;
+  padding: 16px;
+}
+
+.sidebar ::deep .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #f2f5f8;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sidebar ::deep .sidebar-brand svg {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--sidebar-accent);
+}
+
+.sidebar-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-text);
+  cursor: pointer;
+}
+
+.sidebar-toggle ::deep svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 180ms ease;
+}
+
+.sidebar-toggle:hover {
+  background: #222c38;
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
 }
 
-.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+.sidebar-toggle:focus-visible,
+.sidebar ::deep .sidebar-link:focus-visible,
+.sidebar ::deep .sidebar-brand:focus-visible {
+  outline: 2px solid var(--sidebar-accent);
+  outline-offset: 3px;
 }
 
-.border-top {
-  border-top: 1px solid #e5e5e5;
-}
-.border-bottom {
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.box-shadow {
-  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+.sidebar-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px;
 }
 
-button.accept-policy {
-  font-size: 1rem;
-  line-height: inherit;
-}
-
-.footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
+.sidebar ::deep .sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: var(--sidebar-text);
+  font-size: 14px;
+  text-decoration: none;
   white-space: nowrap;
-  line-height: 60px;
+}
+
+.sidebar ::deep .sidebar-link svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  stroke-width: 1.75;
+}
+
+.sidebar ::deep a.sidebar-link:hover {
+  background: #1c2631;
+  color: #fff;
+}
+
+.sidebar ::deep .sidebar-link.active {
+  background: #153140;
+  color: var(--sidebar-accent);
+}
+
+.sidebar-link.is-unavailable {
+  color: #8a96a7;
+  cursor: default;
+}
+
+.sidebar-collapsed .sidebar-label {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-header {
+  flex-direction: column;
+  gap: 12px;
+  padding-inline: 10px;
+}
+
+.sidebar-collapsed .sidebar-toggle ::deep svg {
+  transform: rotate(180deg);
+}
+
+.sidebar-collapsed ::deep .sidebar-link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-content {
+  min-width: 0;
+  padding: 28px;
+}
+
+.app-workspace {
+  min-width: 0;
+}
+
+.topbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  min-height: 80px;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--sidebar-border);
+  background: var(--sidebar-background);
+  color: var(--sidebar-text);
+}
+
+.topbar ::deep svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+
+.topbar-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-text);
+  cursor: pointer;
+}
+
+.topbar-icon:hover,
+.topbar-icon[aria-expanded="true"] {
+  background: #222c38;
+  color: var(--sidebar-accent);
+}
+
+.topbar-icon:focus-visible {
+  outline: 2px solid var(--sidebar-accent);
+  outline-offset: 2px;
+}
+
+.topbar-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-panel {
+  right: 0;
+  width: 176px;
+  max-width: calc(100vw - 104px);
+  padding: 4px;
+}
+
+.sign-out-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #e4e9ef;
+  font-size: 14px;
+  text-align: left;
+}
+
+.sign-out-button:hover,
+.sign-out-button:focus-visible {
+  outline: none;
+  background: #253543;
+  color: var(--sidebar-accent);
+}
+
+.topbar-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  overflow: hidden;
+  border: 1px solid #333d4b;
+  border-radius: 6px;
+  background: #171e29;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 25%);
+  color: #e4e9ef;
+  font-size: 14px;
+}
+
+.topbar [hidden] {
+  display: none;
+}
+
+.notifications-panel {
+  right: 0;
+  width: 320px;
+  max-width: calc(100vw - 104px);
+}
+
+.notifications-panel h2 {
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid #333d4b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.notifications-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 16px;
+  color: #a5afbd;
+  text-align: center;
+}
+
+.notifications-empty ::deep svg {
+  width: 28px;
+  height: 28px;
+  color: var(--sidebar-accent);
+}
+
+.notifications-empty p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    --sidebar-width: 220px;
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    z-index: 2;
+    width: var(--sidebar-width);
+    transition: width 180ms ease;
+  }
+
+  .app-shell:not(.sidebar-collapsed) .sidebar {
+    box-shadow: 8px 0 24px rgb(0 0 0 / 20%);
+  }
+
+  .app-content {
+    padding: 16px;
+  }
+
+  .topbar {
+    gap: 8px;
+    min-height: 72px;
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell,
+  .sidebar,
+  .sidebar-toggle ::deep svg {
+    transition: none;
+  }
 }

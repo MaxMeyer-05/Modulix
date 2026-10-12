@@ -1,10 +1,121 @@
 ﻿@page
 @model IndexModel
+@using Modulix.Client.Models.Enums
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Dashboard";
+    var modules = Model.Modules;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="dashboard">
+    <header class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>Dashboard</h1>
+        </div>
+    </header>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="dashboard-error" role="alert">
+            <i data-lucide="circle-alert" aria-hidden="true"></i>
+            <div>
+                <strong>Modules unavailable</strong>
+                <div asp-validation-summary="ModelOnly"></div>
+            </div>
+        </div>
+    }
+
+    <section class="dashboard-metrics" aria-label="Module overview">
+        <article class="metric metric-modules">
+            <div class="metric-heading">
+                <h2>Active modules</h2>
+                <span class="metric-icon"><i data-lucide="activity" aria-hidden="true"></i></span>
+            </div>
+            <p class="metric-value">@modules.Count(module => module.Status == ModuleStatus.Running)</p>
+        </article>
+        <article class="metric metric-scans">
+            <div class="metric-heading">
+                <h2>Waiting scans</h2>
+                <span class="metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
+            </div>
+            <p class="metric-value">@modules.Count(module => module.Status == ModuleStatus.QueuedForScan)</p>
+        </article>
+    </section>
+
+    <div class="dashboard-details">
+        <section class="module-section" aria-labelledby="modules-heading">
+            <header class="section-heading">
+                <h2 id="modules-heading">Module management</h2>
+                <span class="section-count">@modules.Count() modules</span>
+            </header>
+            <div class="module-table-scroll" role="region" aria-label="Modules" tabindex="0">
+                <table class="module-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Base path</th>
+                            <th scope="col">Port</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var module in modules)
+                        {
+                            var statusClass = module.Status switch
+                            {
+                                ModuleStatus.Running => "running",
+                                ModuleStatus.Starting => "starting",
+                                ModuleStatus.PendingConfirmation => "pending",
+                                ModuleStatus.QueuedForScan => "queued",
+                                ModuleStatus.Stopped => "stopped",
+                                ModuleStatus.Failed => "failed",
+                                _ => "stopped"
+                            };
+                            var statusLabel = module.Status switch
+                            {
+                                ModuleStatus.PendingConfirmation => "Pending confirmation",
+                                ModuleStatus.QueuedForScan => "Queued for scan",
+                                _ => module.Status.ToString()
+                            };
+                            <tr>
+                                <td class="module-name">@module.ModuleName</td>
+                                <td><span class="module-status status-@statusClass"><span class="status-dot" aria-hidden="true"></span>@statusLabel</span></td>
+                                <td><span class="module-path" title="@module.BaseUrlPath">@module.BaseUrlPath</span></td>
+                                <td class="module-port">@module.ContainerPort</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="module-table-footer">@modules.Count() modules <span aria-hidden="true">/</span> @modules.Count(module => module.Status == ModuleStatus.Running) running</footer>
+        </section>
+
+        <section class="activity-section" aria-labelledby="activity-heading">
+            <header class="section-heading">
+                <h2 id="activity-heading">Your activity</h2>
+                <span class="session-label">This session</span>
+            </header>
+            <ol class="activity-list" aria-labelledby="activity-heading" tabindex="0">
+                <li class="activity-item activity-success">
+                    <span class="activity-icon"><i data-lucide="play" aria-hidden="true"></i></span>
+                    <div><p>Started <strong>AnalyticsModule</strong></p><span class="activity-time">2 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-success">
+                    <span class="activity-icon"><i data-lucide="check" aria-hidden="true"></i></span>
+                    <div><p>Confirmed endpoints for <strong>NotificationService</strong></p><span class="activity-time">8 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-update">
+                    <span class="activity-icon"><i data-lucide="upload" aria-hidden="true"></i></span>
+                    <div><p>Updated files for <strong>IdentityService</strong></p><span class="activity-time">14 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-update">
+                    <span class="activity-icon"><i data-lucide="plus" aria-hidden="true"></i></span>
+                    <div><p>Added <strong>ReportsModule</strong></p><span class="activity-time">21 minutes ago</span></div>
+                </li>
+                <li class="activity-item activity-warning">
+                    <span class="activity-icon"><i data-lucide="square" aria-hidden="true"></i></span>
+                    <div><p>Stopped <strong>BillingService</strong></p><span class="activity-time">32 minutes ago</span></div>
+                </li>
+            </ol>
+        </section>
+    </div>
 </div>

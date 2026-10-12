@@ -11,7 +11,7 @@ namespace Modulix.Database.Entities;
 /// Represents a module within the system.
 /// </summary>
 [Table("modules")]
-[Index(nameof(BaseEndpointPath), IsUnique = true)]
+[Index(nameof(BaseUrlPath), IsUnique = true)]
 [Index(nameof(StoragePath), IsUnique = true)]
 [Index(nameof(ContainerPort), IsUnique = true)]
 public class Module
@@ -36,11 +36,11 @@ public class Module
     public string? Description { get; set; }
 
     /// <summary>
-    /// The base endpoint path of the module.
+    /// The base URL path of the module.
     /// </summary>
     [Required]
     [MaxLength(200)]
-    public string BaseEndpointPath { get; set; } = null!;
+    public string BaseUrlPath { get; set; } = null!;
 
     /// <summary>
     /// The container ID of the module.

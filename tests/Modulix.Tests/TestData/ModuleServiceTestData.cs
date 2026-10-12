@@ -7,9 +7,9 @@ namespace Modulix.Tests.TestData;
 /// <summary>
 /// Provides invalid, empty or whitespace-only base endpoint paths.
 /// </summary>
-public class InvalidBaseEndpointPathsTestData : TheoryData<string?>
+public class InvalidBaseUrlPathsTestData : TheoryData<string?>
 {
-    public InvalidBaseEndpointPathsTestData()
+    public InvalidBaseUrlPathsTestData()
     {
         Add(null);
         Add(string.Empty);
@@ -22,9 +22,9 @@ public class InvalidBaseEndpointPathsTestData : TheoryData<string?>
 /// Provides path collision scenarios (prefix shadowing and sub-path conflicts).
 /// Format: ExistingPath, NewCollidingPath
 /// </summary>
-public class ConflictingBaseEndpointPathsTestData : TheoryData<string, string>
+public class ConflictingBaseUrlPathsTestData : TheoryData<string, string>
 {
-    public ConflictingBaseEndpointPathsTestData()
+    public ConflictingBaseUrlPathsTestData()
     {
         // Exact duplicate (after normalization)
         Add("api/v1/resource", "api/v1/resource");

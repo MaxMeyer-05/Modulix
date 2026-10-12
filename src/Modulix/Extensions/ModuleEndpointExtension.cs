@@ -51,7 +51,7 @@ public class ModuleEndpointExtension
     /// <param name="usedBasePaths">The list of currently used base endpoint paths.</param>
     /// <param name="normalizedBasePath">The normalized base endpoint path to check.</param>
     /// <exception cref="ArgumentException">Thrown if a conflict is found with existing base endpoint paths.</exception>
-    public static void CheckBaseEndpointPathConflict(IEnumerable<string> usedBasePaths, string normalizedBasePath)
+    public static void CheckBaseUrlPathConflict(IEnumerable<string> usedBasePaths, string normalizedBasePath)
     {
         if (usedBasePaths.Contains(normalizedBasePath))
             throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");

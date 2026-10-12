@@ -87,9 +87,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.MapInboundClaims = false;
-        options.RequireHttpsMetadata = false;
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.Authority = builder.Configuration["Keycloak:Issuer"];
         options.Audience = builder.Configuration["Keycloak:Audience"];
-        options.MetadataAddress = builder.Configuration["Keycloak:MetadataAddress"]!;
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -97,8 +97,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Keycloak:Issuer"],
             ValidateAudience = true,
             ValidAudience = builder.Configuration["Keycloak:Audience"],
-            ValidateLifetime = true,
-            RoleClaimType = "roles"
+            ValidateLifetime = true
         };
     });
 

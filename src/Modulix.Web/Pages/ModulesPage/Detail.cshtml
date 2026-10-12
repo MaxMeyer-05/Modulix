@@ -1,0 +1,82 @@
+@page "/modules/{id:guid}"
+@model DetailModel
+@using System.Globalization
+@{
+    var module = Model.Module;
+    ViewData["Title"] = module?.ModuleName ?? "Module not found";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
+}
+<div class="modules-page">
+    <a class="module-back-link" asp-page="/Modules/Index"><i data-lucide="arrow-left" aria-hidden="true"></i><span>All modules</span></a>
+    @if (module is null)
+    {
+        <div class="module-empty-state">
+            <i data-lucide="box" aria-hidden="true"></i><h1>Module not found</h1>
+        </div>
+    }
+    else
+    {
+        <header class="module-detail-header">
+            <div class="module-detail-title">
+                <span class="module-symbol module-symbol-large"><i data-lucide="box" aria-hidden="true"></i></span>
+                <div><div class="modules-title"><h1>@module.ModuleName</h1></div><p>@module.Description</p></div>
+            </div>
+            <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
+        </header>
+        <div class="module-detail-layout">
+            <div class="module-detail-main">
+                <section class="module-info-section" aria-labelledby="module-info-heading">
+                    <h2 id="module-info-heading">Module information</h2>
+                    <dl class="module-detail-facts">
+                        <div class="module-fact-wide"><dt>Module ID</dt><dd class="module-copy-value"><span class="module-code">@module.Id</span><button class="module-icon-button" type="button" data-copy="@module.Id" aria-label="Copy module ID" title="Copy module ID"><i data-lucide="copy" aria-hidden="true"></i></button></dd></div>
+                        <div><dt>Base path</dt><dd class="module-code">@module.BaseUrlPath</dd></div>
+                        <div><dt>Container port</dt><dd>@module.ContainerPort</dd></div>
+                        <div class="module-fact-wide"><dt>Created</dt><dd>@module.CreatedAtUtc.ToString("MMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture)</dd></div>
+                    </dl>
+                </section>
+                <section class="module-info-section" aria-labelledby="module-endpoints-heading">
+                    <div class="module-section-heading"><h2 id="module-endpoints-heading">Registered endpoints</h2><span>@module.Endpoints.Count() endpoints</span></div>
+                    @if (!module.Endpoints.Any())
+                    {
+                        <p class="module-section-empty">No endpoints registered.</p>
+                    }
+                    else
+                    {
+                        <ul class="module-endpoint-list">
+                            @foreach (var endpoint in module.Endpoints)
+                            {
+                                <li>
+                                    <div class="endpoint-route"><span class="endpoint-method @(endpoint.HttpMethod == "GET" ? "method-get" : "method-post")">@endpoint.HttpMethod</span><span class="module-code">@module.BaseUrlPath@endpoint.EndpointPath</span></div>
+                                    <span class="endpoint-state">@(endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation ? "Pending confirmation" : endpoint.Status.ToString())</span>
+                                    <div class="endpoint-metadata"><span>Created @endpoint.CreatedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span><span class="module-code">@endpoint.Id</span></div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+            <aside class="module-detail-aside">
+                <section class="module-info-section" aria-labelledby="module-runtime-heading">
+                    <h2 id="module-runtime-heading">Runtime &amp; storage</h2>
+                    <dl class="module-runtime-facts"><div><dt>Container ID</dt><dd class="module-code">@(module.ContainerId ?? "Not assigned")</dd></div><div><dt>Storage path</dt><dd class="module-code">@module.StoragePath</dd></div></dl>
+                </section>
+                <section class="module-info-section" aria-labelledby="module-actions-heading">
+                    <h2 id="module-actions-heading">Module actions</h2>
+                    <div class="module-detail-actions">
+                        <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button></span>
+                        <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button></span>
+                        <span title="Edit the module name and description. Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button></span>
+                        <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button></span>
+                        <span title="Not connected in this preview"><button class="module-button module-button-danger" type="button" disabled><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button></span>
+                    </div>
+                </section>
+            </aside>
+        </div>
+        <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
+    }
+</div>
+@section Scripts {
+    <script src="~/js/modules.js" asp-append-version="true"></script>
+}
