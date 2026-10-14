@@ -26,7 +26,7 @@ public class AuthorizationSettings
     public required ClientSettings Service { get; set; }
 
     /// <summary>
-    /// The client (<c>modulix</c>) used for the interactive user login (OpenID Connect).
+    /// The client (<c>modulix_Client</c>) used for the interactive user login (OpenID Connect).
     /// </summary>
     public required ClientSettings Client { get; set; }
 }

@@ -1,6 +1,6 @@
 using Serilog;
-
 using Docker.DotNet;
+using System.Diagnostics;
 
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
+using Modulix;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
 using Modulix.Database.DbContexts;
@@ -53,8 +54,11 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "Modulix",
-        Version = "v1"
+        Title = "RL1Labs API",
+        Version = FileVersionInfo
+            .GetVersionInfo(
+                typeof(Program).Assembly.Location)
+            .ProductVersion
     });
 
     options.IncludeXmlComments(
@@ -83,25 +87,27 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services
+    .AddAuthorization()
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.MapInboundClaims = false;
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-        options.Authority = builder.Configuration["Keycloak:Issuer"];
-        options.Audience = builder.Configuration["Keycloak:Audience"];
+        var authOptions = builder.Configuration
+            .GetSection(AuthorizationSettings.SectionName)
+            .Get<AuthorizationSettings>()
+            ?? AuthorizationSettings.Default;
 
+        options.Authority = authOptions.Authority;
+        options.RequireHttpsMetadata = authOptions.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Keycloak:Issuer"],
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Keycloak:Audience"],
-            ValidateLifetime = true
+            ValidIssuer = authOptions.Authority,
+            ValidateAudience = !string.IsNullOrEmpty(authOptions.Audience),
+            ValidAudience = authOptions.Audience?.Trim()
         };
     });
 
-builder.Services.AddAuthorization();
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddControllers();
@@ -116,8 +122,9 @@ using (var scope = app.Services.CreateScope())
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.MapOpenApi();
-
+    
     app.MapSwagger();
     app.MapSwaggerUI();
 }
