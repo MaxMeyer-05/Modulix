@@ -11,8 +11,14 @@ using Modulix.Client.Models.Dtos;
 
 namespace Modulix.Web.Pages.ModulesPage;
 
+/// <summary>
+/// Handles the display and management of the modules index page.
+/// </summary>
 public class IndexModel : PageModel
 {
+    /// <summary>
+    /// The key used to store the result of a module creation in TempData.
+    /// </summary>
     private const string ResultKey = "ModuleCreationResult";
 
     /// <summary>
@@ -39,33 +45,42 @@ public class IndexModel : PageModel
     }
 
     /// <summary>
-    /// Gets the modules that match the current search and filters.
+    /// The list of modules that match the current search and filters.
     /// </summary>
     public List<ModuleDto> Modules { get; private set; } = [];
 
     /// <summary>
-    /// Gets the total number of modules before filtering.
+    /// The total number of modules before filtering.
     /// </summary>
     public int TotalModules { get; private set; }
 
+    /// <summary>
+    /// The current search query.
+    /// </summary>
     public string Query { get; private set; } = "";
 
+    /// <summary>
+    /// The current status filter.
+    /// </summary>
     public string StatusFilter { get; private set; } = "";
 
+    /// <summary>
+    /// The current sort order.
+    /// </summary>
     public string SortBy { get; private set; } = "newest";
 
     /// <summary>
-    /// Gets the submitted form values when the creation failed, so the form can be shown again.
+    /// The submitted form values when the creation failed, so the form can be shown again.
     /// </summary>
     public CreateModuleDto? Input { get; private set; }
 
     /// <summary>
-    /// Gets the outcome of a rejected module creation.
+    /// The outcome of a rejected module creation.
     /// </summary>
     public CreationResult? CreationError { get; private set; }
 
     /// <summary>
-    /// Gets the outcome of an accepted module creation.
+    /// The outcome of an accepted module creation.
     /// </summary>
     public CreationResult? CreationSuccess { get; private set; }
 
@@ -85,6 +100,12 @@ public class IndexModel : PageModel
         return Page();
     }
 
+    /// <summary>
+    /// Loads the modules based on the current search and filter criteria.
+    /// </summary>
+    /// <param name="q">The search text.</param>
+    /// <param name="status">The status to filter by.</param>
+    /// <param name="sort">The sort order.</param>
     public async Task<IActionResult> OnPostAsync([FromForm] CreateModuleDto input)
     {
         var result = await CreateAsync(input);
@@ -100,6 +121,10 @@ public class IndexModel : PageModel
         return Page();
     }
 
+    /// <summary>
+    /// Creates a new module using the provided input.
+    /// </summary>
+    /// <param name="input">The input data for the new module.</param>
     private async Task<CreationResult> CreateAsync(CreateModuleDto input)
     {
         if (!ModelState.IsValid)
@@ -162,9 +187,21 @@ public class IndexModel : PageModel
         }
     }
 
+    /// <summary>
+    /// Creates a failure result for a module creation attempt.
+    /// </summary>
+    /// <param name="statusCode">The HTTP status code of the failure.</param>
+    /// <param name="description">The description of the failure.</param>
+    /// <returns>A <see cref="CreationResult"/> representing the failure.</returns>
     private static CreationResult Failure(int statusCode, string description) =>
         new(statusCode, ReasonPhrases.GetReasonPhrase(statusCode), description, null);
 
+    /// <summary>
+    /// Loads the modules based on the current search and filter criteria.
+    /// </summary>
+    /// <param name="q">The search text.</param>
+    /// <param name="status">The status to filter by.</param>
+    /// <param name="sort">The sort order.</param>
     private async Task LoadModulesAsync(string? q, string? status, string? sort)
     {
         Query = q?.Trim() ?? "";
@@ -208,10 +245,19 @@ public class IndexModel : PageModel
         }
     }
 
+    /// <summary>
+    /// Represents the result of a module creation attempt.
+    /// </summary>
     public sealed record CreationResult(int StatusCode, string Title, string Description, string? ModuleUrl)
     {
+        /// <summary>
+        /// Indicates whether the creation attempt was successful.
+        /// </summary>
         public bool IsSuccess => StatusCode is 201 or 202;
 
+        /// <summary>
+        /// Gets the kind of the creation result, which can be "accepted", "success", or "error".
+        /// </summary>
         public string Kind => StatusCode == 202 ? "accepted" : IsSuccess ? "success" : "error";
     }
 }
