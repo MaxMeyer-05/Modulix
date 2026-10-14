@@ -4,6 +4,18 @@
 @{
     ViewData["Title"] = "Modules";
     var modules = Model.Modules;
+    var reopen = Model.CreationError is not null;
+    var statuses = new (string Value, string Label)[]
+    {
+        ("", "All statuses"), ("Running", "Running"), ("Starting", "Starting"),
+        ("PendingConfirmation", "Pending confirmation"), ("QueuedForScan", "Queued for scan"),
+        ("Created", "Created"), ("Stopped", "Stopped"), ("Failed", "Failed")
+    };
+    var sorts = new (string Value, string Label)[]
+    {
+        ("newest", "Newest first"), ("name", "Name A-Z"), ("name-desc", "Name Z-A")
+    };
+    var closeUrl = Url.Page("/ModulesPage/Index");
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
@@ -12,7 +24,7 @@
 <div class="modules-page">
     <header class="modules-header">
         <div class="modules-title"><h1>Modules</h1></div>
-        <button class="module-button module-button-primary" id="open-add-module" type="button">
+        <button class="module-button module-button-primary" type="button" popovertarget="add-module-dialog">
             <i data-lucide="plus" aria-hidden="true"></i><span>Add module</span>
         </button>
     </header>
@@ -28,30 +40,34 @@
         </div>
     }
 
-    <div class="modules-toolbar">
+    <form class="modules-toolbar" method="get" action="@closeUrl">
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
-            <input id="module-search" type="search" placeholder="Search modules..." aria-label="Search modules" autocomplete="off" />
+            <input id="module-search" name="q" type="search" value="@Model.Query" placeholder="Search modules..." aria-label="Search modules" autocomplete="off" />
         </div>
         <label class="module-select-label"><span>Status</span>
-            <select id="module-status-filter">
-                <option value="">All statuses</option>
-                <option value="Running">Running</option><option value="Starting">Starting</option>
-                <option value="PendingConfirmation">Pending confirmation</option><option value="QueuedForScan">Queued for scan</option>
-                <option value="Created">Created</option><option value="Stopped">Stopped</option><option value="Failed">Failed</option>
+            <select id="module-status-filter" name="status">
+                @foreach (var (value, label) in statuses)
+                {
+                    <option value="@value" selected="@(Model.StatusFilter == value)">@label</option>
+                }
             </select>
         </label>
         <label class="module-select-label"><span>Sort by</span>
-            <select id="module-sort"><option value="newest">Newest first</option><option value="name">Name A-Z</option><option value="name-desc">Name Z-A</option></select>
+            <select id="module-sort" name="sort">
+                @foreach (var (value, label) in sorts)
+                {
+                    <option value="@value" selected="@(Model.SortBy == value)">@label</option>
+                }
+            </select>
         </label>
-    </div>
-    <p class="module-result-count" id="module-result-count" role="status">@modules.Count modules</p>
+        <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
+    </form>
+    <p class="module-result-count" id="module-result-count" role="status">@(modules.Count == Model.TotalModules ? $"{modules.Count} modules" : $"{modules.Count} of {Model.TotalModules} modules")</p>
     <div class="module-card-grid" id="module-card-grid">
         @foreach (var module in modules)
         {
-            <a class="module-card" asp-page="/Modules/Detail" asp-route-id="@module.Id"
-               data-name="@module.ModuleName" data-description="@module.Description" data-path="@module.BaseUrlPath"
-               data-id="@module.Id" data-status="@module.Status" data-created="@module.CreatedAtUtc.ToString("O")">
+            <a class="module-card" asp-page="/ModulesPage/Detail" asp-route-id="@module.Id">
                 <div class="module-card-heading">
                     <span class="module-symbol"><i data-lucide="box" aria-hidden="true"></i></span>
                     <h2>@module.ModuleName</h2>
@@ -68,61 +84,86 @@
             </a>
         }
     </div>
-    <div class="module-empty-state" id="module-no-results" hidden>
-        <i data-lucide="search-x" aria-hidden="true"></i>
-        <h2>No modules found</h2><p>No modules match your search and filters.</p>
-        <button class="module-button" id="reset-module-filters" type="button"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></button>
-    </div>
+    @if (modules.Count == 0)
+    {
+        <div class="module-empty-state" id="module-no-results">
+            <i data-lucide="search-x" aria-hidden="true"></i>
+            <h2>No modules found</h2><p>No modules match your search and filters.</p>
+            <a class="module-button" href="@closeUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
+        </div>
+    }
 
-    <dialog class="module-dialog" id="add-module-dialog" aria-labelledby="add-module-heading">
+    <div class="module-dialog @(reopen ? "module-dialog-open" : "")" id="add-module-dialog" popover="@(reopen ? null : "auto")" role="dialog" aria-labelledby="add-module-heading">
         <div class="module-dialog-heading">
             <div class="modules-title"><h2 id="add-module-heading">Add module</h2></div>
-            <button class="module-icon-button" type="button" data-close-dialog aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+            @if (reopen)
+            {
+                <a class="module-icon-button" href="@closeUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+            }
+            else
+            {
+                <button class="module-icon-button" type="button" popovertarget="add-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+            }
         </div>
         <form id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data">
-            <div class="module-creation-progress" id="module-creation-progress" role="status" aria-live="polite" hidden>
-                <i class="module-spinner" data-lucide="loader-circle" aria-hidden="true"></i>
-                <span>Uploading and creating module...</span>
-            </div>
+            @if (Model.CreationError is { } error)
+            {
+                <div class="module-form-error" role="alert">
+                    <strong>@error.Title</strong> <span class="module-code">HTTP @error.StatusCode</span>
+                    <p>@error.Description</p>
+                </div>
+            }
             <fieldset class="module-form-fields" id="module-creation-fields">
-                <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
-                <label>Description<textarea name="Description" rows="3" maxlength="500" placeholder="Optional description"></textarea></label>
+                <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" value="@Model.Input?.ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
+                <label>Description<textarea name="Description" rows="3" maxlength="500" placeholder="Optional description">@Model.Input?.Description</textarea></label>
                 <div class="module-form-row">
-                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
-                    <label>Container port<input name="ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
+                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" value="@Model.Input?.BaseUrlPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
+                    <label>Container port<input name="ContainerPort" value="@Model.Input?.ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
                 </div>
                 <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
                 <label class="module-upload" id="module-upload-area" for="module-archive">
                     <i data-lucide="upload" aria-hidden="true"></i>
-                    <strong id="module-file-name">Choose a ZIP archive</strong><span id="module-file-size">.zip</span>
+                    <strong>Choose a ZIP archive</strong>
                     <input id="module-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
                 </label>
             </fieldset>
             <div class="module-dialog-footer">
-                <button class="module-button" type="button" data-close-dialog>Cancel</button>
+                @if (reopen)
+                {
+                    <a class="module-button" href="@closeUrl">Cancel</a>
+                }
+                else
+                {
+                    <button class="module-button" type="button" popovertarget="add-module-dialog" popovertargetaction="hide">Cancel</button>
+                }
                 <button class="module-button module-button-primary" type="submit"><i data-lucide="plus" aria-hidden="true"></i><span>Create</span></button>
             </div>
         </form>
-    </dialog>
+    </div>
 
-    <dialog class="module-dialog module-result-dialog" id="module-result-dialog" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
-        <div class="module-dialog-heading">
-            <div class="modules-title">
-                <span class="module-result-symbol"><i data-lucide="message-square" aria-hidden="true"></i></span>
-                <h2 id="module-result-heading">Module creation result</h2>
-            </div>
-            <button class="module-icon-button" type="button" data-close-dialog aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        </div>
-        <div class="module-result-body">
-            <span class="module-result-code module-code" id="module-result-code"></span>
-            <p id="module-result-description"></p>
-        </div>
-        <div class="module-dialog-footer">
-            <button class="module-button" type="button" data-close-dialog>Close</button>
-            <a class="module-button module-button-primary" id="module-result-link" hidden><i data-lucide="arrow-up-right" aria-hidden="true"></i><span>Go to module</span></a>
-        </div>
-    </dialog>
+    @if (Model.CreationSuccess is { } success)
+    {
+        <dialog class="module-dialog module-result-dialog" open data-result="@success.Kind" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
+            <form method="dialog">
+                <div class="module-dialog-heading">
+                    <div class="modules-title">
+                        <span class="module-result-symbol"><i data-lucide="message-square" aria-hidden="true"></i></span>
+                        <h2 id="module-result-heading">@success.Title</h2>
+                    </div>
+                    <button class="module-icon-button" type="submit" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                </div>
+                <div class="module-result-body">
+                    <span class="module-result-code module-code" id="module-result-code">HTTP @success.StatusCode</span>
+                    <p id="module-result-description">@success.Description</p>
+                </div>
+                <div class="module-dialog-footer">
+                    <button class="module-button" type="submit" autofocus>Close</button>
+                    @if (success.ModuleUrl is not null)
+                    {
+                        <a class="module-button module-button-primary" id="module-result-link" href="@success.ModuleUrl"><i data-lucide="arrow-up-right" aria-hidden="true"></i><span>Go to module</span></a>
+                    }
+                </div>
+            </form>
+        </dialog>
+    }
 </div>
-@section Scripts {
-    <script src="~/js/modules.js" asp-append-version="true"></script>
-}

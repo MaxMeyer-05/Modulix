@@ -1,13 +1,16 @@
 using Serilog;
+
+using Modulix.Web;
 using Modulix.Client;
 
-using Microsoft.IdentityModel.Tokens;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
-using Duende.AccessTokenManagement.OpenIdConnect;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+
+using Duende.AccessTokenManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,76 +19,44 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+
+var authSettings = builder.Configuration
+    .GetRequiredSection(AuthorizationSettings.SectionName)
+    .Get<AuthorizationSettings>()!;
+
+var serviceClient = ClientCredentialsClientName.Parse("modulix_Service");
+builder.Services.AddClientCredentialsTokenManagement()
+    .AddClient(serviceClient, client =>
+    {
+        client.TokenEndpoint = new Uri($"{authSettings.Authority.TrimEnd('/')}/protocol/openid-connect/token");
+        client.ClientId = ClientId.Parse(authSettings.Service.ClientId);
+        client.ClientSecret = ClientSecret.Parse(authSettings.Service.ClientSecret);
+    });
+
 builder.Services.AddModulixApi(
     builder.Configuration["ModulixApi:BaseUrl"]
         ?? throw new InvalidOperationException("ModulixApi:BaseUrl is missing."))
-        .AddUserAccessTokenHandler();
-
-builder.Services.AddOpenIdConnectAccessTokenManagement();
+        .AddClientCredentialsTokenHandler(serviceClient);
 
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
     })
-    .AddCookie(options =>
-    {
-        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
-            ? CookieSecurePolicy.SameAsRequest
-            : CookieSecurePolicy.Always;
-        options.Events.OnSigningOut = async context =>
-            await context.HttpContext.RevokeRefreshTokenAsync();
-    })
+    .AddCookie()
     .AddOpenIdConnect(options =>
     {
-        options.Authority = builder.Configuration["Keycloak:Issuer"];
-        options.ClientId = builder.Configuration["Keycloak:ClientId"];
-        options.ClientSecret = builder.Configuration["Keycloak:ClientSecret"];
-
-        options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.ResponseType = "code";
-        options.ResponseMode = "query";
+        options.Authority = authSettings.Authority;
+        options.ClientId = authSettings.Client.ClientId;
+        options.ClientSecret = authSettings.Client.ClientSecret;
+        options.ResponseType = OpenIdConnectResponseType.Code;
         options.UsePkce = true;
         options.SaveTokens = true;
-        options.GetClaimsFromUserInfoEndpoint = true;
-        options.MapInboundClaims = false;
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-        options.Scope.Add("offline_access");
-
-        foreach (var scope in builder.Configuration.GetSection("Keycloak:Scopes").Get<string[]>() ?? [])
-        {
-            if (!string.IsNullOrWhiteSpace(scope) && !options.Scope.Contains(scope))
-            {
-                options.Scope.Add(scope);
-            }
-        }
-
-        if (builder.Environment.IsDevelopment())
-        {
-            options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-            options.NonceCookie.SameSite = SameSiteMode.Lax;
-            options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        }
-
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidIssuer = builder.Configuration["Keycloak:Issuer"],
-            NameClaimType = "name"
-        };
+        options.RequireHttpsMetadata = authSettings.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
-});
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
 var app = builder.Build();
 
@@ -104,7 +75,6 @@ app.UseAuthorization();
 
 app.MapStaticAssets()
     .AllowAnonymous();
-    
 app.MapRazorPages()
    .WithStaticAssets();
 

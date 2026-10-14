@@ -8,6 +8,9 @@ using Modulix.Client.Models.Dtos;
 
 namespace Modulix.Web.Pages.ModulesPage;
 
+/// <summary>
+/// Handles the display and management of module details.
+/// </summary>
 public class DetailModel : PageModel
 {
     /// <summary>
@@ -38,6 +41,10 @@ public class DetailModel : PageModel
     /// </summary>
     public ModuleDetailDto? Module { get; private set; }
 
+    /// <summary>
+    /// Loads the module detail for the specified module ID.
+    /// </summary>
+    /// <param name="id">The ID of the module to load.</param>
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
         try

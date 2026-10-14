@@ -1,19 +1,15 @@
-using System.Text;
-using System.Text.RegularExpressions;
-
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Modulix.Web.Pages.LogsPage;
 
+/// <summary>
+/// The model for the logs page. The handlers are defined here; the properties, display helpers,
+/// file access and parsing live in the <c>IndexModel.*.cs</c> partial files.
+/// </summary>
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public class IndexModel : PageModel
+public partial class IndexModel : PageModel
 {
-    /// <summary>
-    /// The logger instance.
-    /// </summary>
-    private readonly ILogger<IndexModel> _logger;
-
     /// <summary>
     /// The directory where log files are stored.
     /// </summary>
@@ -22,88 +18,86 @@ public class IndexModel : PageModel
     /// <summary>
     /// Initializes a new instance of the <see cref="IndexModel"/> class.
     /// </summary>
-    /// <param name="modulixApiClient">The Modulix API client.</param>
-    /// <param name="logger">The logger instance.</param>
-    public IndexModel(
-        IWebHostEnvironment env,
-        ILogger<IndexModel> logger)
+    /// <param name="env">The web host environment.</param>
+    public IndexModel(IWebHostEnvironment env)
     {
-        _logger = logger;
         _directory = Path.Combine(env.ContentRootPath, "logs");
     }
 
-    private static readonly Regex LogName =
-        new(@"\Alog-[0-9]{8}(?:_[0-9]{3})?\.log\z");
-
     /// <summary>
-    /// The regular expression used to validate log file names.
+    /// Handles the GET request for the page and loads the log entries.
     /// </summary>
-    public IActionResult OnGetFiles()
+    public async Task OnGetAsync()
     {
-        if (!Directory.Exists(_directory))
-            return new JsonResult(Array.Empty<object>());
+        LoadFiles();
 
-        var files = new DirectoryInfo(_directory).EnumerateFiles("log-*.log")
-            .Where(file => LogName.IsMatch(file.Name)
-                && (file.Attributes & FileAttributes.ReparsePoint) == 0)
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .Select(file => new { file.Name, Size = file.Length });
+        SelectedFile = Matches.FirstOrDefault(file => file.Name == Selected) ?? Matches.FirstOrDefault();
+        if (SelectedFile is null) return;
 
-        return new JsonResult(files.ToArray());
+        var (text, error) = await ReadAsync(SelectedFile.Name);
+        ReadError = error;
+        if (text is null) return;
+
+        IsLoaded = true;
+        var all = ParseEntries(text);
+        TotalEntries = all.Count;
+        Errors = all.Count(entry => entry.Level is "ERROR" or "FATAL");
+        Warnings = all.Count(entry => entry.Level == "WARN");
+
+        var query = Query?.Trim() ?? "";
+        Entries = all.Where(entry =>
+                (string.IsNullOrEmpty(Level) || entry.Level == Level)
+                && $"{entry.Time} {entry.Level} {entry.Source} {entry.Message}"
+                    .Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 
     /// <summary>
-    /// Reads the contents of a specified log file.
+    /// Streams the specified log file as a download.
     /// </summary>
-    /// <param name="name">The name of the log file to read.</param>
-    public async Task<IActionResult> OnGetReadAsync(string? name)
+    /// <param name="name">The name of the log file.</param>
+    public IActionResult OnGetDownload(string? name)
     {
-        if (name is null || !LogName.IsMatch(name))
-            return BadRequest();
-
         try
         {
-            var file = new FileInfo(Path.Combine(_directory, name));
-            if (!file.Exists) return NotFound();
-            if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
-                return BadRequest();
+            var file = Resolve(name, out var status);
+            if (file is null) return StatusCode(status);
 
-            await using var stream = new FileStream(file.FullName,
-                FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var buffer = new byte[1024 * 1024 + 1];
-            var count = await stream.ReadAtLeastAsync(buffer, buffer.Length,
-                false, HttpContext.RequestAborted);
-
-            if (count == buffer.Length) return StatusCode(413);
-            return Content(Encoding.UTF8.GetString(buffer, 0, count),
-                "text/plain; charset=utf-8");
+            return File(OpenRead(file), "text/plain; charset=utf-8", file.Name);
         }
         catch (IOException) { return StatusCode(503); }
         catch (UnauthorizedAccessException) { return StatusCode(403); }
     }
 
+    /// <summary>
+    /// Handles the POST request to delete a log file.
+    /// </summary>
+    /// <param name="name">The name of the log file to delete.</param>
     public IActionResult OnPostDelete(string? name)
     {
-        if (name is null || !LogName.IsMatch(name))
-            return BadRequest();
-
         try
         {
-            var file = new FileInfo(Path.Combine(_directory, name));
-            if (!file.Exists) return NotFound();
-            if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
-                return BadRequest();
-
-            file.Delete();
-            return new NoContentResult();
+            var file = Resolve(name, out var status);
+            if (file is null)
+            {
+                if (status == 404) Feedback = $"{name} no longer exists.";
+                else FeedbackError = "Could not delete the file. Reload the page and try again.";
+            }
+            else
+            {
+                file.Delete();
+                Feedback = $"{file.Name} deleted.";
+            }
         }
         catch (IOException)
         {
-            return StatusCode(503);
+            FeedbackError = "The log file is in use or temporarily unavailable. Try again later.";
         }
         catch (UnauthorizedAccessException)
         {
-            return StatusCode(403);
+            FeedbackError = "You do not have permission to delete this log file.";
         }
+
+        return RedirectToPage(PageValues(null));
     }
 }

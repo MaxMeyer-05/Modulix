@@ -2,113 +2,237 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Logs";
+    var selected = Model.SelectedFile;
+    var selectedName = selected?.Name;
+    var dateValue = Model.Date?.ToString("yyyy-MM-dd");
+    var clearDateValues = Model.PageValues(selectedName);
+    clearDateValues.Remove("date");
+    var levels = new (string Value, string Label)[]
+    {
+        ("", "All levels"), ("ERROR", "Error"), ("WARN", "Warning"),
+        ("INFO", "Information"), ("DEBUG", "Debug"), ("TRACE", "Verbose"), ("FATAL", "Fatal")
+    };
+    string? lastDate = null;
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
 }
 
-<div class="logs-page" data-files-url="@Url.Page("/LogsPage/Index", "Files")" data-read-url="@Url.Page("/LogsPage/Index", "Read")">
+<div class="logs-page">
     <header class="logs-header">
         <h1>Logs</h1>
         <span class="logs-preview"><span aria-hidden="true"></span>Modulix.Web</span>
     </header>
 
+    <form id="log-filters" method="get" action="@Url.Page("/LogsPage/Index")">
+        @if (selectedName is not null)
+        {
+            <input type="hidden" name="file" value="@selectedName" />
+        }
+    </form>
+
     <div class="logs-workspace">
         <aside class="log-archive" aria-labelledby="log-files-heading">
             <header class="log-archive-heading">
                 <h2 id="log-files-heading"><i data-lucide="folder-open" aria-hidden="true"></i>Log files</h2>
-                <span id="log-file-count"></span>
+                <span id="log-file-count">@Model.Matches.Count files</span>
             </header>
             <div class="log-archive-filters">
                 <label class="log-field" for="log-service">Application
-                    <select id="log-service">
+                    <select id="log-service" name="service" form="log-filters">
                         <option value="">All applications</option>
-                        <option value="Modulix.Web">Modulix.Web</option>
+                        <option value="@IndexModel.ServiceName" selected="@(Model.Service == IndexModel.ServiceName)">@IndexModel.ServiceName</option>
                     </select>
                 </label>
                 <label class="log-field" for="log-date">Date</label>
                 <div class="log-date-field">
-                    <input id="log-date" type="date" aria-label="Log file date" />
-                    <button id="log-clear-date" class="log-icon-button" type="button" title="Clear date filter" aria-label="Clear date filter" disabled><i data-lucide="x" aria-hidden="true"></i></button>
+                    <input id="log-date" name="date" form="log-filters" type="date" value="@dateValue" max="@IndexModel.Today.ToString("yyyy-MM-dd")" aria-label="Log file date" />
+                    @if (Model.Date is not null)
+                    {
+                        <a class="log-icon-button" href="@Url.Page("/LogsPage/Index", clearDateValues)" title="Clear date filter" aria-label="Clear date filter"><i data-lucide="x" aria-hidden="true"></i></a>
+                    }
+                    else
+                    {
+                        <button class="log-icon-button" type="button" title="Clear date filter" aria-label="Clear date filter" disabled><i data-lucide="x" aria-hidden="true"></i></button>
+                    }
                 </div>
+                <button class="log-dialog-button log-apply-button" type="submit" form="log-filters">Apply filters</button>
             </div>
-            <nav class="log-file-list" id="log-file-list" aria-label="Log files" tabindex="0"></nav>
-            <div class="log-archive-empty" id="log-archive-empty" hidden>
-                <i data-lucide="folder-search" aria-hidden="true"></i>
-                <p id="log-archive-message" role="status">No files for this selection.</p>
-                <button class="log-text-button" id="log-reset-archive" type="button">Reset filters</button>
-            </div>
-            <footer class="log-archive-footer"><i data-lucide="archive" aria-hidden="true"></i><span id="log-archive-range"></span></footer>
+            @if (Model.Matches.Count > 0)
+            {
+                <nav class="log-file-list" id="log-file-list" aria-label="Log files" tabindex="0">
+                    @foreach (var file in Model.Matches)
+                    {
+                        var key = file.Date.ToString("yyyy-MM-dd");
+                        if (key != lastDate)
+                        {
+                            <h3 class="log-file-group">@(file.Date == IndexModel.Today ? "Today / " : "")@IndexModel.FormatDate(file.Date)</h3>
+                            lastDate = key;
+                        }
+                        <a class="log-file-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(file.Name, includeEntryFilter: false))" aria-current="@(file.Name == selectedName ? "true" : "false")">
+                            <strong>@file.Name</strong>
+                            <span class="log-file-facts">
+                                <span>@IndexModel.FormatSize(file.Size)@(file.Name == selectedName && Model.IsLoaded ? $" / {Model.TotalEntries} entries" : "")</span>
+                                @if (file.Name == selectedName && Model.IsLoaded)
+                                {
+                                    <span class="@(Model.Errors > 0 ? "log-file-errors" : "")">@(Model.Errors > 0 ? $"{Model.Errors} {IndexModel.Plural(Model.Errors, "error")}" : "No errors")</span>
+                                }
+                            </span>
+                        </a>
+                    }
+                </nav>
+            }
+            else
+            {
+                <div class="log-archive-empty" id="log-archive-empty">
+                    <i data-lucide="folder-search" aria-hidden="true"></i>
+                    <p id="log-archive-message" role="status">@(Model.ArchiveError ?? "No files for this selection.")</p>
+                    @if (Model.ArchiveError is not null)
+                    {
+                        <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(null))">Retry</a>
+                    }
+                    else
+                    {
+                        <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(null, includeArchiveFilter: false))">Reset filters</a>
+                    }
+                </div>
+            }
+            <footer class="log-archive-footer"><i data-lucide="archive" aria-hidden="true"></i><span id="log-archive-range">@(Model.Files.Count > 0 ? $"{IndexModel.FormatDate(Model.Files[^1].Date)} - {IndexModel.FormatDate(Model.Files[0].Date)}" : "No log files")</span></footer>
         </aside>
 
         <section class="log-viewer" aria-labelledby="log-selected-name">
             <header class="log-viewer-heading">
                 <div class="log-selected-file">
                     <span class="log-file-symbol"><i data-lucide="file-text" aria-hidden="true"></i></span>
-                    <div><h2 id="log-selected-name">Select a log file</h2><p id="log-selected-meta">No file selected</p></div>
+                    <div>
+                        <h2 id="log-selected-name">@(selectedName ?? "Select a log file")</h2>
+                        <p id="log-selected-meta">@(selected is null ? "No file selected" : $"{IndexModel.ServiceName} / {IndexModel.FormatDate(selected.Date)} / {IndexModel.FormatSize(selected.Size)}")</p>
+                    </div>
                 </div>
                 <div class="log-file-actions">
-                    <button id="log-download" class="log-icon-button" type="button" title="Download selected file" aria-label="Download selected file" disabled><i data-lucide="download" aria-hidden="true"></i></button>
-                    <button id="log-delete" class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" disabled><i data-lucide="trash-2" aria-hidden="true"></i></button>
+                    @if (Model.IsLoaded)
+                    {
+                        <a class="log-icon-button" href="@Url.Page("/LogsPage/Index", "Download", new { name = selectedName })" download="@selectedName" title="Download selected file" aria-label="Download selected file"><i data-lucide="download" aria-hidden="true"></i></a>
+                    }
+                    else
+                    {
+                        <button class="log-icon-button" type="button" title="Download selected file" aria-label="Download selected file" disabled><i data-lucide="download" aria-hidden="true"></i></button>
+                    }
+                    <button class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" popovertarget="log-delete-dialog" disabled="@(selected is null)"><i data-lucide="trash-2" aria-hidden="true"></i></button>
                 </div>
             </header>
 
             <div class="log-toolbar">
                 <div class="log-search">
                     <i data-lucide="search" aria-hidden="true"></i>
-                    <input id="log-search" type="search" placeholder="Search entries..." aria-label="Search log entries" autocomplete="off" />
+                    <input id="log-search" name="q" form="log-filters" type="search" value="@Model.Query" placeholder="Search entries..." aria-label="Search log entries" autocomplete="off" />
                 </div>
-                <select id="log-level" aria-label="Log level">
-                    <option value="">All levels</option>
-                    <option value="ERROR">Error</option>
-                    <option value="WARN">Warning</option>
-                    <option value="INFO">Information</option>
-                    <option value="DEBUG">Debug</option>
-                    <option value="TRACE">Verbose</option>
-                    <option value="FATAL">Fatal</option>
+                <select id="log-level" name="level" form="log-filters" aria-label="Log level">
+                    @foreach (var (value, label) in levels)
+                    {
+                        <option value="@value" selected="@(Model.Level == value)">@label</option>
+                    }
                 </select>
-                <label class="log-wrap"><input id="log-wrap" type="checkbox" checked />Wrap lines</label>
+                <label class="log-wrap"><input id="log-wrap" name="wrap" form="log-filters" type="checkbox" value="true" checked="@Model.Wrap" />Wrap lines</label>
+                <input type="hidden" name="wrap" value="false" form="log-filters" />
+                <button class="log-dialog-button log-apply-button" type="submit" form="log-filters">Apply</button>
             </div>
 
             <div class="log-summary" aria-label="File summary">
-                <span><strong id="log-total">0</strong> entries</span>
-                <span class="log-summary-error"><span aria-hidden="true"></span><strong id="log-errors">0</strong><span id="log-error-label">errors</span></span>
-                <span class="log-summary-warning"><span aria-hidden="true"></span><strong id="log-warnings">0</strong><span id="log-warning-label">warnings</span></span>
+                <span><strong id="log-total">@Model.TotalEntries</strong> entries</span>
+                <span class="log-summary-error"><span aria-hidden="true"></span><strong id="log-errors">@Model.Errors</strong><span id="log-error-label">@IndexModel.Plural(Model.Errors, "error")</span></span>
+                <span class="log-summary-warning"><span aria-hidden="true"></span><strong id="log-warnings">@Model.Warnings</strong><span id="log-warning-label">@IndexModel.Plural(Model.Warnings, "warning")</span></span>
                 <span class="log-order"><i data-lucide="arrow-down" aria-hidden="true"></i>Oldest first</span>
             </div>
 
             <div class="log-content" id="log-content" tabindex="0" role="region" aria-label="Log entries">
-                <table class="log-table" id="log-table">
-                    <caption class="visually-hidden">Entries in the selected log file</caption>
-                    <thead><tr><th scope="col" class="log-time">Time</th><th scope="col" class="log-level-cell">Level</th><th scope="col" class="log-source">Source</th><th scope="col">Message</th></tr></thead>
-                    <tbody id="log-entries"></tbody>
-                </table>
-                <div class="log-empty" id="log-empty" hidden>
-                    <i data-lucide="search-x" aria-hidden="true"></i>
-                    <h3 id="log-empty-title">No matching entries</h3>
-                    <button class="log-text-button" id="log-reset-entries" type="button">Clear search and level filter</button>
-                </div>
+                @if (Model.Entries.Count > 0)
+                {
+                    <table class="log-table" id="log-table">
+                        <caption class="visually-hidden">Entries in the selected log file</caption>
+                        <thead><tr><th scope="col" class="log-time">Time</th><th scope="col" class="log-level-cell">Level</th><th scope="col" class="log-source">Source</th><th scope="col">Message</th></tr></thead>
+                        <tbody id="log-entries">
+                            @foreach (var entry in Model.Entries)
+                            {
+                                <tr>
+                                    <td class="log-time">@entry.Time</td>
+                                    <td class="log-level-cell"><span class="log-badge log-badge-@IndexModel.BadgeClass(entry.Level)">@entry.Level</span></td>
+                                    <td class="log-source">@entry.Source</td>
+                                    <td class="log-message">@entry.Message</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <span id="log-end"></span>
+                }
+                else
+                {
+                    <div class="log-empty" id="log-empty">
+                        <i data-lucide="search-x" aria-hidden="true"></i>
+                        <h3 id="log-empty-title">@(Model.ReadError ?? (selected is null ? "No log file selected" : Model.TotalEntries > 0 ? "No matching entries" : "This log file is empty"))</h3>
+                        @if (selected is not null && Model.ReadError is not null)
+                        {
+                            <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(selectedName))">Retry</a>
+                        }
+                        else if (selected is not null && Model.HasEntryFilter)
+                        {
+                            <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(selectedName, includeEntryFilter: false))">Clear search and level filter</a>
+                        }
+                    </div>
+                }
             </div>
             <footer class="log-viewer-footer">
-                <span id="log-result-count" role="status" aria-live="polite">0 entries</span>
-                <button class="log-text-button" id="log-bottom" type="button"><i data-lucide="arrow-down-to-line" aria-hidden="true"></i>Go to bottom</button>
+                <span id="log-result-count" role="status" aria-live="polite">@Model.Entries.Count of @Model.TotalEntries entries</span>
+                @if (Model.Entries.Count > 0)
+                {
+                    <a class="log-text-button" href="#log-end"><i data-lucide="arrow-down-to-line" aria-hidden="true"></i>Go to bottom</a>
+                }
+                else
+                {
+                    <button class="log-text-button" type="button" disabled><i data-lucide="arrow-down-to-line" aria-hidden="true"></i>Go to bottom</button>
+                }
             </footer>
         </section>
     </div>
-    <p id="log-delete-feedback" class="log-delete-feedback" role="status" hidden></p>
-    <dialog id="log-delete-dialog" class="log-delete-dialog" aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
-        <form method="post" asp-page-handler="Delete" id="log-delete-form">
-            <h2 id="log-delete-heading">Delete log file?</h2>
-            <p id="log-delete-description">Permanently delete <strong id="log-delete-name"></strong>? This cannot be undone.</p>
-            <input type="hidden" name="name" id="log-delete-file" />
-            <p id="log-delete-error" class="log-delete-error" role="alert" hidden></p>
-            <div class="log-dialog-actions">
-                <button id="log-delete-cancel" class="log-dialog-button" type="button" autofocus>Cancel</button>
-                <button id="log-delete-confirm" class="log-dialog-button log-dialog-button-danger" type="submit">Delete file</button>
-            </div>
-        </form>
-    </dialog>
+
+    @if (Model.Feedback is not null)
+    {
+        <p class="log-delete-feedback" role="status">@Model.Feedback</p>
+    }
+    @if (Model.FeedbackError is not null)
+    {
+        <p class="log-delete-feedback log-delete-error" role="alert">@Model.FeedbackError</p>
+    }
+
+    @if (selected is not null)
+    {
+        <div id="log-delete-dialog" class="log-delete-dialog" popover aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
+            <form method="post" asp-page-handler="Delete" id="log-delete-form">
+                <h2 id="log-delete-heading">Delete log file?</h2>
+                <p id="log-delete-description">Permanently delete <strong id="log-delete-name">@selectedName</strong>? This cannot be undone.</p>
+                <input type="hidden" name="name" value="@selectedName" />
+                @if (!string.IsNullOrEmpty(Model.Service))
+                {
+                    <input type="hidden" name="service" value="@Model.Service" />
+                }
+                @if (dateValue is not null)
+                {
+                    <input type="hidden" name="date" value="@dateValue" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Query))
+                {
+                    <input type="hidden" name="q" value="@Model.Query" />
+                }
+                @if (!string.IsNullOrEmpty(Model.Level))
+                {
+                    <input type="hidden" name="level" value="@Model.Level" />
+                }
+                <input type="hidden" name="wrap" value="@(Model.Wrap ? "true" : "false")" />
+                <div class="log-dialog-actions">
+                    <button id="log-delete-cancel" class="log-dialog-button" type="button" popovertarget="log-delete-dialog" popovertargetaction="hide" autofocus>Cancel</button>
+                    <button id="log-delete-confirm" class="log-dialog-button log-dialog-button-danger" type="submit">Delete file</button>
+                </div>
+            </form>
+        </div>
+    }
 </div>
-@section Scripts {
-    <script src="~/js/logs.js" asp-append-version="true"></script>
-}
