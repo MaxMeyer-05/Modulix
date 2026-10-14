@@ -48,11 +48,7 @@ public class IndexModel : PageModel
     {        
         try
         {
-            _logger.LogDebug("Loading all modules.");
-
-            Modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                ct: HttpContext.RequestAborted);
-
+            Modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync();
             _logger.LogDebug("Successfully loaded {ModuleCount} modules.", Modules.Count);
         }
         catch (HttpRequestException exception)
