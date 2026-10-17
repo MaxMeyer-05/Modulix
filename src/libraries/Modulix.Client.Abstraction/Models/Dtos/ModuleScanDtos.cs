@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 
+using Modulix.Client.Models.Enums;
+
 namespace Modulix.Client.Models.Dtos;
 
 /// <summary>
@@ -59,4 +61,30 @@ public class ScanEnqueueResponse
     /// The result of the scan if it was executed immediately; otherwise, <c>null</c>.
     /// </summary>
     public ModuleScanResultDto? Result { get; set; }
+}
+
+/// <summary>
+/// Represents an entry in the module endpoint scan queue.
+/// </summary>
+public class ModuleScanQueueItemDto
+{
+    /// <summary>
+    /// The unique identifier of the module in the scan queue.
+    /// </summary>
+    public Guid ModuleId { get; set; }
+
+    /// <summary>
+    /// The display name of the module in the scan queue.
+    /// </summary>
+    public string ModuleName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The priority of the scan job.
+    /// </summary>
+    public ScanPriority Priority { get; set; }
+
+    /// <summary>
+    /// Indicates whether the scan job has already been dequeued and is currently running.
+    /// </summary>
+    public bool IsRunning { get; set; }
 }

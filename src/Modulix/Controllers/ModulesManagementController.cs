@@ -120,6 +120,20 @@ public class ModulesManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves all modules currently in the scan queue along with their scan priority.
+    /// </summary>
+    /// <returns>
+    /// A 200 OK response with a list of queued module scans.
+    /// </returns>
+    [HttpGet("queue")]
+    [ProducesResponseType(typeof(IEnumerable<ModuleScanQueueItemDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ModuleScanQueueItemDto>>> GetScanQueueAsync()
+    {
+        var result = await _moduleService.GetScanQueueAsync(HttpContext.RequestAborted);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Retrieves the details of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>

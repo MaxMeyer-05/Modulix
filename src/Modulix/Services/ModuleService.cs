@@ -7,7 +7,6 @@ using Modulix.Mappers;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Models.Enums;
 using Modulix.Models.Options;
 
 using Modulix.Database.Entities;
@@ -376,6 +375,28 @@ public class ModuleService : IModuleService
         _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
 
         return subEndpointsDetailDtos;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default)
+    {
+        var queuedScans = _endpointScanner.GetQueuedScans();
+        if (queuedScans.Count == 0)
+            return [];
+
+        var moduleIds = queuedScans.Select(item => item.ModuleId).Distinct().ToList();
+        var moduleNames = await _context.Modules
+            .AsNoTracking()
+            .Where(module => moduleIds.Contains(module.Id))
+            .ToDictionaryAsync(module => module.Id, module => module.ModuleName, ct);
+
+        return queuedScans.Select(item => new ModuleScanQueueItemDto
+        {
+            ModuleId = item.ModuleId,
+            ModuleName = moduleNames.GetValueOrDefault(item.ModuleId, string.Empty),
+            Priority = item.Priority,
+            IsRunning = item.IsRunning
+        }).ToList();
     }
 
     /// <inheritdoc/>

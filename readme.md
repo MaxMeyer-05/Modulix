@@ -141,6 +141,8 @@ All routes use the prefix `/api/modules-management/modules` and require a bearer
 | Method | Relative route | Purpose | Access |
 | --- | --- | --- | --- |
 | `GET` | `/` | List modules. | Authenticated |
+| `GET` | `/endpoints` | Retrieve detailed sub-endpoints across all modules. | Authenticated |
+| `GET` | `/queue` | Retrieve the current scan queue and priorities. | Authenticated |
 | `GET` | `/{moduleId}` | Retrieve module details and status. | Authenticated |
 | `GET` | `/{moduleId}/endpoints` | Retrieve module endpoints. | Authenticated |
 | `POST` | `/create` | Upload a module using `multipart/form-data`. | Admin |

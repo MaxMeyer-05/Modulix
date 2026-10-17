@@ -1,4 +1,4 @@
-namespace Modulix.Models.Enums;
+namespace Modulix.Client.Models.Enums;
 
 /// <summary>
 /// Represents the priority of a scan operation.
@@ -13,5 +13,5 @@ public enum ScanPriority
     /// <summary>
     /// Normal priority.
     /// </summary>
-    Create = 2 
+    Create = 2
 }
