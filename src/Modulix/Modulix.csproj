@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../libraries/Modulix.Docker/Modulix.Docker.csproj" />
     <ProjectReference Include="..\libraries\Modulix.Client.Abstraction\Modulix.Client.Abstraction.csproj" />
   </ItemGroup>
 

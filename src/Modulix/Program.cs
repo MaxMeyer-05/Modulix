@@ -11,6 +11,7 @@ using Modulix.Services;
 using Modulix.Services.Interfaces;
 
 using Modulix;
+using Modulix.Docker;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
 using Modulix.Database.DbContexts;
@@ -35,7 +36,6 @@ builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
 
-builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
 builder.Services.AddSingleton<DockerClient>(_ =>
 {
@@ -45,6 +45,8 @@ builder.Services.AddSingleton<DockerClient>(_ =>
 
     return new DockerClientConfiguration(dockerUri).CreateClient();
 });
+
+builder.Services.AddDockerServices();
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
