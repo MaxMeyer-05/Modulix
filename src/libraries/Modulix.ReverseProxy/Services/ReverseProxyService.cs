@@ -53,8 +53,6 @@ public class ReverseProxyService : IReverseProxyService, IProxyConfigProvider
     /// <inheritdoc/>
     public void UpdateModules(IEnumerable<ProxyModuleDefinition> modules)
     {
-        ArgumentNullException.ThrowIfNull(modules);
-
         lock (_syncRoot)
         {
             _modules.Clear();
@@ -165,10 +163,10 @@ public class ReverseProxyService : IReverseProxyService, IProxyConfigProvider
     /// Validates a module routing definition before applying it to the proxy configuration.
     /// </summary>
     /// <param name="module">The module definition to validate.</param>
+    /// <exception cref="ArgumentException">Thrown if the module ID is empty or the base URL path is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if the container port is not between 1 and 65535.</exception>
     private static void ValidateModuleDefinition(ProxyModuleDefinition module)
     {
-        ArgumentNullException.ThrowIfNull(module);
-
         if (module.ModuleId == Guid.Empty)
             throw new ArgumentException("Module ID cannot be empty.", nameof(module));
 
