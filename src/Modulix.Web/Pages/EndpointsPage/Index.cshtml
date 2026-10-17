@@ -1,0 +1,231 @@
+@page "/endpoints"
+@using System.Globalization
+@using Modulix.Client.Models.Enums
+@model Modulix.Web.Pages.EndpointsPage.IndexModel
+@{
+    ViewData["Title"] = "API endpoints";
+    var endpoints = Model.Endpoints;
+    var methods = new (string Value, string Label)[]
+    {
+        ("", "All methods"),
+        ("GET", "GET"),
+        ("POST", "POST"),
+        ("PUT", "PUT"),
+        ("PATCH", "PATCH"),
+        ("DELETE", "DELETE")
+    };
+    var statuses = new (string Value, string Label)[]
+    {
+        ("", "All statuses"),
+        (nameof(ModuleEndpointsStatus.Active), "Active"),
+        (nameof(ModuleEndpointsStatus.PendingConfirmation), "Pending confirmation"),
+        (nameof(ModuleEndpointsStatus.Inactive), "Inactive")
+    };
+    var sorts = new (string Value, string Label)[]
+    {
+        ("newest", "Newest first"),
+        ("path", "Path A-Z"),
+        ("module", "Module A-Z")
+    };
+    var resetUrl = Url.Page("/EndpointsPage/Index");
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
+}
+
+<div class="modules-page" data-auto-refresh="60">
+    <header class="modules-header">
+        <div class="modules-title">
+            <h1>API endpoints</h1>
+        </div>
+        <div class="modules-header-actions">
+            <span class="auto-refresh-status" aria-live="off">
+                <span class="auto-refresh-dot" aria-hidden="true"></span>
+                <span data-auto-refresh-countdown>Auto-refresh in 60s</span>
+            </span>
+            <a class="module-button" data-auto-refresh-link href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = Model.StatusFilter, module = Model.ModuleFilter, sort = Model.SortBy })">
+                <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
+            </a>
+        </div>
+    </header>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="modules-error" role="alert">
+            <i data-lucide="circle-alert" aria-hidden="true"></i>
+            <div>
+                <strong>Endpoints request failed</strong>
+                <div asp-validation-summary="All"></div>
+            </div>
+        </div>
+    }
+
+    <section class="queue-metrics" aria-label="API endpoints overview">
+        <article class="queue-metric">
+            <div class="queue-metric-heading">
+                <h2>Total endpoints</h2>
+                <span class="queue-metric-icon"><i data-lucide="link" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.TotalEndpoints</p>
+        </article>
+        <article class="queue-metric queue-metric-active">
+            <div class="queue-metric-heading">
+                <h2>Active</h2>
+                <span class="queue-metric-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.ActiveCount</p>
+        </article>
+        <article class="queue-metric queue-metric-priority">
+            <div class="queue-metric-heading">
+                <h2>Pending confirmation</h2>
+                <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.PendingCount</p>
+        </article>
+        <article class="queue-metric queue-metric-inactive">
+            <div class="queue-metric-heading">
+                <h2>Inactive</h2>
+                <span class="queue-metric-icon"><i data-lucide="pause-circle" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.InactiveCount</p>
+        </article>
+    </section>
+
+    <form class="modules-toolbar" method="get" action="@resetUrl">
+        <div class="module-search-field">
+            <i data-lucide="search" aria-hidden="true"></i>
+            <input id="endpoint-search" name="q" type="search" value="@Model.Query" placeholder="Search by path, module, method or ID..." aria-label="Search endpoints" autocomplete="off" />
+        </div>
+        <label class="module-select-label"><span>Method</span>
+            <select id="endpoint-method-filter" name="method">
+                @foreach (var (value, label) in methods)
+                {
+                    <option value="@value" selected="@(Model.MethodFilter == value)">@label</option>
+                }
+            </select>
+        </label>
+        <label class="module-select-label"><span>Status</span>
+            <select id="endpoint-status-filter" name="status">
+                @foreach (var (value, label) in statuses)
+                {
+                    <option value="@value" selected="@(Model.StatusFilter == value)">@label</option>
+                }
+            </select>
+        </label>
+        <label class="module-select-label"><span>Module</span>
+            <select id="endpoint-module-filter" name="module">
+                <option value="">All modules</option>
+                @foreach (var moduleName in Model.AvailableModules)
+                {
+                    <option value="@moduleName" selected="@(Model.ModuleFilter.Equals(moduleName, StringComparison.OrdinalIgnoreCase))">@moduleName</option>
+                }
+            </select>
+        </label>
+        <label class="module-select-label"><span>Sort by</span>
+            <select id="endpoint-sort" name="sort">
+                @foreach (var (value, label) in sorts)
+                {
+                    <option value="@value" selected="@(Model.SortBy == value)">@label</option>
+                }
+            </select>
+        </label>
+        <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
+    </form>
+
+    <p class="module-result-count" id="endpoint-result-count" role="status">
+        @(endpoints.Count == Model.TotalEndpoints ? $"{endpoints.Count} endpoints" : $"{endpoints.Count} of {Model.TotalEndpoints} endpoints")
+    </p>
+
+    @if (endpoints.Count > 0)
+    {
+        <div class="data-table-container" role="region" aria-label="Registered API endpoints" tabindex="0">
+            <table class="data-table" id="endpoints-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Method</th>
+                        <th scope="col">Endpoint path</th>
+                        <th scope="col">Module</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Created</th>
+                        <th scope="col">Endpoint ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var endpoint in endpoints)
+                    {
+                        var methodUpper = endpoint.HttpMethod.ToUpperInvariant();
+                        var methodClass = methodUpper switch
+                        {
+                            "GET" => "method-get",
+                            "POST" => "method-post",
+                            "PUT" or "PATCH" => "method-put",
+                            "DELETE" => "method-delete",
+                            _ => "method-other"
+                        };
+                        var statusBadgeClass = endpoint.Status switch
+                        {
+                            ModuleEndpointsStatus.Active => "badge-running",
+                            ModuleEndpointsStatus.PendingConfirmation => "badge-pending",
+                            _ => ""
+                        };
+                        var statusLabel = endpoint.Status == ModuleEndpointsStatus.PendingConfirmation
+                            ? "Pending confirmation"
+                            : endpoint.Status.ToString();
+                        <tr>
+                            <td>
+                                <span class="endpoint-method @methodClass">@methodUpper</span>
+                            </td>
+                            <td>
+                                <span class="module-code">@endpoint.EndpointPath</span>
+                            </td>
+                            <td>
+                                <span class="endpoint-module-tag">
+                                    <i data-lucide="box" aria-hidden="true"></i>
+                                    <span>@endpoint.ModuleName</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="module-badge @statusBadgeClass">
+                                    <span aria-hidden="true"></span>@statusLabel
+                                </span>
+                            </td>
+                            <td class="data-table-muted">
+                                @endpoint.CreatedAtUtc.ToString("MMM d, yyyy HH:mm 'UTC'", CultureInfo.InvariantCulture)
+                            </td>
+                            <td>
+                                <div class="module-copy-value">
+                                    <span class="module-code">@endpoint.Id</span>
+                                    <button class="module-icon-button" type="button" data-copy="@endpoint.Id" aria-label="Copy endpoint ID" title="Copy endpoint ID">
+                                        <i data-lucide="copy" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="module-empty-state" id="endpoints-empty-state">
+            <i data-lucide="link" aria-hidden="true"></i>
+            @if (Model.TotalEndpoints == 0)
+            {
+                <h2>No API endpoints registered</h2>
+                <p>Upload and scan a module to discover and register its HTTP endpoints.</p>
+            }
+            else
+            {
+                <h2>No endpoints found</h2>
+                <p>No endpoints match your search and filter criteria.</p>
+                <a class="module-button" href="@resetUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
+            }
+        </div>
+    }
+    <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
+</div>
+
+@section Scripts {
+    <script src="~/js/modules.js" asp-append-version="true"></script>
+}

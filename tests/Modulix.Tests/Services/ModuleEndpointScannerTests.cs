@@ -22,7 +22,6 @@ using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Docker.Options;
-using Modulix.Models.Enums;
 
 using Modulix.Services;
 using Modulix.Services.Interfaces;
@@ -333,6 +332,15 @@ public class ModuleEndpointScannerTests : IDisposable
             Assert.True((await _sut.ScanOrEnqueueAsync(patchModuleId, _testRootDirectory, ScanPriority.Patch)).WasQueued);
             Assert.True(_sut.CancelScan(cancelledModuleId));
 
+            var queuedBeforeRelease = _sut.GetQueuedScans();
+            Assert.Equal(2, queuedBeforeRelease.Count);
+            Assert.Equal(patchModuleId, queuedBeforeRelease[0].ModuleId);
+            Assert.Equal(ScanPriority.Patch, queuedBeforeRelease[0].Priority);
+            Assert.False(queuedBeforeRelease[0].IsRunning);
+            Assert.Equal(createModuleId, queuedBeforeRelease[1].ModuleId);
+            Assert.Equal(ScanPriority.Create, queuedBeforeRelease[1].Priority);
+            Assert.False(queuedBeforeRelease[1].IsRunning);
+
             release.TrySetResult();
             await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
             var patch = await _moduleService.Results.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
@@ -456,6 +464,15 @@ public class ModuleEndpointScannerTests : IDisposable
             await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
             await queuedScanStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
+            var snapshotWhileRunning = _sut.GetQueuedScans();
+            Assert.Equal(2, snapshotWhileRunning.Count);
+            Assert.Equal(cancelledModuleId, snapshotWhileRunning[0].ModuleId);
+            Assert.Equal(ScanPriority.Patch, snapshotWhileRunning[0].Priority);
+            Assert.True(snapshotWhileRunning[0].IsRunning);
+            Assert.Equal(healthyModuleId, snapshotWhileRunning[1].ModuleId);
+            Assert.Equal(ScanPriority.Create, snapshotWhileRunning[1].Priority);
+            Assert.False(snapshotWhileRunning[1].IsRunning);
+
             if (callerCancels)
                 cancellation.Cancel();
             else
@@ -547,6 +564,8 @@ public class ModuleEndpointScannerTests : IDisposable
         public Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default) => throw new NotSupportedException();

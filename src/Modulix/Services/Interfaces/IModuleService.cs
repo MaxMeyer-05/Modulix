@@ -35,6 +35,20 @@ public interface IModuleService
     Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Retrieves detailed information about all registered sub-endpoints across all modules.
+    /// </summary>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A collection of detailed sub-endpoint information.</returns>
+    Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves all modules currently in the scan queue along with their scan priority.
+    /// </summary>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A collection of queued module scan entries.</returns>
+    Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>

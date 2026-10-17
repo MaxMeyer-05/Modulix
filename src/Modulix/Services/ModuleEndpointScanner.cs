@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Collections.Concurrent;
 
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -10,7 +9,6 @@ using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Docker.Options;
-using Modulix.Models.Enums;
 using Modulix.ReverseProxy.Services;
 
 using Modulix.Services.Interfaces;
@@ -32,22 +30,17 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     private readonly SemaphoreSlim _concurrencySemaphore;
 
     /// <summary>
-    /// Semaphore used to signal when items are available in the priority queue.
+    /// Semaphore used to signal when items are available in the scan queue.
     /// </summary>
     private readonly SemaphoreSlim _itemsAvailable = new(0);
 
     /// <summary>
-    /// Dictionary that maps module IDs to their corresponding cancellation token sources for queued jobs.
+    /// Unified queue that holds both waiting and currently running background scan jobs.
     /// </summary>
-    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _queuedJobs = new();
+    private readonly List<ScanJob> _scanQueue = [];
 
     /// <summary>
-    /// Priority queue that holds the scan jobs.
-    /// </summary>
-    private readonly PriorityQueue<ScanJob, int> _priorityQueue = new();
-
-    /// <summary>
-    /// Lock object used to synchronize access to the priority queue and other shared resources.
+    /// Lock object used to synchronize access to the scan queue and shared resources.
     /// </summary>
     private readonly object _lock = new();
 
@@ -94,9 +87,14 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
         public required ScanPriority Priority { get; init; }
 
         /// <summary>
-        /// The cancellation token used to cancel the scan job.
+        /// The cancellation token source used to cancel the scan job.
         /// </summary>
-        public required CancellationToken CancellationToken { get; init; }
+        public required CancellationTokenSource CancellationTokenSource { get; init; }
+
+        /// <summary>
+        /// Indicates whether the scan job has been dequeued and is currently running.
+        /// </summary>
+        public bool IsRunning { get; set; }
     }
 
     /// <summary>
@@ -131,7 +129,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
         
         lock (_lock)
         {
-            if (_priorityQueue.Count == 0 && _concurrencySemaphore.Wait(0))
+            if (!_scanQueue.Any(job => !job.IsRunning) && _concurrencySemaphore.Wait(0))
             {
                 executeImmediately = true;
             }
@@ -151,20 +149,22 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
         }
 
         var jobCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, ct);
-        _queuedJobs.TryAdd(moduleId, jobCts);
 
         var job = new ScanJob
         {
             ModuleId = moduleId,
             HostDirectoryPath = Path.GetFullPath(moduleDirectoryPath),
             Priority = priority,
-            CancellationToken = jobCts.Token
+            CancellationTokenSource = jobCts
         };
 
         lock (_lock)
         {
-            _priorityQueue.Enqueue(job, (int)priority);
-            _logger.LogInformation("All containers busy. Enqueued scan for module '{ModuleId}'. Queue length: {Count}", moduleId, _priorityQueue.Count);
+            _scanQueue.Add(job);
+            _logger.LogInformation(
+                "All containers busy. Enqueued scan for module '{ModuleId}'. Queue length: {Count}",
+                moduleId,
+                _scanQueue.Count(j => !j.IsRunning));
         }
 
         _itemsAvailable.Release();
@@ -174,13 +174,41 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// <inheritdoc/>
     public bool CancelScan(Guid moduleId)
     {
-        if (_queuedJobs.TryGetValue(moduleId, out var cts))
+        ScanJob? job;
+        lock (_lock)
         {
-            cts.Cancel(); 
-            _queuedJobs.TryRemove(moduleId, out _);
-            return true;
+            job = _scanQueue.FirstOrDefault(j => j.ModuleId == moduleId);
+            if (job is null)
+                return false;
+
+            _scanQueue.Remove(job);
         }
-        return false;
+
+        job.CancellationTokenSource.Cancel();
+        if (!job.IsRunning)
+        {
+            job.CancellationTokenSource.Dispose();
+        }
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<ModuleScanQueueItemDto> GetQueuedScans()
+    {
+        lock (_lock)
+        {
+            return _scanQueue
+                .Where(job => !job.CancellationTokenSource.IsCancellationRequested)
+                .OrderByDescending(job => job.IsRunning)
+                .ThenBy(job => job.Priority)
+                .Select(job => new ModuleScanQueueItemDto
+                {
+                    ModuleId = job.ModuleId,
+                    Priority = job.Priority,
+                    IsRunning = job.IsRunning
+                })
+                .ToList();
+        }
     }
 
     /// <summary>
@@ -198,16 +226,29 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                 await _concurrencySemaphore.WaitAsync(stoppingToken);
 
                 ScanJob? nextJob = null;
+
                 lock (_lock)
                 {
-                    while (_priorityQueue.Count > 0)
+                    while (true)
                     {
-                        var candidate = _priorityQueue.Dequeue();
-                        if (!candidate.CancellationToken.IsCancellationRequested)
-                        {
-                            nextJob = candidate;
+                        var candidate = _scanQueue
+                            .Where(job => !job.IsRunning)
+                            .OrderBy(job => job.Priority)
+                            .FirstOrDefault();
+
+                        if (candidate is null)
                             break;
+
+                        if (candidate.CancellationTokenSource.IsCancellationRequested)
+                        {
+                            _scanQueue.Remove(candidate);
+                            candidate.CancellationTokenSource.Dispose();
+                            continue;
                         }
+
+                        candidate.IsRunning = true;
+                        nextJob = candidate;
+                        break;
                     }
                 }
 
@@ -221,12 +262,12 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                 {
                     try
                     {
-                        var result = await RunDockerScannerAsync(nextJob.HostDirectoryPath, nextJob.CancellationToken);
+                        var result = await RunDockerScannerAsync(nextJob.HostDirectoryPath, nextJob.CancellationTokenSource.Token);
 
                         await using var scope = _scopeFactory.CreateAsyncScope();
                         var _moduleService = scope.ServiceProvider.GetRequiredService<IModuleService>();
 
-                        await _moduleService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, nextJob.CancellationToken);
+                        await _moduleService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, nextJob.CancellationTokenSource.Token);
                     }
                     catch (OperationCanceledException)
                     {
@@ -249,7 +290,11 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                     }
                     finally
                     {
-                        _queuedJobs.TryRemove(nextJob.ModuleId, out _);
+                        lock (_lock)
+                        {
+                            _scanQueue.Remove(nextJob);
+                        }
+                        nextJob.CancellationTokenSource.Dispose();
                         _concurrencySemaphore.Release();
                     }
                 }, stoppingToken);
@@ -355,6 +400,14 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+        lock (_lock)
+        {
+            foreach (var job in _scanQueue.Where(j => !j.IsRunning))
+            {
+                job.CancellationTokenSource.Dispose();
+            }
+            _scanQueue.RemoveAll(j => !j.IsRunning);
+        }
         _concurrencySemaphore.Dispose();
         _itemsAvailable.Dispose();
         _cts.Dispose();

@@ -1,6 +1,5 @@
 using Modulix.Client.Models.Dtos;
-
-using Modulix.Models.Enums;
+using Modulix.Client.Models.Enums;
 
 namespace Modulix.Services.Interfaces;
 
@@ -30,4 +29,10 @@ public interface IModuleEndpointScanner
     /// <param name="moduleId">The unique identifier of the module whose scan should be canceled.</param>
     /// <returns><c>true</c> if the scan was successfully canceled; otherwise, <c>false</c>.</returns>
     bool CancelScan(Guid moduleId);
+
+    /// <summary>
+    /// Retrieves all currently queued and running background scan jobs ordered by priority.
+    /// </summary>
+    /// <returns>A read-only list of queued scan jobs.</returns>
+    IReadOnlyList<ModuleScanQueueItemDto> GetQueuedScans();
 }

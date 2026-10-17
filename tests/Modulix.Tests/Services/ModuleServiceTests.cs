@@ -22,7 +22,6 @@ using Modulix.Extensions;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Models.Enums;
 using Modulix.Models.Options;
 
 using Modulix.Docker.Services;
@@ -1768,6 +1767,57 @@ public class ModuleServiceTests : IDisposable
 
     #endregion
 
+    #region GetScanQueue Tests
+
+    [Fact]
+    [Trait("Feature", "GetScanQueue")]
+    public async Task GetScanQueueAsync_EmptyQueue_ReturnsEmptyCollection()
+    {
+        var result = await _sut.GetScanQueueAsync();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    [Trait("Feature", "GetScanQueue")]
+    public async Task GetScanQueueAsync_QueuedItems_ResolvesModuleNamesAndPreservesOrderAndPriority()
+    {
+        var patchModule = CreateTestModuleEntity("PatchModule", "api/patch", 8081);
+        patchModule.Status = ModuleStatus.QueuedForScan;
+        var createModule = CreateTestModuleEntity("CreateModule", "api/create", 8082);
+        createModule.Status = ModuleStatus.QueuedForScan;
+        _context.Modules.AddRange(patchModule, createModule);
+        await _context.SaveChangesAsync();
+
+        var unknownModuleId = Guid.NewGuid();
+        _endpointScanner.QueuedScans =
+        [
+            new ModuleScanQueueItemDto { ModuleId = patchModule.Id, Priority = ScanPriority.Patch, IsRunning = true },
+            new ModuleScanQueueItemDto { ModuleId = createModule.Id, Priority = ScanPriority.Create, IsRunning = false },
+            new ModuleScanQueueItemDto { ModuleId = unknownModuleId, Priority = ScanPriority.Create, IsRunning = false }
+        ];
+
+        var result = (await _sut.GetScanQueueAsync()).ToList();
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal(patchModule.Id, result[0].ModuleId);
+        Assert.Equal("PatchModule", result[0].ModuleName);
+        Assert.Equal(ScanPriority.Patch, result[0].Priority);
+        Assert.True(result[0].IsRunning);
+
+        Assert.Equal(createModule.Id, result[1].ModuleId);
+        Assert.Equal("CreateModule", result[1].ModuleName);
+        Assert.Equal(ScanPriority.Create, result[1].Priority);
+        Assert.False(result[1].IsRunning);
+
+        Assert.Equal(unknownModuleId, result[2].ModuleId);
+        Assert.Equal(string.Empty, result[2].ModuleName);
+        Assert.Equal(ScanPriority.Create, result[2].Priority);
+        Assert.False(result[2].IsRunning);
+    }
+
+    #endregion
+
     #region Test Fakes & Helpers
 
     private static Module CreateTestModuleEntity(string name, string basePath, int port) => new()
@@ -1870,12 +1920,15 @@ public class ModuleServiceTests : IDisposable
 
         public bool WasQueued { get; set; }
         public List<Guid> CancelledModuleIds { get; } = [];
+        public List<ModuleScanQueueItemDto> QueuedScans { get; set; } = [];
 
         public bool CancelScan(Guid moduleId)
         {
             CancelledModuleIds.Add(moduleId);
             return WasQueued;
         }
+
+        public IReadOnlyList<ModuleScanQueueItemDto> GetQueuedScans() => QueuedScans;
 
         public Task<ScanEnqueueResponse> ScanOrEnqueueAsync(
             Guid moduleId, string moduleDirectoryPath, ScanPriority priority = ScanPriority.Create, CancellationToken ct = default)

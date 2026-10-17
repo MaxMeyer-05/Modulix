@@ -8,12 +8,14 @@ using Microsoft.AspNetCore.WebUtilities;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
 
 namespace Modulix.Web.Pages.ModulesPage;
 
 /// <summary>
 /// Handles the display and management of the modules index page.
 /// </summary>
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class IndexModel : PageModel
 {
     /// <summary>
@@ -53,6 +55,36 @@ public class IndexModel : PageModel
     /// The total number of modules before filtering.
     /// </summary>
     public int TotalModules { get; private set; }
+
+    /// <summary>
+    /// The number of currently running modules.
+    /// </summary>
+    public int RunningCount { get; private set; }
+
+    /// <summary>
+    /// The number of stopped modules.
+    /// </summary>
+    public int StoppedCount { get; private set; }
+
+    /// <summary>
+    /// The number of modules awaiting endpoint confirmation.
+    /// </summary>
+    public int PendingConfirmationCount { get; private set; }
+
+    /// <summary>
+    /// The number of modules queued for scanning.
+    /// </summary>
+    public int QueuedForScanCount { get; private set; }
+
+    /// <summary>
+    /// The number of modules currently starting or created.
+    /// </summary>
+    public int StartingCount { get; private set; }
+
+    /// <summary>
+    /// The number of modules in a failed state.
+    /// </summary>
+    public int FailedCount { get; private set; }
 
     /// <summary>
     /// The current search query.
@@ -214,6 +246,13 @@ public class IndexModel : PageModel
             _logger.LogDebug("Successfully loaded {ModuleCount} modules.", modules.Count);
 
             TotalModules = modules.Count;
+            RunningCount = modules.Count(m => m.Status == ModuleStatus.Running);
+            StoppedCount = modules.Count(m => m.Status == ModuleStatus.Stopped);
+            PendingConfirmationCount = modules.Count(m => m.Status == ModuleStatus.PendingConfirmation);
+            QueuedForScanCount = modules.Count(m => m.Status == ModuleStatus.QueuedForScan);
+            StartingCount = modules.Count(m => m.Status is ModuleStatus.Starting or ModuleStatus.Created);
+            FailedCount = modules.Count(m => m.Status == ModuleStatus.Failed);
+
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
                     .Contains(Query, StringComparison.OrdinalIgnoreCase)

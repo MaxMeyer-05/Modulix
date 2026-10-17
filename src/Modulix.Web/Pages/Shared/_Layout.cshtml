@@ -1,8 +1,10 @@
 ﻿@{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
-    var isModulesPage = currentPage.StartsWith("/Modules/", StringComparison.OrdinalIgnoreCase);
+    var isModulesPage = currentPage.StartsWith("/Modules", StringComparison.OrdinalIgnoreCase);
+    var isScanQueuePage = currentPage.StartsWith("/ScanQueue", StringComparison.OrdinalIgnoreCase);
+    var isEndpointsPage = currentPage.StartsWith("/Endpoints", StringComparison.OrdinalIgnoreCase);
     var isDashboardPage = currentPage == "/Index";
-    var isLogsPage = currentPage == "/Logs/Index";
+    var isLogsPage = currentPage.StartsWith("/Logs", StringComparison.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -39,14 +41,14 @@
                     <i data-lucide="layout-grid" aria-hidden="true"></i>
                     <span class="sidebar-label">Modules</span>
                 </a>
-                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Scan queue: not yet available">
+                <a class="sidebar-link @(isScanQueuePage ? "active" : "")" asp-page="/ScanQueuePage/Index" aria-current="@(isScanQueuePage ? "page" : null)" title="Scan queue">
                     <i data-lucide="list-checks" aria-hidden="true"></i>
                     <span class="sidebar-label">Scan queue</span>
-                </span>
-                <span class="sidebar-link is-unavailable" aria-disabled="true" title="API endpoints: not yet available">
+                </a>
+                <a class="sidebar-link @(isEndpointsPage ? "active" : "")" asp-page="/EndpointsPage/Index" aria-current="@(isEndpointsPage ? "page" : null)" title="API endpoints">
                     <i data-lucide="link" aria-hidden="true"></i>
                     <span class="sidebar-label">API endpoints</span>
-                </span>
+                </a>
                 <a class="sidebar-link @(isLogsPage ? "active" : "")" asp-page="/LogsPage/Index" aria-current="@(isLogsPage ? "page" : null)" title="Logs">
                     <i data-lucide="logs" aria-hidden="true"></i>
                     <span class="sidebar-label">Logs</span>

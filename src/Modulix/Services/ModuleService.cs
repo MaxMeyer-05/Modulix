@@ -7,7 +7,6 @@ using Modulix.Mappers;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Models.Enums;
 using Modulix.Models.Options;
 
 using Modulix.Database.Entities;
@@ -364,6 +363,43 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
+    public async Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
+    {
+        var subEndpointsDetail = await _context.ModuleEndpoints
+            .Include(se => se.Module)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleEndpointsDetailDto()).ToList();
+
+        _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
+
+        return subEndpointsDetailDtos;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default)
+    {
+        var queuedScans = _endpointScanner.GetQueuedScans();
+        if (queuedScans.Count == 0)
+            return [];
+
+        var moduleIds = queuedScans.Select(item => item.ModuleId).Distinct().ToList();
+        var moduleNames = await _context.Modules
+            .AsNoTracking()
+            .Where(module => moduleIds.Contains(module.Id))
+            .ToDictionaryAsync(module => module.Id, module => module.ModuleName, ct);
+
+        return queuedScans.Select(item => new ModuleScanQueueItemDto
+        {
+            ModuleId = item.ModuleId,
+            ModuleName = moduleNames.GetValueOrDefault(item.ModuleId, string.Empty),
+            Priority = item.Priority,
+            IsRunning = item.IsRunning
+        }).ToList();
+    }
+
+    /// <inheritdoc/>
     public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default)
     {
         var module = await _context.Modules
@@ -534,5 +570,4 @@ public class ModuleService : IModuleService
             return false;
         }
     }
-
 }
