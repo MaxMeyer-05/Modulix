@@ -1,8 +1,8 @@
 # Modulix Service
 
-Modulix is an ASP.NET Core service for managing modular .NET applications in Docker containers. It accepts published applications as ZIP archives, discovers their HTTP endpoints, stores module metadata in SQLite, and manages container creation, startup, updates, and deletion.
+Modulix is an ASP.NET Core service for managing modular .NET applications in Docker containers. It accepts published applications as ZIP archives, discovers their HTTP endpoints, stores module metadata in SQLite, manages container creation, startup, updates, and deletion, and dynamically routes incoming HTTP requests to running module containers through a YARP reverse proxy.
 
-The repository also includes a standalone endpoint scanner and a .NET HTTP client library. Modulix manages modules and their endpoint metadata; it does not currently expose a reverse proxy for forwarding requests to module endpoints.
+The repository also includes a standalone endpoint scanner, a Docker orchestration library, a YARP reverse proxy library, and a .NET HTTP client library.
 
 ## Contribute
 
@@ -86,6 +86,7 @@ The test projects cover server-side services and extensions, as well as endpoint
 | [src/Modulix/Infrastructure](src/Modulix/Infrastructure) | Central exception handling and Problem Details responses. |
 | [src/Modulix.Scanner](src/Modulix.Scanner) | Standalone assembly scanner, JSON scan output, and scanner Dockerfile. |
 | [src/libraries/Modulix.Docker](src/libraries/Modulix.Docker) | Docker container orchestration, options, and dependency injection registration. |
+| [src/libraries/Modulix.ReverseProxy](src/libraries/Modulix.ReverseProxy) | Dynamic in-memory YARP reverse proxy configuration, routing models, and dependency injection registration. |
 | [src/libraries/Modulix.Client](src/libraries/Modulix.Client) | HTTP client implementation and dependency injection registration. |
 | [src/libraries/Modulix.Client.Abstraction](src/libraries/Modulix.Client.Abstraction) | Client interfaces, DTOs, and enums for consumers. |
 | [tests/Modulix.Tests](tests/Modulix.Tests) | Server-side tests. |
@@ -122,6 +123,16 @@ Clients can poll the module details to observe progress. Cancelling a queued sca
 Modulix generates a Dockerfile for each module using the configured base image and starts the discovered entry assembly with `dotnet`. Module containers join the configured Docker network and use an `UnlessStopped` restart policy. Docker assigns an ephemeral host port bound to `127.0.0.1`; this is distinct from the configured container port.
 
 The API supports metadata updates, replacement ZIP uploads, and module deletion. Replacement artifacts are scanned again, and file updates are rejected while endpoints await confirmation. Deletion removes the module's container, image, database records, and attempts to remove its stored files.
+
+### Reverse Proxy Routing
+
+Modulix uses `Modulix.ReverseProxy` (built on YARP) with a dynamic in-memory `IProxyConfigProvider` to route incoming HTTP requests to running module containers:
+
+- Only modules in the `Running` status and sub-endpoints in the `Active` status are registered in the proxy configuration.
+- Requests matching `/{BaseUrlPath}/{EndpointPath}` and the endpoint's `HttpMethod` are forwarded to `http://127.0.0.1:{ContainerPort}/{EndpointPath}` with the `/{BaseUrlPath}` prefix removed.
+- Proxied routes use the `Anonymous` gateway authorization policy so module containers can enforce their own authentication and authorization rules.
+- Reserved system prefixes (`api/modules-management`, `api`, `swagger`, `openapi`) cannot be claimed by modules.
+- Active routes are loaded from the database at startup and synchronized automatically whenever modules are created, confirmed, updated, patched, or deleted.
 
 ### Management API
 

@@ -8,6 +8,7 @@ using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
 using Modulix.Docker.Services;
+using Modulix.ReverseProxy.Services;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
@@ -21,6 +22,7 @@ public class ModuleEndpointExtensionTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly ServerContext _context;
     private readonly RecordingDockerService _dockerService = new();
+    private readonly ReverseProxyService _reverseProxyService = new(NullLogger<ReverseProxyService>.Instance);
     private readonly ModuleEndpointExtension _sut;
 
     #region Setup & Teardown
@@ -31,7 +33,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         _connection.Open();
         _context = new ServerContext(new DbContextOptionsBuilder<ServerContext>().UseSqlite(_connection).Options);
         _context.Database.EnsureCreated();
-        _sut = new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService);
+        _sut = new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService, _reverseProxyService);
     }
 
     public void Dispose()
@@ -63,6 +65,23 @@ public class ModuleEndpointExtensionTests : IDisposable
         ModuleEndpointExtension.CheckBaseUrlPathConflict(["api/orders", "api/products"], "api/customers");
     }
 
+    [Theory]
+    [InlineData("api")]
+    [InlineData("API")]
+    [InlineData("api/modules-management")]
+    [InlineData("api/modules-management/modules")]
+    [InlineData("swagger")]
+    [InlineData("/swagger/v1")]
+    [InlineData("openapi")]
+    [InlineData("openapi/v1.json")]
+    public void CheckBaseUrlPathConflict_ReservedSystemPaths_ThrowsArgumentException(string reservedPath)
+    {
+        var exception = Assert.Throws<ArgumentException>(() =>
+            ModuleEndpointExtension.CheckBaseUrlPathConflict([], reservedPath));
+
+        Assert.Contains(reservedPath, exception.Message);
+    }
+
     #endregion
 
     #region CreateEndpointDiscrepancyReport Tests
@@ -92,9 +111,17 @@ public class ModuleEndpointExtensionTests : IDisposable
             Assert.Equal("GET", endpoint.HttpMethod);
             Assert.Equal("/health", endpoint.EndpointPath);
             Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status);
+
+            var proxyRoute = Assert.Single(_reverseProxyService.GetConfig().Routes);
+            Assert.Equal("/api/module/health", proxyRoute.Match.Path);
+            Assert.Equal(["GET"], proxyRoute.Match.Methods);
         }
         else
+        {
             Assert.Empty(persisted.SubEndpoints);
+            Assert.Empty(_reverseProxyService.GetConfig().Routes);
+            Assert.Single(_reverseProxyService.GetConfig().Clusters);
+        }
     }
 
     [Fact]
