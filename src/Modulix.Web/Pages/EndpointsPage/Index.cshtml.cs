@@ -13,6 +13,7 @@ namespace Modulix.Web.Pages.EndpointsPage;
 /// <summary>
 /// Handles the display and filtering of all registered module sub-endpoints.
 /// </summary>
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class IndexModel : PageModel
 {
     /// <summary>

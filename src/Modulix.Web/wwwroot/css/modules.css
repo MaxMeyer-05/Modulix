@@ -180,6 +180,21 @@
 .module-result-body p { margin: 12px 0 0; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-line; }
 
 .modules-header a.module-button { text-decoration: none; }
+.modules-header-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.auto-refresh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--module-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.auto-refresh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #62dba6;
+}
 .module-button-compact { min-height: 32px; padding: 6px 10px; font-size: 12px; }
 .module-symbol-small { width: 26px; height: 26px; }
 .module-symbol-small svg { width: 15px; height: 15px; }

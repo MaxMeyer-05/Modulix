@@ -14,6 +14,7 @@ namespace Modulix.Web.Pages.ScanQueuePage;
 /// <summary>
 /// Handles the display and management of the module scan queue page.
 /// </summary>
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class IndexModel : PageModel
 {
     private const string FeedbackKey = "ScanQueueFeedback";
