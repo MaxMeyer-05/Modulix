@@ -110,8 +110,10 @@ builder.Services
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Services.AddControllers();
-
+builder.Services.AddControllers(options =>
+{
+    options.SuppressAsyncSuffixInActionNames = false;
+});
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())

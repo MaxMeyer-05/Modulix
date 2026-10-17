@@ -20,14 +20,14 @@ internal partial class ModulixApi : IModuleManagementClient
     public async Task CancelModuleScanAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/cancel-scan";
-        using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
+        using var response = await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
     }
 
     /// <inheritdoc/>
     public async Task ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/confirm-endpoint";
+        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/confirm-endpoints";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
     }
@@ -125,11 +125,31 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/files";
-        using var response = await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken: authToken, ct: ct);
-        response.EnsureSuccessStatusCode();
+        using var content = new MultipartFormDataContent();
+        content.Add(
+            new StreamContent(request.ModuleFile.OpenReadStream()),
+            nameof(request.ModuleFile),
+            Path.GetFileName(request.ModuleFile.FileName));
 
-        return await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        using var message = new HttpRequestMessage(HttpMethod.Put, $"{ModuleManagementEndpoint}/{moduleId}/files")
+        {
+            Content = content
+        };
+
+        if (!string.IsNullOrWhiteSpace(authToken))
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+
+        using var response = await _httpClient.SendAsync(message, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                string.IsNullOrWhiteSpace(errorContent) ? response.ReasonPhrase : errorContent,
+                null,
+                response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(cancellationToken: ct)
+             ?? throw new JsonException("The API returned an empty response.");
     }
 }

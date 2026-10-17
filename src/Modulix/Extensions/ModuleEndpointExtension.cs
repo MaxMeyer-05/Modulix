@@ -53,12 +53,17 @@ public class ModuleEndpointExtension
     /// <exception cref="ArgumentException">Thrown if a conflict is found with existing base endpoint paths.</exception>
     public static void CheckBaseUrlPathConflict(IEnumerable<string> usedBasePaths, string normalizedBasePath)
     {
-        if (usedBasePaths.Contains(normalizedBasePath))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");
-        else if (usedBasePaths.Any(ubp => ubp.StartsWith(normalizedBasePath)))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with an existing base endpoint path.");
-        else if (usedBasePaths.Any(ubp => normalizedBasePath.StartsWith(ubp)))
-            throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path.");
+        foreach (var ubp in usedBasePaths)
+        {
+            if (string.Equals(ubp, normalizedBasePath, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is already in use.");
+
+            if (ubp.StartsWith(normalizedBasePath + "/", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with an existing base endpoint path '{ubp}'.");
+
+            if (normalizedBasePath.StartsWith(ubp + "/", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path '{ubp}'.");
+        }
     }
 
     /// <summary>
@@ -76,7 +81,7 @@ public class ModuleEndpointExtension
         var initialEndpoints = module.SubEndpoints.ToList();
         EndpointDiscrepancyReportDto? report = null;
 
-        if (initialEndpoints is null || initialEndpoints.Count == 0)
+        if (initialEndpoints.Count == 0)
         {
             foreach (var scanned in discoveredEndpoints)
             {
@@ -88,7 +93,6 @@ public class ModuleEndpointExtension
                     Status = ModuleEndpointsStatus.Active
                 });
             }
-
             module.Status = ModuleStatus.Created;
         }
         else
@@ -100,13 +104,8 @@ public class ModuleEndpointExtension
             foreach (var initial in initialEndpoints)
             {
                 var found = discoveredEndpoints.Any(scanned =>
-                    scanned.HttpMethod.Equals(
-                        initial.HttpMethod,
-                        StringComparison.OrdinalIgnoreCase)
-                    && scanned.EndpointPath.Equals(
-                        initial.EndpointPath,
-                        StringComparison.OrdinalIgnoreCase)
-                );
+                    scanned.HttpMethod.Equals(initial.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
+                    scanned.EndpointPath.Equals(initial.EndpointPath, StringComparison.OrdinalIgnoreCase));
 
                 if (found)
                 {
@@ -123,13 +122,8 @@ public class ModuleEndpointExtension
             foreach (var scanned in discoveredEndpoints)
             {
                 var isExpected = initialEndpoints.Any(initial =>
-                    initial.HttpMethod.Equals(
-                        scanned.HttpMethod,
-                        StringComparison.OrdinalIgnoreCase)
-                    && initial.EndpointPath.Equals(
-                        scanned.EndpointPath,
-                        StringComparison.OrdinalIgnoreCase)
-                );
+                    initial.HttpMethod.Equals(scanned.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
+                    initial.EndpointPath.Equals(scanned.EndpointPath, StringComparison.OrdinalIgnoreCase));
 
                 if (!isExpected)
                 {
@@ -145,7 +139,6 @@ public class ModuleEndpointExtension
             }
 
             bool hasDiscrepancy = extra.Count > 0 || missing.Count > 0;
-
             if (hasDiscrepancy)
             {
                 report = new EndpointDiscrepancyReportDto
@@ -156,8 +149,11 @@ public class ModuleEndpointExtension
                     ExtraEndpoints = extra,
                     MissingEndpoints = missing
                 };
-
                 module.Status = ModuleStatus.PendingConfirmation;
+            }
+            else
+            {
+                module.Status = ModuleStatus.Created;
             }
         }
 
@@ -166,7 +162,12 @@ public class ModuleEndpointExtension
             try
             {
                 module.Status = ModuleStatus.Starting;
-                var containerId = await _dockerService.BuildContainerAsync(module.Id, module.StoragePath, module.ModuleEntryAssemblyFileName, module.ContainerPort, ct);
+                var containerId = await _dockerService.BuildContainerAsync(
+                    module.Id,
+                    module.StoragePath,
+                    module.ModuleEntryAssemblyFileName,
+                    module.ContainerPort,
+                    ct);
                 module.ContainerId = containerId;
                 await _dockerService.RunContainerAsync(containerId, ct);
                 await _dockerService.WaitUntilReadyAsync(containerId, ct);

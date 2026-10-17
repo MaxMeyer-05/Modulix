@@ -1,5 +1,6 @@
-using System.Formats.Tar;
 using System.Text.Json;
+using System.Formats.Tar;
+using System.Globalization;
 
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -45,25 +46,11 @@ public class DockerService : IDockerService, IDisposable
         _client = client;
     }
 
-    /// <summary>
-    /// Initializes the service with an existing Docker client.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="client">The Docker client owned by this service.</param>
-    /// <param name="options">The shared module settings.</param>
-    public DockerService(ILogger<DockerService> logger, DockerClient client, IOptions<ModulixOptions> options)
-    {
-        _logger = logger;
-        _client = client;
-        _options = options.Value;
-    }
-
     /// <inheritdoc/>
     public async Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
     {
-        // Ensure the Docker network exists before building the container.
         var networks = await _client.Networks.ListNetworksAsync(new NetworksListParameters(), ct);
-        if (!networks.Any(n => n.Name == _options.NetworkName)) 
+        if (!networks.Any(n => n.Name == _options.NetworkName))
         {
             await _client.Networks.CreateNetworkAsync(new NetworksCreateParameters
             {
@@ -73,32 +60,32 @@ public class DockerService : IDockerService, IDisposable
             _logger.LogInformation("Docker network '{NetworkName}' created.", _options.NetworkName);
         }
 
-        // Define the image and container names based on the module ID.
         var version = Guid.NewGuid().ToString("N");
         var imageName = $"modulix-module-{moduleId:N}:{version}";
         var containerName = $"modulix-container-{moduleId:N}-{version}";
-
         var dockerfilePath = Path.Combine(storagePath, "Dockerfile");
 
-        var defaultDockerfile = $"""
-            FROM {_options.BaseImage}
-            WORKDIR /app
-            COPY . .
-            ENV ASPNETCORE_ENVIRONMENT=Production
-            ENTRYPOINT {JsonSerializer.Serialize(new[] { "dotnet", entryDllName })}
-        """;
+        if (!File.Exists(dockerfilePath))
+        {
+            var defaultDockerfile = $"""
+                FROM {_options.BaseImage}
+                WORKDIR /app
+                COPY . .
+                ENV ASPNETCORE_ENVIRONMENT=Production
+                ENTRYPOINT {JsonSerializer.Serialize(new[] { "dotnet", entryDllName })}
+            """;
 
-        await File.WriteAllTextAsync(dockerfilePath, defaultDockerfile, ct);
-        
-        // Create a tarball of the build context for Docker.
+            await File.WriteAllTextAsync(dockerfilePath, defaultDockerfile, ct);
+        }
+
         await using var tarStream = new MemoryStream();
         TarFile.CreateFromDirectory(storagePath, tarStream, includeBaseDirectory: false);
         tarStream.Position = 0;
-
         _logger.LogInformation("Docker build context created for module '{ModuleId}'.", moduleId);
 
-        // Build the Docker image from the Dockerfile and the tarball context.
         var progress = new DockerBuildProgress(_logger, moduleId);
+        var portString = containerPort.ToString(CultureInfo.InvariantCulture);
+
         try
         {
             await _client.Images.BuildImageFromDockerfileAsync(
@@ -123,34 +110,26 @@ public class DockerService : IDockerService, IDisposable
                 Name = containerName,
                 ExposedPorts = new Dictionary<string, EmptyStruct>
                 {
-                    [$"{containerPort}/tcp"] = default
+                    [$"{portString}/tcp"] = default
                 },
                 Env =
                 [
-                    $"ASPNETCORE_HTTP_PORTS={containerPort}",
+                    $"ASPNETCORE_HTTP_PORTS={portString}",
                     "ASPNETCORE_ENVIRONMENT=Production"
                 ],
-                Healthcheck = new HealthConfig
-                {
-                    Test = ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/\"$ASPNETCORE_HTTP_PORTS\""],
-                    Interval = TimeSpan.FromSeconds(1),
-                    Timeout = TimeSpan.FromSeconds(2),
-                    Retries = 30
-                },
                 HostConfig = new HostConfig
                 {
                     NetworkMode = _options.NetworkName,
                     PublishAllPorts = false,
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
-                        [$"{containerPort}/tcp"] = [new PortBinding { HostIP = "127.0.0.1", HostPort = "0" }]
+                        [$"{portString}/tcp"] = [new PortBinding { HostIP = "127.0.0.1", HostPort = portString }]
                     },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
                 }
             }, ct);
 
             _logger.LogInformation("Container '{ContainerName}' created for module '{ModuleId}'.", containerName, moduleId);
-
             return createResponse.ID;
         }
         catch
@@ -222,11 +201,11 @@ public class DockerService : IDockerService, IDisposable
                     throw new InvalidOperationException($"Container '{containerId}' stopped before becoming ready.");
 
                 var health = container.State.Health?.Status;
-                if (health == "healthy")
+                if (health is null or "healthy")
                     return;
 
-                if (health is null or "unhealthy")
-                    throw new InvalidOperationException($"Container '{containerId}' has no successful port health check.");
+                if (health == "unhealthy")
+                    throw new InvalidOperationException($"Container '{containerId}' failed its health check.");
 
                 await Task.Delay(TimeSpan.FromSeconds(1), readinessCts.Token);
             }
