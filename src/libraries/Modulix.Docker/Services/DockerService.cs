@@ -6,11 +6,11 @@ using Docker.DotNet;
 using Docker.DotNet.Models;
 
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
-using Modulix.Models.Options;
-using Modulix.Services.Interfaces;
+using Modulix.Docker.Options;
 
-namespace Modulix.Services;
+namespace Modulix.Docker.Services;
 
 /// <inheritdoc cref="IDockerService"/>
 public class DockerService : IDockerService, IDisposable
@@ -18,7 +18,7 @@ public class DockerService : IDockerService, IDisposable
     /// <summary>
     /// The shared module settings.
     /// </summary>
-    private readonly ModulixOptions _options;
+    private readonly DockerOptions _options;
 
     /// <summary>
     /// The Docker client used to interact with the Docker daemon.
@@ -38,7 +38,7 @@ public class DockerService : IDockerService, IDisposable
     /// <param name="client">The Docker client owned by this service.</param>
     public DockerService(
         ILogger<DockerService> logger, 
-        IOptions<ModulixOptions> options,
+        IOptions<DockerOptions> options,
         DockerClient client)
     {
         _logger = logger;

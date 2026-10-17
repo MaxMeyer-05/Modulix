@@ -35,15 +35,15 @@ These are example values; they must match your Keycloak realm and client configu
 | `Modulix:StorageBasePath` | `storage/modules` | Module files; relative paths are resolved against the application's content root. |
 | `Modulix:MaximumArchiveEntryCount` | `1000` | Maximum number of entries in an uploaded archive. |
 | `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed archive size, equivalent to 512 MiB. |
-| `Modulix:NetworkName` | `modulix-network` | Docker bridge network for module containers. |
-| `Modulix:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Runtime image used to build module containers. |
-| `Modulix:ScannerImage` | `modulix-scanner:latest` | Locally built image used for endpoint discovery. |
-| `Modulix:MaxConcurrentScans` | `4` | Maximum number of concurrent scans. |
+| `Docker:NetworkName` | `modulix-network` | Docker bridge network for module containers. |
+| `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Runtime image used to build module containers. |
+| `Docker:ScannerImage` | `modulix-scanner:latest` | Locally built image used for endpoint discovery. |
+| `Docker:MaxConcurrentScans` | `4` | Maximum number of concurrent scans. |
 | `Keycloak:Issuer` | Placeholder | Expected JWT issuer. |
 | `Keycloak:Audience` | Placeholder | Expected JWT audience. |
 | `Keycloak:MetadataAddress` | Placeholder | OpenID Connect discovery URL. |
 
-The `Modulix` options are validated at startup. Environment variables can also override configuration, using double underscores for nested keys, for example `Modulix__StorageBasePath` or `Keycloak__Audience`.
+The `Modulix` and `Docker` options are validated at startup. Environment variables can also override configuration, using double underscores for nested keys, for example `Modulix__StorageBasePath` or `Docker__ScannerImage`.
 
 Serilog is configured in the `Serilog` section. The template writes warning-level and higher messages to the console and daily log files under `logs/`, retaining 30 files.
 
@@ -58,7 +58,7 @@ docker build -t modulix-scanner:latest -f src/Modulix.Scanner/Dockerfile src/Mod
 dotnet run --project src/Modulix --launch-profile http
 ```
 
-The scanner image tag must match `Modulix:ScannerImage`. The module runtime image must also be available locally or downloadable by Docker. The service creates the configured module network when provisioning a module container.
+The scanner image tag must match `Docker:ScannerImage`. The module runtime image must also be available locally or downloadable by Docker. The service creates the configured module network when provisioning a module container.
 
 The `http` launch profile starts the API at `http://localhost:5284` in the Development environment. Swagger UI is available at `http://localhost:5284/swagger`, and the OpenAPI document is available at `http://localhost:5284/openapi/v1.json`. These documentation endpoints are enabled only in Development.
 
@@ -78,15 +78,16 @@ The test projects cover server-side services and extensions, as well as endpoint
 | --- | --- |
 | [src/Modulix](src/Modulix) | ASP.NET Core management API, authentication, configuration, and service registration. |
 | [src/Modulix/Controllers](src/Modulix/Controllers) | HTTP endpoints for module management. |
-| [src/Modulix/Services](src/Modulix/Services) | Module lifecycle, Docker operations, and scan scheduling. |
+| [src/Modulix/Services](src/Modulix/Services) | Module lifecycle and scan scheduling. |
 | [src/Modulix/Extensions](src/Modulix/Extensions) | Archive handling, endpoint reconciliation, and port selection. |
 | [src/Modulix/Database](src/Modulix/Database) | EF Core context, entities, and SQLite migrations. |
 | [src/Modulix/Models](src/Modulix/Models) | DTOs, status enums, and validated configuration options. |
 | [src/Modulix/Mappers](src/Modulix/Mappers) | Mapping between database entities and API models. |
 | [src/Modulix/Infrastructure](src/Modulix/Infrastructure) | Central exception handling and Problem Details responses. |
 | [src/Modulix.Scanner](src/Modulix.Scanner) | Standalone assembly scanner, JSON scan output, and scanner Dockerfile. |
-| [src/Modulix.Client](src/Modulix.Client) | HTTP client implementation and dependency injection registration. |
-| [src/Modulix.Client.Abstraction](src/Modulix.Client.Abstraction) | Client interfaces, DTOs, and enums for consumers. |
+| [src/libraries/Modulix.Docker](src/libraries/Modulix.Docker) | Docker container orchestration, options, and dependency injection registration. |
+| [src/libraries/Modulix.Client](src/libraries/Modulix.Client) | HTTP client implementation and dependency injection registration. |
+| [src/libraries/Modulix.Client.Abstraction](src/libraries/Modulix.Client.Abstraction) | Client interfaces, DTOs, and enums for consumers. |
 | [tests/Modulix.Tests](tests/Modulix.Tests) | Server-side tests. |
 | [tests/Modulix.Scanner.Tests](tests/Modulix.Scanner.Tests) | Standalone scanner tests and test data. |
 | [postman](postman) | API request collections and environment definitions. |

@@ -21,8 +21,8 @@ using Modulix.Database.Entities;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
+using Modulix.Docker.Options;
 using Modulix.Models.Enums;
-using Modulix.Models.Options;
 
 using Modulix.Services;
 using Modulix.Services.Interfaces;
@@ -68,7 +68,7 @@ public class ModuleEndpointScannerTests : IDisposable
             }))).CreateClient();
         _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance,
             _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new ModulixOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
+            Options.Create(new DockerOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
     }
 
     public void Dispose()

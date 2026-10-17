@@ -7,7 +7,7 @@ using Modulix.Extensions;
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
-using Modulix.Services.Interfaces;
+using Modulix.Docker.Services;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;

@@ -1,4 +1,4 @@
-namespace Modulix.Services.Interfaces;
+namespace Modulix.Docker.Services;
 
 /// <summary>
 /// Provides orchestration capabilities for building and managing Docker containers for modules.

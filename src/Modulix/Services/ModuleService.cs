@@ -13,8 +13,9 @@ using Modulix.Models.Options;
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
-using Modulix.Services.Interfaces;
 using Modulix.Extensions;
+using Modulix.Docker.Services;
+using Modulix.Services.Interfaces;
 
 namespace Modulix.Services;
 
@@ -478,7 +479,7 @@ public class ModuleService : IModuleService
         }
 
         // Old container and directory cleanup logic
-        if (module.Status != ModuleStatus.PendingConfirmation)
+        if (module.Status == ModuleStatus.Running)
         {
             if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
                 await TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))

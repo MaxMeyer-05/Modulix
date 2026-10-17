@@ -9,8 +9,8 @@ using Microsoft.Extensions.Options;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
+using Modulix.Docker.Options;
 using Modulix.Models.Enums;
-using Modulix.Models.Options;
 
 using Modulix.Services.Interfaces;
 using Modulix.Database.DbContexts;
@@ -21,10 +21,9 @@ namespace Modulix.Services;
 public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
 {
     /// <summary>
-    /// The shared module settings.
+    /// The shared Docker settings.
     /// </summary>
-    private readonly ModulixOptions _options;
-
+    private readonly DockerOptions _options;
 
     /// <summary>
     /// Semaphore used to control the concurrency of scan jobs.
@@ -105,12 +104,12 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// <param name="dockerClient">The Docker client used to interact with Docker containers.</param>
     /// <param name="logger">The logger instance for logging information and errors.</param>
     /// <param name="scopeFactory">The service scope factory for creating scoped services.</param>
-    /// <param name="options">The shared module settings.</param>
+    /// <param name="options">The shared Docker settings.</param>
     public ModuleEndpointScanner(
         DockerClient dockerClient, 
         ILogger<ModuleEndpointScanner> logger,
         IServiceScopeFactory scopeFactory,
-        IOptions<ModulixOptions> options)
+        IOptions<DockerOptions> options)
     {
         _dockerClient = dockerClient;
         _logger = logger;
