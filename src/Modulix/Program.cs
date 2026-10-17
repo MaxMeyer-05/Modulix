@@ -9,13 +9,21 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
-using Modulix;
 using Modulix.Docker;
 using Modulix.Docker.Options;
+
+using Modulix;
+using Modulix.Mappers;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
-using Modulix.Database.DbContexts;
+
 using Modulix.Models.Options;
+using Modulix.Database.DbContexts;
+
+using Modulix.ReverseProxy;
+using Modulix.ReverseProxy.Services;
+
+using Modulix.Client.Models.Enums;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +51,7 @@ builder.Services.AddScoped<ModuleEndpointExtension>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
 builder.Services.AddDockerServices();
+builder.Services.AddReverseProxyServices();
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
@@ -118,6 +127,16 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ServerContext>();
     dbContext.Database.Migrate();
+
+    var reverseProxyService = scope.ServiceProvider.GetRequiredService<IReverseProxyService>();
+    var runningModules = dbContext.Modules
+        .AsNoTracking()
+        .Include(m => m.SubEndpoints)
+        .Where(m => m.Status == ModuleStatus.Running)
+        .AsEnumerable()
+        .Select(m => m.ToProxyModuleDefinition())
+        .ToList();
+    reverseProxyService.UpdateModules(runningModules);
 }
 
 if (app.Environment.IsDevelopment())
@@ -134,4 +153,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapModulixReverseProxy();
 app.Run();

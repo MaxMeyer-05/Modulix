@@ -11,6 +11,7 @@ using Modulix.Client.Models.Enums;
 
 using Modulix.Docker.Options;
 using Modulix.Models.Enums;
+using Modulix.ReverseProxy.Services;
 
 using Modulix.Services.Interfaces;
 using Modulix.Database.DbContexts;
@@ -243,6 +244,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                         {
                             module.Status = ModuleStatus.Failed;
                             await _context.SaveChangesAsync(stoppingToken);
+                            scope.ServiceProvider.GetService<IReverseProxyService>()?.RemoveModule(module.Id);
                         }
                     }
                     finally

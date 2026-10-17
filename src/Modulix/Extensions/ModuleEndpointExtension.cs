@@ -5,6 +5,8 @@ using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Docker.Services;
+using Modulix.Mappers;
+using Modulix.ReverseProxy.Services;
 
 namespace Modulix.Extensions;
 
@@ -13,6 +15,16 @@ namespace Modulix.Extensions;
 /// </summary>
 public class ModuleEndpointExtension
 {
+    /// <summary>
+    /// Reserved system URL prefixes that cannot be claimed or shadowed by modules.
+    /// </summary>
+    private static readonly string[] ReservedBasePaths =
+    [
+        "api/modules-management",
+        "swagger",
+        "openapi"
+    ];
+
     /// <summary>
     /// The database context used to persist module endpoints and status.
     /// </summary>
@@ -29,30 +41,50 @@ public class ModuleEndpointExtension
     private readonly IDockerService _dockerService;
 
     /// <summary>
+    /// The reverse proxy service used to synchronize module routing configurations.
+    /// </summary>
+    private readonly IReverseProxyService _reverseProxyService;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ModuleEndpointExtension"/> class.
     /// </summary>
     /// <param name="context">The database context.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="dockerService">The Docker service.</param>
+    /// <param name="reverseProxyService">The reverse proxy service.</param>
     public ModuleEndpointExtension(
         ServerContext context,
         ILogger<ModuleEndpointExtension> logger,
-        IDockerService dockerService)
+        IDockerService dockerService,
+        IReverseProxyService reverseProxyService)
     {
         _context = context;
         _logger = logger;
         _dockerService = dockerService;
+        _reverseProxyService = reverseProxyService;
     }
 
     /// <summary>
-    /// Checks for conflicts with existing base endpoint paths.
+    /// Checks for conflicts with reserved system prefixes and existing base endpoint paths.
     /// Throws an ArgumentException if a conflict is found.
     /// </summary>
     /// <param name="usedBasePaths">The list of currently used base endpoint paths.</param>
     /// <param name="normalizedBasePath">The normalized base endpoint path to check.</param>
-    /// <exception cref="ArgumentException">Thrown if a conflict is found with existing base endpoint paths.</exception>
+    /// <exception cref="ArgumentException">Thrown if a conflict is found with reserved system prefixes or existing base endpoint paths.</exception>
     public static void CheckBaseUrlPathConflict(IEnumerable<string> usedBasePaths, string normalizedBasePath)
     {
+        var candidatePath = normalizedBasePath.Trim().Trim('/');
+
+        foreach (var reservedPath in ReservedBasePaths)
+        {
+            if (string.Equals(reservedPath, candidatePath, StringComparison.OrdinalIgnoreCase) ||
+                reservedPath.StartsWith(candidatePath + "/", StringComparison.OrdinalIgnoreCase) ||
+                candidatePath.StartsWith(reservedPath + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' conflicts with reserved system path '{reservedPath}'.");
+            }
+        }
+
         foreach (var ubp in usedBasePaths)
         {
             if (string.Equals(ubp, normalizedBasePath, StringComparison.OrdinalIgnoreCase))
@@ -63,6 +95,22 @@ public class ModuleEndpointExtension
 
             if (normalizedBasePath.StartsWith(ubp + "/", StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException($"Base endpoint path '{normalizedBasePath}' is a sub-path of an existing base endpoint path '{ubp}'.");
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes the reverse proxy configuration for the specified module based on its current status and active sub-endpoints.
+    /// </summary>
+    /// <param name="module">The module entity to synchronize.</param>
+    public void SynchronizeReverseProxy(Module module)
+    {
+        if (module.Status == ModuleStatus.Running)
+        {
+            _reverseProxyService.UpsertModule(module.ToProxyModuleDefinition());
+        }
+        else
+        {
+            _reverseProxyService.RemoveModule(module.Id);
         }
     }
 
@@ -181,6 +229,7 @@ public class ModuleEndpointExtension
         }
 
         await _context.SaveChangesAsync(ct);
+        SynchronizeReverseProxy(module);
         return report;
     }
 }

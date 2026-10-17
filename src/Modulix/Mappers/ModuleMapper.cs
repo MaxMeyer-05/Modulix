@@ -1,6 +1,8 @@
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
 
 using Modulix.Database.Entities;
+using Modulix.ReverseProxy.Models;
 
 namespace Modulix.Mappers;
 
@@ -80,4 +82,24 @@ public static class ModuleMapper
         module.ModuleName = moduleDto.ModuleName?.Trim() ?? module.ModuleName;
         module.Description = moduleDto.Description?.Trim() ?? module.Description;
     }
+
+    /// <summary>
+    /// Maps a <see cref="Module"/> entity and its active sub-endpoints to a <see cref="ProxyModuleDefinition"/>.
+    /// </summary>
+    /// <param name="module">The <see cref="Module"/> entity to be mapped.</param>
+    /// <returns>The corresponding <see cref="ProxyModuleDefinition"/>.</returns>
+    public static ProxyModuleDefinition ToProxyModuleDefinition(this Module module) => new()
+    {
+        ModuleId = module.Id,
+        BaseUrlPath = module.BaseUrlPath,
+        ContainerPort = module.ContainerPort,
+        Endpoints = module.SubEndpoints
+            .Where(e => e.Status == ModuleEndpointsStatus.Active)
+            .Select(e => new ProxyEndpointDefinition
+            {
+                HttpMethod = e.HttpMethod,
+                EndpointPath = e.EndpointPath
+            })
+            .ToList()
+    };
 }

@@ -15,6 +15,7 @@ using Modulix.Database.DbContexts;
 
 using Modulix.Extensions;
 using Modulix.Docker.Services;
+using Modulix.ReverseProxy.Services;
 using Modulix.Services.Interfaces;
 
 namespace Modulix.Services;
@@ -58,6 +59,11 @@ public class ModuleService : IModuleService
     private readonly ModuleEndpointExtension _moduleEndpointExtension;
 
     /// <summary>
+    /// The reverse proxy service used to synchronize module routing configurations.
+    /// </summary>
+    private readonly IReverseProxyService _reverseProxyService;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ModuleService"/> class.
     /// </summary>
     /// <param name="context">The database context used by the service.</param>
@@ -67,6 +73,7 @@ public class ModuleService : IModuleService
     /// <param name="endpointScanner">The module endpoint scanner.</param>
     /// <param name="directoryExtension">The directory extension for handling module directories and archives.</param>
     /// <param name="moduleEndpointExtension">The extension for validating and reconciling module endpoints.</param>
+    /// <param name="reverseProxyService">The reverse proxy service.</param>
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
@@ -74,7 +81,8 @@ public class ModuleService : IModuleService
         IDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         DirectoryExtension directoryExtension,
-        ModuleEndpointExtension moduleEndpointExtension)
+        ModuleEndpointExtension moduleEndpointExtension,
+        IReverseProxyService reverseProxyService)
     {
         _context = context;
         _logger = logger;
@@ -83,6 +91,7 @@ public class ModuleService : IModuleService
         _options = options.Value;
         _directoryExtension = directoryExtension;
         _moduleEndpointExtension = moduleEndpointExtension;
+        _reverseProxyService = reverseProxyService;
     }
 
     /// <inheritdoc/>
@@ -186,6 +195,7 @@ public class ModuleService : IModuleService
             throw;
         }
 
+        _moduleEndpointExtension.SynchronizeReverseProxy(module);
         return module.ToModuleDetailDto();
     }
 
@@ -338,6 +348,7 @@ public class ModuleService : IModuleService
         _context.ModuleEndpoints.RemoveRange(subEndpoints);
         await _context.SaveChangesAsync(ct);
 
+        _reverseProxyService.RemoveModule(moduleId);
         _logger.LogInformation("Deleted module with ID '{ModuleId}' and its associated sub-endpoints.", moduleId);
     }
 
@@ -386,7 +397,9 @@ public class ModuleService : IModuleService
     /// <inheritdoc/>
     public async Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default)
     {
-        var module = await _context.Modules.FindAsync([moduleId], ct);
+        var module = await _context.Modules
+            .Include(m => m.SubEndpoints)
+            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
         if (module is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
@@ -397,6 +410,7 @@ public class ModuleService : IModuleService
             return;
 
         await _context.SaveChangesAsync(ct);
+        _moduleEndpointExtension.SynchronizeReverseProxy(module);
         _logger.LogInformation("Updated module with ID '{ModuleId}' in the database.", moduleId);
     }
 
@@ -447,6 +461,7 @@ public class ModuleService : IModuleService
                 _logger.LogInformation("Module scan for module with ID '{ModuleId}' was queued.", moduleId);
                 module.Status = ModuleStatus.QueuedForScan;
                 await _context.SaveChangesAsync(ct);
+                _moduleEndpointExtension.SynchronizeReverseProxy(module);
 
                 return new ModuleCreationResultDto
                 {

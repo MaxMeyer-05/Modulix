@@ -26,6 +26,7 @@ using Modulix.Models.Enums;
 using Modulix.Models.Options;
 
 using Modulix.Docker.Services;
+using Modulix.ReverseProxy.Services;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
@@ -45,6 +46,7 @@ public class ModuleServiceTests : IDisposable
     private readonly string _testRootDirectory;
     private readonly FakeModuleEndpointScanner _endpointScanner;
     private readonly FakeDockerService _dockerService;
+    private readonly ReverseProxyService _reverseProxyService;
     private readonly FailingSaveInterceptor _saveInterceptor = new();
     private readonly ModuleService _sut;
 
@@ -72,15 +74,17 @@ public class ModuleServiceTests : IDisposable
         });
         _endpointScanner = new FakeModuleEndpointScanner();
         _dockerService = new FakeDockerService();
+        _reverseProxyService = new ReverseProxyService(NullLogger<ReverseProxyService>.Instance);
 
         _sut = new ModuleService(
             _context,
             NullLogger<ModuleService>.Instance,
             moduleOptions,
             _dockerService,
-                _endpointScanner,
-                new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, moduleOptions),
-                new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService));
+            _endpointScanner,
+            new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, moduleOptions),
+            new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService, _reverseProxyService),
+            _reverseProxyService);
     }
 
     public void Dispose()

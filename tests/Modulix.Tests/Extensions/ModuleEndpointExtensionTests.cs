@@ -8,6 +8,7 @@ using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
 using Modulix.Docker.Services;
+using Modulix.ReverseProxy.Services;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
@@ -21,6 +22,7 @@ public class ModuleEndpointExtensionTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly ServerContext _context;
     private readonly RecordingDockerService _dockerService = new();
+    private readonly ReverseProxyService _reverseProxyService = new(NullLogger<ReverseProxyService>.Instance);
     private readonly ModuleEndpointExtension _sut;
 
     #region Setup & Teardown
@@ -31,7 +33,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         _connection.Open();
         _context = new ServerContext(new DbContextOptionsBuilder<ServerContext>().UseSqlite(_connection).Options);
         _context.Database.EnsureCreated();
-        _sut = new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService);
+        _sut = new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService, _reverseProxyService);
     }
 
     public void Dispose()
