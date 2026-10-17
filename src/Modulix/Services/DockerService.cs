@@ -237,10 +237,20 @@ public class DockerService : IDockerService, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Represents the progress of a Docker build operation.
+    /// </summary>
     private sealed class DockerBuildProgress(ILogger<DockerService> logger, Guid moduleId) : IProgress<JSONMessage>
     {
+        /// <summary>
+        /// Gets the error message from the Docker build operation, if any.
+        /// </summary>
         public string? ErrorMessage { get; private set; }
 
+        /// <summary>
+        /// Gets the error message, if any, from the Docker build operation.
+        /// </summary>
+        /// <param name="message">The JSON message from the Docker build operation.</param>
         public void Report(JSONMessage message)
         {
             if (!string.IsNullOrWhiteSpace(message.Stream))
