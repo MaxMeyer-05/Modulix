@@ -93,6 +93,17 @@ internal partial class ModulixApi : IModuleManagementClient
     }
 
     /// <inheritdoc/>
+    public async Task<List<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default, string? authToken = null)
+    {
+        var requestUri = $"{ModuleManagementEndpoint}/endpoints";
+        using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>() 
+            ?? throw new JsonException("The API returned an empty response.");
+    }
+
+    /// <inheritdoc/>
     public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{moduleId}";

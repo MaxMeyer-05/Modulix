@@ -65,6 +65,19 @@ public interface IModuleManagementClient
     Task<List<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
+    /// Retrieves detailed information about all registered sub-endpoints across all modules.
+    /// </summary>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>A list of detailed sub-endpoints across all modules.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<List<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default, string? authToken = null);
+
+    /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>

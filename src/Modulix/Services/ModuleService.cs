@@ -364,6 +364,21 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
+    public async Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
+    {
+        var subEndpointsDetail = await _context.ModuleEndpoints
+            .Include(se => se.Module)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleEndpointsDetailDto()).ToList();
+
+        _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
+
+        return subEndpointsDetailDtos;
+    }
+
+    /// <inheritdoc/>
     public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default)
     {
         var module = await _context.Modules
@@ -534,5 +549,4 @@ public class ModuleService : IModuleService
             return false;
         }
     }
-
 }

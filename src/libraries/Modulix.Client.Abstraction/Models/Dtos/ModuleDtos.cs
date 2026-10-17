@@ -127,6 +127,19 @@ public class ModuleEndpointDto
 }
 
 /// <summary>
+/// Detailed information about a module's sub-endpoint, including the parent module name.
+/// </summary>
+public class ModuleEndpointsDetailDto : ModuleEndpointDto
+{    
+    /// <summary>
+    /// The name of the parent module to which this endpoint belongs.
+    /// </summary>
+    /// <value>e.g., AnalyticsModule</value>
+    /// <example>AnalyticsModule</example>
+    public string ModuleName { get; set; } = null!;
+}
+
+/// <summary>
 /// Data transfer object for creating a new module with an initial archive upload.
 /// </summary>
 public class CreateModuleDto

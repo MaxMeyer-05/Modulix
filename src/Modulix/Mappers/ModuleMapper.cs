@@ -29,6 +29,21 @@ public static class ModuleMapper
     };
 
     /// <summary>
+    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleEndpointsDetailDto"/>.
+    /// </summary>
+    /// <param name="endpoint">The <see cref="ModuleEndpoint"/> entity to be mapped.</param>
+    /// <returns>The corresponding <see cref="ModuleEndpointsDetailDto"/>.</returns>
+    public static ModuleEndpointsDetailDto ToModuleEndpointsDetailDto(this ModuleEndpoint endpoint) => new()
+    {
+        Id = endpoint.Id,
+        HttpMethod = endpoint.HttpMethod,
+        EndpointPath = endpoint.EndpointPath,
+        Status = endpoint.Status,
+        CreatedAtUtc = endpoint.CreatedAtUtc,
+        ModuleName = endpoint.Module.ModuleName
+    };
+
+    /// <summary>
     /// Maps a <see cref="Module"/> entity to its corresponding <see cref="ModuleDetailDto"/>.
     /// </summary>
     /// <param name="module">The <see cref="Module"/> entity to be mapped.</param>

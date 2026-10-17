@@ -106,6 +106,20 @@ public class ModulesManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves detailed information about all registered sub-endpoints across all modules.
+    /// </summary>
+    /// <returns>
+    /// A 200 OK response with a list of detailed sub-endpoints.
+    /// </returns>
+    [HttpGet("endpoints")]
+    [ProducesResponseType(typeof(IEnumerable<ModuleEndpointsDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ModuleEndpointsDetailDto>>> GetAllEndpointsDetailAsync()
+    {
+        var result = await _moduleService.GetAllEndpointsDetailAsync(HttpContext.RequestAborted);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Retrieves the details of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
