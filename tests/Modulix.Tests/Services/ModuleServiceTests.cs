@@ -701,12 +701,12 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal(ModuleStatus.Running, result.Status);
 
         // Assert - Database state
-        var updatedMissing = await _context.ModuleEndpoints.FindAsync(missingEndpoint.Id);
-        Assert.NotNull(updatedMissing);
-        Assert.Equal(ModuleEndpointsStatus.Active, updatedMissing.Status);
+        var updatedExtra = await _context.ModuleEndpoints.FindAsync(extraEndpoint.Id);
+        Assert.NotNull(updatedExtra);
+        Assert.Equal(ModuleEndpointsStatus.Active, updatedExtra.Status);
 
-        var removedExtra = await _context.ModuleEndpoints.FindAsync(extraEndpoint.Id);
-        Assert.Null(removedExtra);
+        var removedMissing = await _context.ModuleEndpoints.FindAsync(missingEndpoint.Id);
+        Assert.Null(removedMissing);
     }
 
     [Fact]
@@ -802,9 +802,9 @@ public class ModuleServiceTests : IDisposable
         var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
         Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
         var endpoints = await _context.ModuleEndpoints.AsNoTracking().Where(item => item.ModuleId == module.Id).ToListAsync();
-        Assert.Equal(confirmExtra ? 1 : 2, endpoints.Count);
-        Assert.Equal(confirmMissing ? ModuleEndpointsStatus.Active : ModuleEndpointsStatus.PendingConfirmation,
-            endpoints.Single(endpoint => endpoint.EndpointPath == "/health").Status);
+        Assert.Equal(confirmMissing ? 1 : 2, endpoints.Count);
+        Assert.Equal(confirmExtra ? ModuleEndpointsStatus.Active : ModuleEndpointsStatus.PendingConfirmation,
+            endpoints.Single(endpoint => endpoint.EndpointPath == "/legacy").Status);
 
         var confirmedResult = await _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
         {
@@ -817,7 +817,7 @@ public class ModuleServiceTests : IDisposable
         });
 
         Assert.Equal(ModuleStatus.Running, confirmedResult.Status);
-        Assert.Equal(["build", "start"], _dockerService.Calls);
+        Assert.Equal(["build", "start", "ready"], _dockerService.Calls);
         Assert.DoesNotContain(confirmedResult.Endpoints, endpoint => endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
     }
 
@@ -849,7 +849,7 @@ public class ModuleServiceTests : IDisposable
             ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
             {
                 ModuleId = module.Id,
-                MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+                ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
             }]
         });
 
@@ -911,7 +911,7 @@ public class ModuleServiceTests : IDisposable
             }, cancellation.Token));
 
         Assert.Same(failure, exception);
-        Assert.Equal(["build", "start", "remove:replacement-container"], _dockerService.Calls);
+        Assert.Equal(["build", "start", "ready", "remove:replacement-container"], _dockerService.Calls);
         var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
         Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
         Assert.Null(persisted.ContainerId);
@@ -1254,7 +1254,7 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal("replacement-container", module.ContainerId);
         Assert.Equal(ModuleStatus.Running, module.Status);
         Assert.Equal("module.dll", module.ModuleEntryAssemblyFileName);
-        Assert.Equal(["build", "start", "ready"], _dockerService.Calls);
+        Assert.Equal(["build", "start", "ready", "remove:existing-container"], _dockerService.Calls);
         Assert.Equal(module.Id, result.Module.Id);
         Assert.Equal(ModuleStatus.Running, result.Module.Status);
         Assert.Equal(module.StoragePath, result.Module.StoragePath);
@@ -1297,8 +1297,8 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal("original.dll", module.ModuleEntryAssemblyFileName);
         Assert.Equal(ModuleStatus.Running, module.Status);
         Assert.True(File.Exists(Path.Combine(originalPath, "original.dll")));
-        Assert.Empty(_dockerService.RemovedContainerIds);
-        Assert.Equal(failureStage == "scan" ? Array.Empty<string>() : ["build", "start", "ready"], _dockerService.Calls);
+        Assert.Equal(failureStage == "scan" ? Array.Empty<string>() : ["replacement-container"], _dockerService.RemovedContainerIds);
+        Assert.Equal(failureStage == "scan" ? Array.Empty<string>() : ["build", "start", "ready", "remove:replacement-container"], _dockerService.Calls);
         Assert.False(Directory.Exists(_endpointScanner.ScannedDirectory));
         var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
         Assert.Equal("existing-container", persisted.ContainerId);
@@ -1436,8 +1436,8 @@ public class ModuleServiceTests : IDisposable
         var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
         Assert.Equal("winning-container", persisted.ContainerId);
         Assert.Equal("winning-directory", persisted.StoragePath);
-        Assert.Equal(["build", "start", "ready"], _dockerService.Calls);
-        Assert.Empty(_dockerService.RemovedContainerIds);
+        Assert.Equal(["build", "start", "ready", "remove:replacement-container"], _dockerService.Calls);
+        Assert.Equal(["replacement-container"], _dockerService.RemovedContainerIds);
         Assert.False(Directory.Exists(_dockerService.BuiltStoragePath));
     }
 
@@ -1464,7 +1464,7 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal("existing-container", module.ContainerId);
         Assert.Equal(originalPath, module.StoragePath);
         Assert.Equal(ModuleStatus.Running, module.Status);
-        Assert.Empty(_dockerService.RemovedContainerIds);
+        Assert.Equal(["replacement-container"], _dockerService.RemovedContainerIds);
         Assert.False(Directory.Exists(_dockerService.BuiltStoragePath));
         var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
         Assert.Equal("existing-container", persisted.ContainerId);

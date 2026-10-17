@@ -479,7 +479,7 @@ public class ModuleService : IModuleService
         }
 
         // Old container and directory cleanup logic
-        if (module.Status != ModuleStatus.PendingConfirmation)
+        if (module.Status == ModuleStatus.Running)
         {
             if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
                 await TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))

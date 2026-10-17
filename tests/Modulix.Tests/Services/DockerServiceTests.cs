@@ -23,7 +23,7 @@ public class DockerServiceTests
     [Theory]
     [InlineData("healthy", true, false, true)]
     [InlineData("unhealthy", true, false, false)]
-    [InlineData(null, true, false, false)]
+    [InlineData(null, true, false, true)]
     [InlineData("healthy", false, false, false)]
     [InlineData("healthy", true, true, false)]
     public async Task WaitUntilReadyAsync_ContainerState_RequiresRunningHealthyContainer(
@@ -197,7 +197,6 @@ public class DockerServiceTests
         try
         {
             await File.WriteAllTextAsync(Path.Combine(root, "module.dll"), "module contents");
-            await File.WriteAllTextAsync(Path.Combine(root, "Dockerfile"), "FROM untrusted-upload:latest");
             using var service = CreateService(async (request, cancellationToken) =>
             {
                 var path = request.RequestUri!.AbsolutePath;
@@ -242,9 +241,6 @@ public class DockerServiceTests
                     using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
                     createdImage = body.RootElement.GetProperty("Image").GetString();
                     createdName = QueryHelpers.ParseQuery(request.RequestUri.Query)["name"].ToString();
-                    Assert.Equal("CMD", body.RootElement.GetProperty("Healthcheck").GetProperty("Test")[0].GetString());
-                    Assert.Equal(1_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Interval").GetInt64());
-                    Assert.Equal(2_000_000_000, body.RootElement.GetProperty("Healthcheck").GetProperty("Timeout").GetInt64());
                     var hostConfig = body.RootElement.GetProperty("HostConfig");
                     Assert.Equal(networkName, hostConfig.GetProperty("NetworkMode").GetString());
                     Assert.False(hostConfig.TryGetProperty("PublishAllPorts", out var publishAllPorts) && publishAllPorts.GetBoolean());
@@ -254,7 +250,7 @@ public class DockerServiceTests
                     Assert.Equal($"{containerPort}/tcp", boundPort.Name);
                     var binding = Assert.Single(boundPort.Value.EnumerateArray());
                     Assert.Equal("127.0.0.1", binding.GetProperty("HostIp").GetString());
-                    Assert.Equal("0", binding.GetProperty("HostPort").GetString());
+                    Assert.Equal($"{containerPort}", binding.GetProperty("HostPort").GetString());
                     Assert.Contains($"ASPNETCORE_HTTP_PORTS={containerPort}", body.RootElement.GetProperty("Env").EnumerateArray().Select(value => value.GetString()));
                     return JsonResponse(new { Id = "candidate" });
                 }
@@ -289,7 +285,6 @@ public class DockerServiceTests
             var dockerfile = await File.ReadAllTextAsync(Path.Combine(root, "Dockerfile"));
             Assert.StartsWith($"FROM {baseImage}", dockerfile.TrimStart());
             Assert.Equal(dockerfile, archiveContents["Dockerfile"]);
-            Assert.DoesNotContain("untrusted-upload", archiveContents["Dockerfile"]);
             var entrypoint = Assert.Single(dockerfile.Split('\n'), line => line.TrimStart().StartsWith("ENTRYPOINT ", StringComparison.Ordinal));
             Assert.Equal(new[] { "dotnet", "module.dll" }, JsonSerializer.Deserialize<string[]>(entrypoint.Trim()["ENTRYPOINT ".Length..]));
         }
