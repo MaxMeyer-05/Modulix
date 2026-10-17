@@ -125,16 +125,19 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The entry assembly file name.</returns>
     /// <exception cref="FileNotFoundException">Thrown if no runtime config files or entry assembly DLL is found.</exception>
-    private string FindEntryAssemblyFileName(string moduleDirectoryPath, CancellationToken ct)
+    /// <exception cref="InvalidOperationException">Thrown if multiple entry assembly candidates are found.</exception>
+    private static string FindEntryAssemblyFileName(string moduleDirectoryPath, CancellationToken ct)
     {
         var runtimeConfigFiles = Directory.GetFiles(moduleDirectoryPath, "*.runtimeconfig.json", SearchOption.TopDirectoryOnly)
             .Where(f => !f.EndsWith(".runtimeconfig.dev.json", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(Path.GetFileName, StringComparer.Ordinal)
             .ToList();
 
         if (runtimeConfigFiles.Count == 0)
             throw new FileNotFoundException("No runtime config files found for the module.", moduleDirectoryPath);
 
-        string? entryAssemblyFileName = null;
+        var candidates = new List<string>();
         foreach (var runtimeConfigFile in runtimeConfigFiles)
         {
             ct.ThrowIfCancellationRequested();
@@ -145,15 +148,17 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
 
             if (File.Exists(Path.Combine(moduleDirectoryPath, dllFileName)))
             {
-                entryAssemblyFileName = dllFileName;
-                break;
+                candidates.Add(dllFileName);
             }
         }
 
-        if (entryAssemblyFileName == null)
-            throw new FileNotFoundException("No entry assembly found for the module.", moduleDirectoryPath);
-
-        return entryAssemblyFileName;
+        return candidates.Count switch
+        {
+            0 => throw new FileNotFoundException("No entry assembly found for the module.", moduleDirectoryPath),
+            1 => candidates[0],
+            _ => throw new InvalidOperationException(
+                $"Multiple entry assembly candidates found in module directory: {string.Join(", ", candidates)}.")
+        };
     }
 
     /// <summary>
