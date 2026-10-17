@@ -131,6 +131,24 @@ public class ModuleEndpointScannerTests : IDisposable
         Assert.Empty(result.DiscoveredEndpoints);
     }
 
+    [Fact]
+    [Trait("Feature", "ScanDirectory")]
+    public async Task ScanDirectoryAsync_MultipleMatchingRuntimeConfigs_ThrowsInvalidOperationExceptionWithSortedCandidates()
+    {
+        File.WriteAllText(Path.Combine(_testRootDirectory, "Zeta.runtimeconfig.json"), "{}");
+        File.WriteAllText(Path.Combine(_testRootDirectory, "Zeta.dll"), "");
+        File.WriteAllText(Path.Combine(_testRootDirectory, "Alpha.runtimeconfig.json"), "{}");
+        File.WriteAllText(Path.Combine(_testRootDirectory, "Alpha.dll"), "");
+        File.WriteAllText(Path.Combine(_testRootDirectory, "Ignored.runtimeconfig.json"), "{}");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.ScanDirectoryAsync(_testRootDirectory));
+
+        Assert.Equal(
+            "Multiple entry assembly candidates found in module directory: Alpha.dll, Zeta.dll.",
+            exception.Message);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not a managed assembly")]
