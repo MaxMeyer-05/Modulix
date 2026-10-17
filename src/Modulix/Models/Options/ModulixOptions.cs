@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Modulix.Models.Options;
 
 /// <summary>
-/// Defines shared settings for module storage, Docker containers and endpoint scanning.
+/// Defines shared settings for module storage and archive limits.
 /// </summary>
 public sealed class ModulixOptions
 {

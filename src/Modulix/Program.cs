@@ -1,5 +1,4 @@
 using Serilog;
-using Docker.DotNet;
 using System.Diagnostics;
 
 using Microsoft.OpenApi;
@@ -12,6 +11,7 @@ using Modulix.Services.Interfaces;
 
 using Modulix;
 using Modulix.Docker;
+using Modulix.Docker.Options;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
 using Modulix.Database.DbContexts;
@@ -32,20 +32,16 @@ builder.Services.AddOptions<ModulixOptions>()
     })
     .ValidateOnStart();
 
+builder.Services.AddOptions<DockerOptions>()
+    .Bind(builder.Configuration.GetSection(DockerOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
-builder.Services.AddSingleton<DockerClient>(_ =>
-{
-    var dockerUri = OperatingSystem.IsWindows()
-        ? new Uri("npipe://./pipe/docker_engine")
-        : new Uri("unix:///var/run/docker.sock");
-
-    return new DockerClientConfiguration(dockerUri).CreateClient();
-});
-
 builder.Services.AddDockerServices();
 
 builder.Services.AddDbContext<ServerContext>(options =>

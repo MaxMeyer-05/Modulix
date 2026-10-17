@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using Modulix.Models.Options;
-using Modulix.Services;
+using Modulix.Docker.Options;
+using Modulix.Docker.Services;
 
 namespace Modulix.Tests.Services;
 
@@ -264,7 +264,7 @@ public class DockerServiceTests
 
                 deletedImage |= request.Method == HttpMethod.Delete && path.Contains("/images/", StringComparison.Ordinal);
                 return JsonResponse(Array.Empty<object>());
-            }, new ModulixOptions { NetworkName = networkName, BaseImage = baseImage });
+            }, new DockerOptions { NetworkName = networkName, BaseImage = baseImage });
 
             if (buildFails)
             {
@@ -397,11 +397,11 @@ public class DockerServiceTests
 
     private static DockerService CreateService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder,
-        ModulixOptions? options = null)
+        DockerOptions? options = null)
     {
         var credentials = new FakeCredentials(new FakeDockerHandler(responder));
         var client = new DockerClientConfiguration(new Uri("http://docker.test"), credentials).CreateClient();
-        return new DockerService(NullLogger<DockerService>.Instance, client, Options.Create(options ?? new ModulixOptions()));
+        return new DockerService(NullLogger<DockerService>.Instance, Options.Create(options ?? new DockerOptions()), client);
     }
 
     private static HttpResponseMessage JsonResponse(object body, HttpStatusCode status = HttpStatusCode.OK) => new(status)

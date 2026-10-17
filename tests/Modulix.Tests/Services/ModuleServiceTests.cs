@@ -25,6 +25,7 @@ using Modulix.Client.Models.Enums;
 using Modulix.Models.Enums;
 using Modulix.Models.Options;
 
+using Modulix.Docker.Services;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 

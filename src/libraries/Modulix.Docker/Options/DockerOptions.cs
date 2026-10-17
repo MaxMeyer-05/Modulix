@@ -2,22 +2,33 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Modulix.Docker.Options;
 
-public class DockerOptions
+/// <summary>
+/// Defines configuration settings for Docker containers, images, networks, and endpoint scanning.
+/// </summary>
+public sealed class DockerOptions
 {
+    /// <summary>
+    /// The configuration section containing the Docker settings.
+    /// </summary>
+    public const string SectionName = "Docker";
+
     /// <summary>
     /// The name of the Docker network used for module containers.
     /// </summary>
-    public required string NetworkName { get; set; } = "modulix-network";
+    [Required]
+    public string NetworkName { get; set; } = "modulix-network";
 
     /// <summary>
     /// The base Docker image for module containers.
     /// </summary>
-    public required string BaseImage { get; set; } = "mcr.microsoft.com/dotnet/aspnet:10.0";
+    [Required]
+    public string BaseImage { get; set; } = "mcr.microsoft.com/dotnet/aspnet:10.0";
 
     /// <summary>
     /// The Docker image used for scanning modules.
     /// </summary>
-    public required string ScannerImage { get; set; } = "modulix-scanner:latest";
+    [Required]
+    public string ScannerImage { get; set; } = "modulix-scanner:latest";
 
     /// <summary>
     /// The maximum number of concurrent scans allowed.
