@@ -1679,9 +1679,91 @@ public class ModuleServiceTests : IDisposable
         Assert.False(Directory.Exists(moduleDir));
 
         // Assert - Database records removed
-        Assert.Null(await _context.Modules.FindAsync(module.Id));
+        Assert.Null( await _context.Modules.FindAsync(module.Id));
         Assert.Null(await _context.ModuleEndpoints.FindAsync(endpoint.Id));
         Assert.Equal(hasContainer ? ["existing-container"] : Array.Empty<string>(), _dockerService.RemovedContainerIds);
+    }
+
+    #endregion
+
+    #region ReverseProxy Synchronization Tests
+
+    [Fact]
+    [Trait("Feature", "ReverseProxySynchronization")]
+    public async Task ModuleLifecycle_SynchronizesRoutesWithReverseProxy()
+    {
+        // 1. Create a module with discrepancies -> PendingConfirmation (not routed yet)
+        _endpointScanner.DiscoveredEndpoints =
+        [
+            new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/reports" },
+            new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/export" }
+        ];
+
+        var createResult = await _sut.CreateModuleAsync(new CreateModuleDto
+        {
+            ModuleName = "Analytics Module",
+            BaseUrlPath = "/analytics/",
+            ContainerPort = 8095,
+            ModuleFile = CreateDummyZipFile(),
+            InitialEndpoints = [new CreateModuleEndpointDto { HttpMethod = "GET", EndpointPath = "/reports" }]
+        });
+
+        var moduleId = createResult.Module.Id;
+        Assert.Equal(ModuleStatus.PendingConfirmation, createResult.Module.Status);
+        Assert.Empty(_reverseProxyService.GetConfig().Clusters);
+        Assert.Empty(_reverseProxyService.GetConfig().Routes);
+
+        // 2. Confirm extra endpoint -> Running (cluster and active routes registered)
+        var confirmResult = await _sut.ConfirmEndpointsAsync(moduleId, new ConfirmEndpointsDto
+        {
+            ConfirmedEndpoints =
+            [
+                new EndpointDiscrepancyReportDto
+                {
+                    ModuleId = moduleId,
+                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/export" }]
+                }
+            ]
+        });
+
+        Assert.Equal(ModuleStatus.Running, confirmResult.Status);
+        var activeConfig = _reverseProxyService.GetConfig();
+        var cluster = Assert.Single(activeConfig.Clusters);
+        Assert.Equal($"module-cluster-{moduleId:N}", cluster.ClusterId);
+        Assert.Equal("http://127.0.0.1:8095", cluster.Destinations!["container"].Address);
+        Assert.Equal(2, activeConfig.Routes.Count);
+        Assert.Contains(activeConfig.Routes, r => r.Match.Path == "/analytics/reports" && r.Match.Methods!.Contains("GET"));
+        Assert.Contains(activeConfig.Routes, r => r.Match.Path == "/analytics/export" && r.Match.Methods!.Contains("POST"));
+
+        // 3. Update module files while scanner is busy -> QueuedForScan (removed from proxy)
+        _endpointScanner.WasQueued = true;
+        var queuedUpdateResult = await _sut.UpdateModuleFilesAsync(moduleId, new UpdateModuleFilesDto
+        {
+            ModuleFile = CreateDummyZipFile()
+        });
+
+        Assert.Equal(ModuleStatus.QueuedForScan, queuedUpdateResult.Module.Status);
+        Assert.Empty(_reverseProxyService.GetConfig().Clusters);
+        Assert.Empty(_reverseProxyService.GetConfig().Routes);
+
+        // 4. Process queued scan result with matching endpoints -> Running (re-registered in proxy)
+        await _sut.ProcessQueuedScanResultAsync(moduleId, new ModuleScanResultDto
+        {
+            EntryAssemblyFileName = "module.dll",
+            DiscoveredEndpoints =
+            [
+                new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/reports" },
+                new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/export" }
+            ]
+        });
+
+        Assert.Single(_reverseProxyService.GetConfig().Clusters);
+        Assert.Equal(2, _reverseProxyService.GetConfig().Routes.Count);
+
+        // 5. Delete module -> Removed from proxy
+        await _sut.DeleteModuleAsync(moduleId);
+        Assert.Empty(_reverseProxyService.GetConfig().Clusters);
+        Assert.Empty(_reverseProxyService.GetConfig().Routes);
     }
 
     #endregion
