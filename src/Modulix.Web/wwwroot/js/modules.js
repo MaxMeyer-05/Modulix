@@ -37,8 +37,13 @@ document.querySelectorAll("[data-copy]").forEach(button => {
     };
 
     const isEditingFilter = () => {
+        const addDialog = document.getElementById("add-module-dialog");
+        if (addDialog && (addDialog.classList.contains("module-dialog-open") || addDialog.matches(":popover-open"))) {
+            return true;
+        }
+
         const active = document.activeElement;
-        return Boolean(active && active.closest(".modules-toolbar") && active.matches("input, select, textarea"));
+        return Boolean(active && active.closest(".modules-toolbar, .module-dialog") && active.matches("input, select, textarea"));
     };
 
     window.setInterval(() => {

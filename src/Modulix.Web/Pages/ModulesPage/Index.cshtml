@@ -21,12 +21,21 @@
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
 }
 
-<div class="modules-page">
+<div class="modules-page" data-auto-refresh="60">
     <header class="modules-header">
         <div class="modules-title"><h1>Modules</h1></div>
-        <button class="module-button module-button-primary" type="button" popovertarget="add-module-dialog">
-            <i data-lucide="plus" aria-hidden="true"></i><span>Add module</span>
-        </button>
+        <div class="modules-header-actions">
+            <span class="auto-refresh-status" aria-live="off">
+                <span class="auto-refresh-dot" aria-hidden="true"></span>
+                <span data-auto-refresh-countdown>Auto-refresh in 60s</span>
+            </span>
+            <a class="module-button" data-auto-refresh-link href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = Model.StatusFilter, sort = Model.SortBy })">
+                <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
+            </a>
+            <button class="module-button module-button-primary" type="button" popovertarget="add-module-dialog">
+                <i data-lucide="plus" aria-hidden="true"></i><span>Add module</span>
+            </button>
+        </div>
     </header>
 
     @if (!ViewData.ModelState.IsValid)
@@ -39,6 +48,54 @@
             </div>
         </div>
     }
+
+    <section class="module-metrics" aria-label="Module status overview">
+        <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
+           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "", sort = Model.SortBy })">
+            <div class="queue-metric-heading">
+                <h2>Total modules</h2>
+                <span class="queue-metric-icon"><i data-lucide="layers" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.TotalModules</p>
+            <span class="queue-metric-sub">@Model.StartingCount starting / created</span>
+        </a>
+        <a class="queue-metric queue-metric-active queue-metric-link @(Model.StatusFilter == "Running" ? "is-selected" : "")"
+           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "Running", sort = Model.SortBy })">
+            <div class="queue-metric-heading">
+                <h2>Active (Running)</h2>
+                <span class="queue-metric-icon"><i data-lucide="activity" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.RunningCount</p>
+            <span class="queue-metric-sub">Routing traffic via proxy</span>
+        </a>
+        <a class="queue-metric queue-metric-priority queue-metric-link @(Model.StatusFilter == "PendingConfirmation" ? "is-selected" : "")"
+           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "PendingConfirmation", sort = Model.SortBy })">
+            <div class="queue-metric-heading">
+                <h2>Pending &amp; queued</h2>
+                <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@(Model.PendingConfirmationCount + Model.QueuedForScanCount)</p>
+            <span class="queue-metric-sub">@Model.PendingConfirmationCount pending · @Model.QueuedForScanCount queued</span>
+        </a>
+        <a class="queue-metric queue-metric-inactive queue-metric-link @(Model.StatusFilter == "Stopped" ? "is-selected" : "")"
+           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "Stopped", sort = Model.SortBy })">
+            <div class="queue-metric-heading">
+                <h2>Stopped</h2>
+                <span class="queue-metric-icon"><i data-lucide="square" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.StoppedCount</p>
+            <span class="queue-metric-sub">Container not running</span>
+        </a>
+        <a class="queue-metric queue-metric-failed queue-metric-link @(Model.StatusFilter == "Failed" ? "is-selected" : "")"
+           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "Failed", sort = Model.SortBy })">
+            <div class="queue-metric-heading">
+                <h2>Failed</h2>
+                <span class="queue-metric-icon"><i data-lucide="triangle-alert" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.FailedCount</p>
+            <span class="queue-metric-sub">Requires attention</span>
+        </a>
+    </section>
 
     <form class="modules-toolbar" method="get" action="@closeUrl">
         <div class="module-search-field">
@@ -167,3 +224,7 @@
         </dialog>
     }
 </div>
+
+@section Scripts {
+    <script src="~/js/modules.js" asp-append-version="true"></script>
+}

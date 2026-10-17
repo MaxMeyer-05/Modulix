@@ -222,19 +222,39 @@
   gap: 14px;
   margin-bottom: 24px;
 }
+.module-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
 .queue-metric {
   --metric-color: var(--module-accent);
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   padding: 14px 16px 12px;
   border: 1px solid var(--module-border);
   border-radius: 6px;
   background: var(--module-surface);
+  color: var(--module-text);
+  text-decoration: none;
+}
+.queue-metric-link:hover {
+  border-color: #4c8d99;
+  background: #1b2531;
+  color: var(--module-text);
+}
+.queue-metric-link.is-selected {
+  border-color: var(--metric-color);
+  background: color-mix(in srgb, var(--metric-color) 8%, var(--module-surface));
 }
 .queue-metric-running { --metric-color: #6bcce6; }
 .queue-metric-waiting { --metric-color: #e4d17c; }
 .queue-metric-priority { --metric-color: #e9b16c; }
 .queue-metric-active { --metric-color: #62dba6; }
 .queue-metric-inactive { --metric-color: #a5afbd; }
+.queue-metric-failed { --metric-color: #ff9299; }
 .queue-metric-heading {
   display: flex;
   align-items: center;
@@ -265,6 +285,12 @@
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+.queue-metric-sub {
+  margin-top: 8px;
+  color: var(--module-muted);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .data-table-container {
@@ -348,7 +374,7 @@
 .endpoint-module-tag svg { width: 15px; height: 15px; color: var(--module-accent); }
 
 @media (max-width: 1100px) {
-  .queue-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .queue-metrics, .module-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .module-detail-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .module-detail-aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
   .modules-toolbar { flex-wrap: wrap; }
@@ -356,7 +382,7 @@
   .module-select-label { flex: 1; min-width: 0; }
 }
 @media (max-width: 640px) {
-  .queue-metrics { grid-template-columns: minmax(0, 1fr); }
+  .queue-metrics, .module-metrics { grid-template-columns: minmax(0, 1fr); }
   .modules-page { margin: -16px; padding: 20px 16px; min-height: calc(100dvh - 120px); }
   .modules-page h1 { font-size: 24px; }
   .modules-toolbar { gap: 12px; }
