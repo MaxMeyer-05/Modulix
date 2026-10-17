@@ -1,22 +1,29 @@
-using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using System.Net;
+using System.Buffers.Binary;
+using System.Threading.Channels;
+using System.Collections.Concurrent;
+
 using System.Text;
 using System.Text.Json;
-using System.Threading.Channels;
 
 using Docker.DotNet;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
+
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
-using Modulix.Models.Dtos;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
+
 using Modulix.Models.Enums;
 using Modulix.Models.Options;
+
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
@@ -33,6 +40,7 @@ public class ModuleEndpointScannerTests : IDisposable
     private readonly RecordingModuleService _moduleService = new();
     private readonly SqliteConnection _connection;
     private readonly ServerContext _context;
+    private readonly ServiceProvider _serviceProvider;
     private readonly DockerClient _client;
     private readonly ModuleEndpointScanner _sut;
     private Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _responder;
@@ -47,6 +55,10 @@ public class ModuleEndpointScannerTests : IDisposable
         _connection.Open();
         _context = new ServerContext(new DbContextOptionsBuilder<ServerContext>().UseSqlite(_connection).Options);
         _context.Database.EnsureCreated();
+        _serviceProvider = new ServiceCollection()
+            .AddSingleton(_context)
+            .AddSingleton<IModuleService>(_moduleService)
+            .BuildServiceProvider();
         _responder = RespondAsync;
         _client = new DockerClientConfiguration(new Uri("http://docker.test"),
             new FakeCredentials(new FakeDockerHandler((request, cancellationToken) =>
@@ -54,13 +66,15 @@ public class ModuleEndpointScannerTests : IDisposable
                 _requests.Enqueue(request.Method + " " + request.RequestUri!.AbsolutePath);
                 return _responder(request, cancellationToken);
             }))).CreateClient();
-        _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance, _context,
-            _moduleService, Options.Create(new ModulixOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
+        _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance,
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new ModulixOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
     }
 
     public void Dispose()
     {
         _sut.Dispose();
+        _serviceProvider.Dispose();
         _client.Dispose();
         _context.Dispose();
         _connection.Dispose();
@@ -358,7 +372,7 @@ public class ModuleEndpointScannerTests : IDisposable
             {
                 Id = failedModuleId,
                 ModuleName = "Queued module",
-                BaseEndpointPath = "api/queued",
+                BaseUrlPath = "api/queued",
                 ContainerPort = 8080,
                 StoragePath = _testRootDirectory,
                 ModuleEntryAssemblyFileName = "module.dll",
@@ -534,9 +548,9 @@ public class ModuleEndpointScannerTests : IDisposable
         public Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default) => throw new NotSupportedException();
         public Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 

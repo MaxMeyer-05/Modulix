@@ -10,9 +10,9 @@ body:
     - key: Description
       type: text
       value: "{{moduleDescription}}"
-    - key: BaseEndpointPath
+    - key: BaseUrlPath
       type: text
-      value: "{{moduleBaseEndpointPath}}"
+      value: "{{moduleBaseUrlPath}}"
     - key: ModuleFile
       type: file
       src: "{{moduleZipPath}}"

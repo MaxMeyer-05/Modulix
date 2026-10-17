@@ -1,4 +1,6 @@
 using Serilog;
+using Docker.DotNet;
+using System.Diagnostics;
 
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
+using Modulix;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
 using Modulix.Database.DbContexts;
@@ -34,6 +37,14 @@ builder.Services.AddScoped<ModuleEndpointExtension>();
 
 builder.Services.AddSingleton<IDockerService, DockerService>();
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
+builder.Services.AddSingleton<DockerClient>(_ =>
+{
+    var dockerUri = OperatingSystem.IsWindows()
+        ? new Uri("npipe://./pipe/docker_engine")
+        : new Uri("unix:///var/run/docker.sock");
+
+    return new DockerClientConfiguration(dockerUri).CreateClient();
+});
 
 builder.Services.AddDbContext<ServerContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
@@ -43,37 +54,66 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "Modulix",
-        Version = "v1"
+        Title = "RL1Labs API",
+        Version = FileVersionInfo
+            .GetVersionInfo(
+                typeof(Program).Assembly.Location)
+            .ProductVersion
     });
 
     options.IncludeXmlComments(
         Path.Combine(
-            AppContext.BaseDirectory, 
+            AppContext.BaseDirectory,
             $"{typeof(Program).Assembly.GetName().Name}.xml")
     );
+
+    // Ermöglicht die Token-Eingabe in Swagger UI
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Copy the JWT-Access-Token from Keycloak here:"
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecuritySchemeReference("Bearer", document),
+            new List<string>()
+        }
+    });
 });
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services
+    .AddAuthorization()
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.MapInboundClaims = false;
-        options.RequireHttpsMetadata = false;
-        options.Audience = builder.Configuration["Keycloak:Audience"];
-        options.MetadataAddress = builder.Configuration["Keycloak:MetadataAddress"]!;
+        var authOptions = builder.Configuration
+            .GetSection(AuthorizationSettings.SectionName)
+            .Get<AuthorizationSettings>()
+            ?? AuthorizationSettings.Default;
 
+        options.Authority = authOptions.Authority;
+        options.RequireHttpsMetadata = authOptions.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = builder.Configuration["Keycloak:Issuer"],
-            RoleClaimType = "roles"
+            ValidIssuer = authOptions.Authority,
+            ValidateAudience = !string.IsNullOrEmpty(authOptions.Audience),
+            ValidAudience = authOptions.Audience?.Trim()
         };
     });
 
-builder.Services.AddAuthorization();
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Services.AddControllers();
-
+builder.Services.AddControllers(options =>
+{
+    options.SuppressAsyncSuffixInActionNames = false;
+});
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -84,8 +124,9 @@ using (var scope = app.Services.CreateScope())
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.MapOpenApi();
-
+    
     app.MapSwagger();
     app.MapSwaggerUI();
 }

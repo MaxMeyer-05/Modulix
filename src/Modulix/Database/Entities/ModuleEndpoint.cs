@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-using Modulix.Models.Enums;
+using Modulix.Client.Models.Enums;
 
 namespace Modulix.Database.Entities;
 
