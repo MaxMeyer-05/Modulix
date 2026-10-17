@@ -1,0 +1,204 @@
+@page "/scan-queue"
+@using Modulix.Client.Models.Enums
+@model Modulix.Web.Pages.ScanQueuePage.IndexModel
+@{
+    ViewData["Title"] = "Scan queue";
+    var entries = Model.QueueEntries;
+    var priorities = new (string Value, string Label)[]
+    {
+        ("", "All priorities"),
+        (nameof(ScanPriority.Patch), "Patch (High)"),
+        (nameof(ScanPriority.Create), "Create (Normal)")
+    };
+    var states = new (string Value, string Label)[]
+    {
+        ("", "All states"),
+        ("running", "Running"),
+        ("waiting", "Waiting")
+    };
+    var resetUrl = Url.Page("/ScanQueuePage/Index");
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
+}
+
+<div class="modules-page">
+    <header class="modules-header">
+        <div class="modules-title">
+            <h1>Scan queue</h1>
+        </div>
+        <a class="module-button" href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = Model.PriorityFilter, state = Model.StateFilter })">
+            <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
+        </a>
+    </header>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="modules-error" role="alert">
+            <i data-lucide="circle-alert" aria-hidden="true"></i>
+            <div>
+                <strong>Scan queue request failed</strong>
+                <div asp-validation-summary="All"></div>
+            </div>
+        </div>
+    }
+
+    @if (Model.Feedback is { } feedback)
+    {
+        <div class="queue-feedback @(feedback.IsSuccess ? "queue-feedback-success" : "modules-error")" role="status">
+            <i data-lucide="@(feedback.IsSuccess ? "check-circle-2" : "circle-alert")" aria-hidden="true"></i>
+            <div>
+                <strong>@feedback.Title</strong>
+                <p>@feedback.Description</p>
+            </div>
+        </div>
+    }
+
+    <section class="queue-metrics" aria-label="Scan queue overview">
+        <article class="queue-metric">
+            <div class="queue-metric-heading">
+                <h2>Total in queue</h2>
+                <span class="queue-metric-icon"><i data-lucide="list-checks" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.TotalCount</p>
+        </article>
+        <article class="queue-metric queue-metric-running">
+            <div class="queue-metric-heading">
+                <h2>Currently scanning</h2>
+                <span class="queue-metric-icon"><i data-lucide="loader" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.RunningCount</p>
+        </article>
+        <article class="queue-metric queue-metric-waiting">
+            <div class="queue-metric-heading">
+                <h2>Waiting for slot</h2>
+                <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.WaitingCount</p>
+        </article>
+        <article class="queue-metric queue-metric-priority">
+            <div class="queue-metric-heading">
+                <h2>High priority (Patch)</h2>
+                <span class="queue-metric-icon"><i data-lucide="zap" aria-hidden="true"></i></span>
+            </div>
+            <p class="queue-metric-value">@Model.PatchPriorityCount</p>
+        </article>
+    </section>
+
+    <form class="modules-toolbar" method="get" action="@resetUrl">
+        <div class="module-search-field">
+            <i data-lucide="search" aria-hidden="true"></i>
+            <input id="queue-search" name="q" type="search" value="@Model.Query" placeholder="Search by module name or ID..." aria-label="Search scan queue" autocomplete="off" />
+        </div>
+        <label class="module-select-label"><span>Priority</span>
+            <select id="queue-priority-filter" name="priority">
+                @foreach (var (value, label) in priorities)
+                {
+                    <option value="@value" selected="@(Model.PriorityFilter == value)">@label</option>
+                }
+            </select>
+        </label>
+        <label class="module-select-label"><span>State</span>
+            <select id="queue-state-filter" name="state">
+                @foreach (var (value, label) in states)
+                {
+                    <option value="@value" selected="@(Model.StateFilter == value)">@label</option>
+                }
+            </select>
+        </label>
+        <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
+    </form>
+
+    <p class="module-result-count" id="queue-result-count" role="status">
+        @(entries.Count == Model.TotalCount ? $"{entries.Count} queued scans" : $"{entries.Count} of {Model.TotalCount} queued scans")
+    </p>
+
+    @if (entries.Count > 0)
+    {
+        <div class="data-table-container" role="region" aria-label="Scan queue" tabindex="0">
+            <table class="data-table" id="scan-queue-table">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Module</th>
+                        <th scope="col">Module ID</th>
+                        <th scope="col">Priority</th>
+                        <th scope="col">State</th>
+                        <th scope="col" class="data-table-actions-col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in entries)
+                    {
+                        var item = entry.Item;
+                        var displayName = string.IsNullOrWhiteSpace(item.ModuleName) ? "Unnamed module" : item.ModuleName;
+                        var isPatch = item.Priority == ScanPriority.Patch;
+                        <tr>
+                            <td class="queue-position">#@entry.Position</td>
+                            <td>
+                                <a class="data-table-link" asp-page="/ModulesPage/Detail" asp-route-id="@item.ModuleId">
+                                    <span class="module-symbol module-symbol-small"><i data-lucide="box" aria-hidden="true"></i></span>
+                                    <span>@displayName</span>
+                                </a>
+                            </td>
+                            <td>
+                                <div class="module-copy-value">
+                                    <span class="module-code">@item.ModuleId</span>
+                                    <button class="module-icon-button" type="button" data-copy="@item.ModuleId" aria-label="Copy module ID" title="Copy module ID">
+                                        <i data-lucide="copy" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="priority-badge @(isPatch ? "priority-patch" : "priority-create")">
+                                    <i data-lucide="@(isPatch ? "arrow-up" : "minus")" aria-hidden="true"></i>
+                                    <span>@(isPatch ? "Patch (High)" : "Create (Normal)")</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="module-badge @(item.IsRunning ? "badge-starting" : "badge-queued")">
+                                    <span aria-hidden="true"></span>
+                                    @(item.IsRunning ? "Scanning" : "Waiting")
+                                </span>
+                            </td>
+                            <td class="data-table-actions-col">
+                                <form method="post" asp-page-handler="Cancel" class="inline-action-form">
+                                    <input type="hidden" name="moduleId" value="@item.ModuleId" />
+                                    <input type="hidden" name="q" value="@Model.Query" />
+                                    <input type="hidden" name="priority" value="@Model.PriorityFilter" />
+                                    <input type="hidden" name="state" value="@Model.StateFilter" />
+                                    <button class="module-button module-button-danger module-button-compact" type="submit" title="Cancel scan and remove module">
+                                        <i data-lucide="x-circle" aria-hidden="true"></i>
+                                        <span>Cancel scan</span>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="module-empty-state" id="queue-empty-state">
+            <i data-lucide="list-checks" aria-hidden="true"></i>
+            @if (Model.TotalCount == 0)
+            {
+                <h2>Scan queue is empty</h2>
+                <p>No modules are currently waiting or being scanned in the background.</p>
+            }
+            else
+            {
+                <h2>No matching scans</h2>
+                <p>No queued scans match your search and filter criteria.</p>
+                <a class="module-button" href="@resetUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
+            }
+        </div>
+    }
+    <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
+</div>
+
+@section Scripts {
+    <script src="~/js/modules.js" asp-append-version="true"></script>
+}
