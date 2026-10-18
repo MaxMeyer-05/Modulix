@@ -19,7 +19,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task CancelModuleScanAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/cancel-scan";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/cancel-scan";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
     }
@@ -27,7 +27,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/confirm-endpoints";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/confirm-endpoints";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
     }
@@ -76,7 +76,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/delete";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/delete";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
     }
@@ -117,7 +117,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
@@ -128,7 +128,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<List<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}/endpoints";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/endpoints";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
@@ -139,7 +139,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{moduleId}";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
     }
@@ -153,7 +153,7 @@ internal partial class ModulixApi : IModuleManagementClient
             nameof(request.ModuleFile),
             Path.GetFileName(request.ModuleFile.FileName));
 
-        using var message = new HttpRequestMessage(HttpMethod.Put, $"{ModuleManagementEndpoint}/{moduleId}/files")
+        using var message = new HttpRequestMessage(HttpMethod.Put, $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/files")
         {
             Content = content
         };

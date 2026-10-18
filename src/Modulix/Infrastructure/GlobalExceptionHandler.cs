@@ -37,7 +37,15 @@ public sealed class GlobalExceptionHandler: IExceptionHandler
         };
 
         if (statusCode >= StatusCodes.Status500InternalServerError)
-            _logger.LogError(exception, "Unhandled exception while processing {Method} {Path}.", httpContext.Request.Method, httpContext.Request.Path);
+        {
+            var sanitizedMethod = httpContext.Request.Method
+                .Replace("\r", string.Empty)
+                .Replace("\n", string.Empty);
+            var sanitizedPath = httpContext.Request.Path.ToString()
+                .Replace("\r", string.Empty)
+                .Replace("\n", string.Empty);
+            _logger.LogError(exception, "Unhandled exception while processing {Method} {Path}.", sanitizedMethod, sanitizedPath);
+        }
         else
             _logger.LogWarning(exception, "Request failed with status code {StatusCode}.", statusCode);
 

@@ -182,7 +182,10 @@ public class IndexModel : PageModel
 
         try
         {
-            _logger.LogDebug("Creating a new module with name {ModuleName}.", input.ModuleName);
+            var sanitizedModuleName = input.ModuleName
+                .Replace("\r", string.Empty)
+                .Replace("\n", string.Empty);
+            _logger.LogDebug("Creating a new module with name {ModuleName}.", sanitizedModuleName);
 
             var response = await _modulixApiClient.ModuleManagement.CreateModuleWithStatusAsync(
                 input, ct: HttpContext.RequestAborted);
@@ -210,16 +213,18 @@ public class IndexModel : PageModel
         {
             _logger.LogError(exception, "Error creating module.");
             var statusCode = (int?)exception.StatusCode ?? 503;
-            var description = exception.StatusCode.HasValue
-                ? exception.Message : ReasonPhrases.GetReasonPhrase(statusCode);
-            try
+            var description = ReasonPhrases.GetReasonPhrase(statusCode);
+            if (exception.StatusCode.HasValue)
             {
-                var problem = JsonSerializer.Deserialize<ProblemDetails>(description, JsonSerializerOptions.Web);
-                if (!string.IsNullOrWhiteSpace(problem?.Detail))
-                    description = problem.Detail;
-            }
-            catch (JsonException)
-            {
+                try
+                {
+                    var problem = JsonSerializer.Deserialize<ProblemDetails>(exception.Message, JsonSerializerOptions.Web);
+                    if (!string.IsNullOrWhiteSpace(problem?.Detail))
+                        description = problem.Detail;
+                }
+                catch (JsonException)
+                {
+                }
             }
             return Failure(statusCode, description);
         }
