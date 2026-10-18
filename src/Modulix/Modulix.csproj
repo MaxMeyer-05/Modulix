@@ -4,9 +4,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <UserSecretsId>modulix-server-development</UserSecretsId>
     <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
+    <AssemblyTitle>Modulix</AssemblyTitle>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Title>Modulix</Title>
+    <Authors>Max Meyer</Authors>
+    <Product>Modulix</Product>
+    <Description>Core server and API for the Modulix framework.</Description>
+    <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.1</FileVersion>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
