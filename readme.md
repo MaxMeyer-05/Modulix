@@ -31,7 +31,7 @@ Use [./src/Modulix/appsettings.Template.json](./src/Modulix/appsettings.Template
 | `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
 | `Docker:NetworkName` | `modulix-network` | Docker bridge network attached to module containers. |
 | `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Base runtime image used when building module container images. |
-| `Docker:ScannerImage` | `modulix-scanner:latest` | Local Docker image executed for assembly endpoint discovery. |
+| `Docker:ScannerImage` | `ghcr.io/maxmeyer-05/modulix-scanner:latest` | Docker image executed for assembly endpoint discovery (pulled automatically if not present locally). |
 | `Docker:MaxConcurrentScans` | `4` | Maximum number of scanner containers running in parallel. |
 | `Authorization:Authority` | `<authority-url>` | OpenID Connect authority / issuer URL (e.g., `http://localhost:8080/realms/modulix`). |
 | `Authorization:Audience` | `modulix_api` | Expected JWT audience claim (optional; validated when set). |
@@ -67,8 +67,8 @@ Run the following commands from the repository root:
 dotnet restore Modulix.slnx
 dotnet build Modulix.slnx
 
-# 2. Build the isolated endpoint scanner Docker image (must match Docker:ScannerImage)
-docker build -t modulix-scanner:latest -f src/Modulix.Scanner/Dockerfile src/Modulix.Scanner
+# 2. (Optional) Pull or build the isolated endpoint scanner Docker image
+docker pull ghcr.io/maxmeyer-05/modulix-scanner:latest
 
 # 3. Start the Modulix server API and reverse proxy (http://localhost:5284)
 dotnet run --project src/Modulix --launch-profile http
