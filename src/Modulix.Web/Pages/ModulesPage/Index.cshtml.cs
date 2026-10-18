@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
 
@@ -29,6 +30,11 @@ public class IndexModel : PageModel
     private readonly IModulixApi _modulixApiClient;
 
     /// <summary>
+    /// The user session activity service.
+    /// </summary>
+    private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
     /// The logger instance.
     /// </summary>
     private readonly ILogger<IndexModel> _logger;
@@ -37,12 +43,15 @@ public class IndexModel : PageModel
     /// Initializes a new instance of the <see cref="IndexModel"/> class.
     /// </summary>
     /// <param name="modulixApiClient">The Modulix API client.</param>
+    /// <param name="userActivityService">The user session activity service.</param>
     /// <param name="logger">The logger instance.</param>
     public IndexModel(
-        IModulixApi modulixApiClient, 
+        IModulixApi modulixApiClient,
+        IUserActivityService userActivityService,
         ILogger<IndexModel> logger)
     {
         _modulixApiClient = modulixApiClient;
+        _userActivityService = userActivityService;
         _logger = logger;
     }
 
@@ -187,6 +196,13 @@ public class IndexModel : PageModel
                 : ReasonPhrases.GetReasonPhrase(statusCode);
 
             _logger.LogInformation("Module creation returned HTTP {StatusCode} for {ModuleId}.", statusCode, module.Id);
+
+            if (statusCode is 201 or 202)
+            {
+                var action = statusCode == 202 ? "Queued module scan for" : "Added";
+                var tone = statusCode == 202 ? UserActivityTone.Update : UserActivityTone.Success;
+                _userActivityService.Record(User, action, module.ModuleName, "plus", tone, moduleUrl);
+            }
 
             return new CreationResult(statusCode, ReasonPhrases.GetReasonPhrase(statusCode), description, moduleUrl);
         }

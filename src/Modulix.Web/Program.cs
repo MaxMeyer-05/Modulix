@@ -1,6 +1,9 @@
+using System.Security.Claims;
+
 using Serilog;
 
 using Modulix.Web;
+using Modulix.Web.Services;
 using Modulix.Client;
 
 
@@ -19,6 +22,8 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IUserActivityService, UserActivityService>();
 
 var authSettings = builder.Configuration
     .GetRequiredSection(AuthorizationSettings.SectionName)
@@ -43,7 +48,33 @@ builder.Services.AddAuthentication(options =>
         options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
     })
-    .AddCookie()
+    .AddCookie(options =>
+    {
+        options.Events = new CookieAuthenticationEvents
+        {
+            OnSigningIn = context =>
+            {
+                if (context.Principal?.Identity is ClaimsIdentity identity
+                    && !identity.HasClaim(c => c.Type == UserActivityService.SessionClaimType))
+                {
+                    var oidcSid = identity.FindFirst("sid")?.Value
+                        ?? identity.FindFirst(ClaimTypes.Sid)?.Value
+                        ?? identity.FindFirst("session_state")?.Value
+                        ?? Guid.NewGuid().ToString("N");
+
+                    identity.AddClaim(new Claim(UserActivityService.SessionClaimType, oidcSid));
+                }
+
+                return Task.CompletedTask;
+            },
+            OnSigningOut = context =>
+            {
+                var activityService = context.HttpContext.RequestServices.GetService<IUserActivityService>();
+                activityService?.Clear(context.HttpContext.User);
+                return Task.CompletedTask;
+            }
+        };
+    })
     .AddOpenIdConnect(options =>
     {
         options.Authority = authSettings.Authority;

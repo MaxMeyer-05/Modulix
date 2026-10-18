@@ -170,6 +170,7 @@
                             <td class="data-table-actions-col">
                                 <form method="post" asp-page-handler="Cancel" class="inline-action-form">
                                     <input type="hidden" name="moduleId" value="@item.ModuleId" />
+                                    <input type="hidden" name="moduleName" value="@displayName" />
                                     <input type="hidden" name="q" value="@Model.Query" />
                                     <input type="hidden" name="priority" value="@Model.PriorityFilter" />
                                     <input type="hidden" name="state" value="@Model.StateFilter" />

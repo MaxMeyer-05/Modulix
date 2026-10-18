@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages;
 
@@ -21,6 +22,11 @@ public class IndexModel : PageModel
     private readonly IModulixApi _modulixApiClient;
 
     /// <summary>
+    /// The user session activity service.
+    /// </summary>
+    private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
     /// The logger instance.
     /// </summary>
     private readonly ILogger<IndexModel> _logger;
@@ -29,14 +35,22 @@ public class IndexModel : PageModel
     /// Initializes a new instance of the <see cref="IndexModel"/> class.
     /// </summary>
     /// <param name="modulixApiClient">The Modulix API client.</param>
+    /// <param name="userActivityService">The user session activity service.</param>
     /// <param name="logger">The logger instance.</param>
     public IndexModel(
-        IModulixApi modulixApiClient, 
+        IModulixApi modulixApiClient,
+        IUserActivityService userActivityService,
         ILogger<IndexModel> logger)
     {
         _modulixApiClient = modulixApiClient;
+        _userActivityService = userActivityService;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Gets the recorded user activities for the current login session.
+    /// </summary>
+    public IReadOnlyList<UserActivityItem> Activities { get; private set; } = [];
 
     /// <summary>
     /// Gets the signed-in user's first name, if available.
@@ -124,6 +138,7 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnGetAsync()
     {
         ResolveUserIdentity();
+        Activities = _userActivityService.GetActivities(User);
 
         var ct = HttpContext.RequestAborted;
         var modulesTask = LoadModulesAsync(ct);

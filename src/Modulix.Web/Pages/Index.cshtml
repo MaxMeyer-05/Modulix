@@ -272,28 +272,50 @@
                 </div>
                 <span class="session-label">This session</span>
             </header>
-            <ol class="activity-list" aria-labelledby="activity-heading" tabindex="0">
-                <li class="activity-item activity-success">
-                    <span class="activity-icon"><i data-lucide="play" aria-hidden="true"></i></span>
-                    <div><p>Started <strong>AnalyticsModule</strong></p><span class="activity-time">2 minutes ago</span></div>
-                </li>
-                <li class="activity-item activity-success">
-                    <span class="activity-icon"><i data-lucide="check" aria-hidden="true"></i></span>
-                    <div><p>Confirmed endpoints for <strong>NotificationService</strong></p><span class="activity-time">8 minutes ago</span></div>
-                </li>
-                <li class="activity-item activity-update">
-                    <span class="activity-icon"><i data-lucide="upload" aria-hidden="true"></i></span>
-                    <div><p>Updated files for <strong>IdentityService</strong></p><span class="activity-time">14 minutes ago</span></div>
-                </li>
-                <li class="activity-item activity-update">
-                    <span class="activity-icon"><i data-lucide="plus" aria-hidden="true"></i></span>
-                    <div><p>Added <strong>ReportsModule</strong></p><span class="activity-time">21 minutes ago</span></div>
-                </li>
-                <li class="activity-item activity-warning">
-                    <span class="activity-icon"><i data-lucide="square" aria-hidden="true"></i></span>
-                    <div><p>Stopped <strong>BillingService</strong></p><span class="activity-time">32 minutes ago</span></div>
-                </li>
-            </ol>
+            @if (Model.Activities.Count == 0)
+            {
+                <div class="activity-empty">
+                    <div class="activity-empty-card">
+                        <span class="activity-empty-icon" aria-hidden="true">
+                            <i data-lucide="activity"></i>
+                        </span>
+                        <h3>No activity yet</h3>
+                        <p>Actions you perform—such as adding modules, confirming endpoints, or cancelling scans—will appear here in real time.</p>
+                        <span class="activity-empty-hint">
+                            <i data-lucide="shield-check" aria-hidden="true"></i>
+                            <span>Stored only until you sign out</span>
+                        </span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                var nowUtc = DateTime.UtcNow;
+                <ol class="activity-list" aria-labelledby="activity-heading" tabindex="0">
+                    @foreach (var activity in Model.Activities)
+                    {
+                        <li class="activity-item @activity.ToneClass">
+                            <span class="activity-icon"><i data-lucide="@activity.Icon" aria-hidden="true"></i></span>
+                            <div>
+                                <p>
+                                    @activity.Action
+                                    @if (!string.IsNullOrWhiteSpace(activity.TargetUrl))
+                                    {
+                                        <a class="activity-target-link" href="@activity.TargetUrl"><strong>@activity.TargetName</strong></a>
+                                    }
+                                    else
+                                    {
+                                        <strong>@activity.TargetName</strong>
+                                    }
+                                </p>
+                                <span class="activity-time" title="@activity.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)">
+                                    @activity.FormatRelativeTime(nowUtc)
+                                </span>
+                            </div>
+                        </li>
+                    }
+                </ol>
+            }
         </section>
     </div>
 </div>
