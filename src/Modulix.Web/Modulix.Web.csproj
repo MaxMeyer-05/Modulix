@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>modulix-web-development</UserSecretsId>
+    <AssemblyTitle>Modulix - Web</AssemblyTitle>
+    <Title>Modulix - Web</Title>
+    <Authors>Max Meyer</Authors>
+    <Product>Modulix</Product>
+    <Description>Web frontend for the Modulix framework.</Description>
+    <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.1</FileVersion>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Duende.AccessTokenManagement.OpenIdConnect" Version="4.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.10" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\libraries\Modulix.Client\Modulix.Client.csproj" />
+  </ItemGroup>
+
+</Project>

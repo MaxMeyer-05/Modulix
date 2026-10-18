@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>modulix-server-development</UserSecretsId>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
+    <AssemblyTitle>Modulix</AssemblyTitle>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Title>Modulix</Title>
+    <Authors>Max Meyer</Authors>
+    <Product>Modulix</Product>
+    <Description>Core server and API for the Modulix framework.</Description>
+    <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.1</FileVersion>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\libraries\Modulix.ReverseProxy\Modulix.ReverseProxy.csproj" />
+    <ProjectReference Include="..\libraries\Modulix.Docker\Modulix.Docker.csproj" />
+    <ProjectReference Include="..\libraries\Modulix.Client.Abstraction\Modulix.Client.Abstraction.csproj" />
+  </ItemGroup>
+
+</Project>

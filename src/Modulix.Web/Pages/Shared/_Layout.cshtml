@@ -1,0 +1,96 @@
+﻿@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+    var isModulesPage = currentPage.StartsWith("/Modules", StringComparison.OrdinalIgnoreCase);
+    var isScanQueuePage = currentPage.StartsWith("/ScanQueue", StringComparison.OrdinalIgnoreCase);
+    var isEndpointsPage = currentPage.StartsWith("/Endpoints", StringComparison.OrdinalIgnoreCase);
+    var isDashboardPage = currentPage == "/Index";
+    var isLogsPage = currentPage.StartsWith("/Logs", StringComparison.OrdinalIgnoreCase);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Modulix.Web</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Modulix.Web.styles.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body class="modulix-app">
+    <div class="app-shell" id="app-shell">
+        <aside class="sidebar" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <a class="sidebar-brand" asp-page="/Index" title="Modulix Dashboard" aria-label="Modulix Dashboard">
+                    <i data-lucide="box" aria-hidden="true"></i>
+                    <span class="sidebar-label">MODULIX</span>
+                </a>
+                <button class="sidebar-toggle" id="sidebar-toggle" type="button"
+                        aria-controls="sidebar-navigation" aria-expanded="true"
+                        aria-label="Hide menu" title="Hide menu">
+                    <i data-lucide="chevrons-left" aria-hidden="true"></i>
+                </button>
+            </div>
+            <nav class="sidebar-navigation" id="sidebar-navigation" aria-label="Sections">
+                <a class="sidebar-link @(isDashboardPage ? "active" : "")" asp-page="/Index" aria-current="@(isDashboardPage ? "page" : null)" title="Dashboard">
+                    <i data-lucide="house" aria-hidden="true"></i>
+                    <span class="sidebar-label">Dashboard</span>
+                </a>
+                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/ModulesPage/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
+                    <i data-lucide="layout-grid" aria-hidden="true"></i>
+                    <span class="sidebar-label">Modules</span>
+                </a>
+                <a class="sidebar-link @(isScanQueuePage ? "active" : "")" asp-page="/ScanQueuePage/Index" aria-current="@(isScanQueuePage ? "page" : null)" title="Scan queue">
+                    <i data-lucide="list-checks" aria-hidden="true"></i>
+                    <span class="sidebar-label">Scan queue</span>
+                </a>
+                <a class="sidebar-link @(isEndpointsPage ? "active" : "")" asp-page="/EndpointsPage/Index" aria-current="@(isEndpointsPage ? "page" : null)" title="API endpoints">
+                    <i data-lucide="link" aria-hidden="true"></i>
+                    <span class="sidebar-label">API endpoints</span>
+                </a>
+                <a class="sidebar-link @(isLogsPage ? "active" : "")" asp-page="/LogsPage/Index" aria-current="@(isLogsPage ? "page" : null)" title="Logs">
+                    <i data-lucide="logs" aria-hidden="true"></i>
+                    <span class="sidebar-label">Logs</span>
+                </a>
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: not yet available">
+                    <i data-lucide="settings" aria-hidden="true"></i>
+                    <span class="sidebar-label">Settings</span>
+                </span>
+            </nav>
+        </aside>
+        <div class="app-workspace">
+            <header class="topbar" aria-label="Workspace toolbar">
+                <div class="topbar-actions">
+                    <div class="user-menu">
+                        <button class="topbar-icon" id="user-menu-toggle" type="button"
+                                aria-label="User menu" title="User menu" aria-haspopup="menu"
+                                aria-controls="user-menu-panel" aria-expanded="false">
+                            <i data-lucide="user-round" aria-hidden="true"></i>
+                        </button>
+                        <div class="topbar-panel user-menu-panel" id="user-menu-panel" role="menu"
+                             aria-label="User menu" hidden>
+                            <form method="post" asp-page="/Logout" role="none">
+                                <button class="sign-out-button" id="sign-out-button" type="submit" role="menuitem">
+                                    <i data-lucide="log-out" aria-hidden="true"></i>
+                                    <span>Sign out</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <main role="main" class="app-content">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/lucide.min.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

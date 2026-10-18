@@ -1,0 +1,325 @@
+﻿@page
+@model IndexModel
+@using System.Globalization
+@using Modulix.Client.Models.Enums
+@using Modulix.Web.Pages.ModulesPage
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="dashboard" data-auto-refresh="300">
+    <header class="dashboard-hero">
+        <div class="welcome-block">
+            <div class="welcome-avatar" aria-hidden="true">@Model.UserInitials</div>
+            <div class="welcome-copy">
+                <span class="welcome-eyebrow">Workspace overview</span>
+                <h1>
+                    @if (!string.IsNullOrWhiteSpace(Model.UserFullName))
+                    {
+                        <text>Welcome back, <span class="welcome-name">@Model.UserFullName</span>!</text>
+                    }
+                    else
+                    {
+                        <text>Welcome back!</text>
+                    }
+                </h1>
+                <p class="welcome-subtitle">
+                    @if (!ViewData.ModelState.IsValid)
+                    {
+                        <text>The Modulix API could not be reached right now. Check the connection details below.</text>
+                    }
+                    else if (Model.AttentionCount > 0)
+                    {
+                        <text>You have @Model.AttentionCount @(Model.AttentionCount == 1 ? "item" : "items") requiring attention across your workspace.</text>
+                    }
+                    else if (Model.Modules.Count > 0)
+                    {
+                        <text>@Model.RunningModulesCount of @Model.Modules.Count @(Model.Modules.Count == 1 ? "module is" : "modules are") currently running with no pending issues.</text>
+                    }
+                    else
+                    {
+                        <text>Your workspace is ready. Register and scan your first module to get started.</text>
+                    }
+                </p>
+            </div>
+        </div>
+        <div class="dashboard-hero-actions">
+            <span class="auto-refresh-status" aria-live="off">
+                <span class="auto-refresh-dot" aria-hidden="true"></span>
+                <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
+            </span>
+            <a class="dashboard-button" data-auto-refresh-link asp-page="/Index">
+                <i data-lucide="refresh-cw" aria-hidden="true"></i>
+                <span>Refresh</span>
+            </a>
+            <a class="dashboard-button dashboard-button-primary" asp-page="/ModulesPage/Index">
+                <i data-lucide="layout-grid" aria-hidden="true"></i>
+                <span>Manage modules</span>
+            </a>
+        </div>
+    </header>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="dashboard-error" role="alert">
+            <i data-lucide="circle-alert" aria-hidden="true"></i>
+            <div>
+                <strong>Modules unavailable</strong>
+                <div asp-validation-summary="ModelOnly"></div>
+            </div>
+        </div>
+    }
+
+    <section class="quick-actions-section" aria-label="Quick actions">
+        <div class="quick-actions-grid">
+            <a class="quick-action-card" asp-page="/ModulesPage/Index">
+                <span class="quick-action-icon icon-cyan"><i data-lucide="layout-grid" aria-hidden="true"></i></span>
+                <div class="quick-action-body">
+                    <h2>Modules</h2>
+                    <p>@Model.Modules.Count registered · @Model.RunningModulesCount running</p>
+                </div>
+                <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
+            </a>
+            <a class="quick-action-card" asp-page="/ScanQueuePage/Index">
+                <span class="quick-action-icon icon-amber"><i data-lucide="list-checks" aria-hidden="true"></i></span>
+                <div class="quick-action-body">
+                    <h2>Scan queue</h2>
+                    <p>@(Model.ScanQueue.Count == 0 ? "Queue is clear" : $"{Model.ScanQueue.Count} queued · {Model.RunningScansCount} running")</p>
+                </div>
+                <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
+            </a>
+            <a class="quick-action-card" asp-page="/EndpointsPage/Index">
+                <span class="quick-action-icon icon-emerald"><i data-lucide="link" aria-hidden="true"></i></span>
+                <div class="quick-action-body">
+                    <h2>API endpoints</h2>
+                    <p>@Model.Endpoints.Count total · @Model.ActiveEndpointsCount active</p>
+                </div>
+                <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
+            </a>
+            <a class="quick-action-card" asp-page="/LogsPage/Index">
+                <span class="quick-action-icon icon-sky"><i data-lucide="logs" aria-hidden="true"></i></span>
+                <div class="quick-action-body">
+                    <h2>Application logs</h2>
+                    <p>Inspect runtime events &amp; errors</p>
+                </div>
+                <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
+            </a>
+        </div>
+    </section>
+
+    <div class="dashboard-details">
+        <div class="dashboard-main">
+            <section class="dashboard-panel attention-panel" aria-labelledby="attention-heading">
+                <header class="section-heading">
+                    <div class="section-heading-title">
+                        <i data-lucide="bell-ring" aria-hidden="true"></i>
+                        <h2 id="attention-heading">Needs attention</h2>
+                    </div>
+                    @if (Model.AttentionCount > 0)
+                    {
+                        <span class="panel-badge badge-warning">
+                            <span class="status-dot" aria-hidden="true"></span>
+                            @Model.AttentionCount @(Model.AttentionCount == 1 ? "item" : "items")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="panel-badge badge-healthy">
+                            <span class="status-dot" aria-hidden="true"></span>
+                            All clear
+                        </span>
+                    }
+                </header>
+
+                @if (Model.AttentionCount == 0)
+                {
+                    <div class="attention-empty">
+                        <span class="attention-empty-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span>
+                        <div>
+                            <h3>Everything looks healthy</h3>
+                            <p>No failed modules, pending endpoint confirmations, or waiting scans require your attention right now.</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <ul class="attention-list">
+                        @foreach (var failed in Model.FailedModules)
+                        {
+                            <li>
+                                <a class="attention-item attention-danger" asp-page="/ModulesPage/Detail" asp-route-id="@failed.Id">
+                                    <span class="attention-item-icon"><i data-lucide="triangle-alert" aria-hidden="true"></i></span>
+                                    <div class="attention-item-copy">
+                                        <strong>@failed.ModuleName encountered a failure</strong>
+                                        <span>Base path <code>@failed.BaseUrlPath</code> · Port @failed.ContainerPort</span>
+                                    </div>
+                                    <span class="attention-item-cta">Inspect<i data-lucide="chevron-right" aria-hidden="true"></i></span>
+                                </a>
+                            </li>
+                        }
+                        @foreach (var pending in Model.PendingConfirmationModules)
+                        {
+                            <li>
+                                <a class="attention-item attention-warning" asp-page="/ModulesPage/Detail" asp-route-id="@pending.Id">
+                                    <span class="attention-item-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
+                                    <div class="attention-item-copy">
+                                        <strong>@pending.ModuleName is awaiting endpoint confirmation</strong>
+                                        <span>Confirm discovered routes on <code>@pending.BaseUrlPath</code> before starting</span>
+                                    </div>
+                                    <span class="attention-item-cta">Review<i data-lucide="chevron-right" aria-hidden="true"></i></span>
+                                </a>
+                            </li>
+                        }
+                        @if (Model.PendingEndpointsCount > 0 && Model.PendingConfirmationModules.Count == 0)
+                        {
+                            <li>
+                                <a class="attention-item attention-warning" asp-page="/EndpointsPage/Index" asp-route-status="PendingConfirmation">
+                                    <span class="attention-item-icon"><i data-lucide="link" aria-hidden="true"></i></span>
+                                    <div class="attention-item-copy">
+                                        <strong>@Model.PendingEndpointsCount @(Model.PendingEndpointsCount == 1 ? "endpoint needs" : "endpoints need") confirmation</strong>
+                                        <span>Review pending HTTP routes in the API endpoints directory</span>
+                                    </div>
+                                    <span class="attention-item-cta">View endpoints<i data-lucide="chevron-right" aria-hidden="true"></i></span>
+                                </a>
+                            </li>
+                        }
+                        @foreach (var scan in Model.ScanQueue)
+                        {
+                            <li>
+                                <a class="attention-item attention-info" asp-page="/ScanQueuePage/Index">
+                                    <span class="attention-item-icon"><i data-lucide="@(scan.IsRunning ? "loader" : "list-checks")" aria-hidden="true"></i></span>
+                                    <div class="attention-item-copy">
+                                        <strong>@scan.ModuleName is @(scan.IsRunning ? "currently scanning" : "waiting in the scan queue")</strong>
+                                        <span>Priority: @scan.Priority · @(scan.IsRunning ? "Scanner active" : "Queued for next slot")</span>
+                                    </div>
+                                    <span class="attention-item-cta">Scan queue<i data-lucide="chevron-right" aria-hidden="true"></i></span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            <section class="dashboard-panel module-section" aria-labelledby="modules-heading">
+                <header class="section-heading">
+                    <div class="section-heading-title">
+                        <i data-lucide="box" aria-hidden="true"></i>
+                        <h2 id="modules-heading">Recent modules</h2>
+                    </div>
+                    <div class="section-heading-actions">
+                        <span class="section-count">@Model.Modules.Count total</span>
+                        <a class="section-link" asp-page="/ModulesPage/Index">
+                            <span>View all</span>
+                            <i data-lucide="arrow-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </header>
+
+                @if (Model.RecentModules.Count == 0)
+                {
+                    <div class="modules-empty">
+                        <span class="modules-empty-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+                        <p>No modules have been added yet.</p>
+                        <a class="dashboard-button dashboard-button-primary" asp-page="/ModulesPage/Index">
+                            <i data-lucide="plus" aria-hidden="true"></i>
+                            <span>Add your first module</span>
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="recent-modules-grid">
+                        @foreach (var module in Model.RecentModules)
+                        {
+                            var statusClass = ModuleStatusDisplay.StatusClass(module.Status);
+                            var statusLabel = ModuleStatusDisplay.StatusLabel(module.Status);
+                            <a class="recent-module-card" asp-page="/ModulesPage/Detail" asp-route-id="@module.Id">
+                                <div class="recent-module-top">
+                                    <div class="recent-module-title">
+                                        <span class="recent-module-icon"><i data-lucide="box" aria-hidden="true"></i></span>
+                                        <h3>@module.ModuleName</h3>
+                                    </div>
+                                    <span class="module-status status-@statusClass">
+                                        <span class="status-dot" aria-hidden="true"></span>@statusLabel
+                                    </span>
+                                </div>
+                                <p class="recent-module-description">
+                                    @(string.IsNullOrWhiteSpace(module.Description) ? "No description provided." : module.Description)
+                                </p>
+                                <div class="recent-module-footer">
+                                    <span class="module-meta-pill" title="Base URL path">
+                                        <i data-lucide="route" aria-hidden="true"></i>
+                                        <code>@module.BaseUrlPath</code>
+                                    </span>
+                                    <span class="module-meta-pill" title="Container port">
+                                        <i data-lucide="server" aria-hidden="true"></i>
+                                        <span>Port @module.ContainerPort</span>
+                                    </span>
+                                    <span class="module-meta-date">@module.CreatedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                }
+            </section>
+        </div>
+
+        <section class="dashboard-panel activity-section" aria-labelledby="activity-heading">
+            <header class="section-heading">
+                <div class="section-heading-title">
+                    <i data-lucide="history" aria-hidden="true"></i>
+                    <h2 id="activity-heading">Your activity</h2>
+                </div>
+                <span class="session-label">This session</span>
+            </header>
+            @if (Model.Activities.Count == 0)
+            {
+                <div class="activity-empty">
+                    <div class="activity-empty-card">
+                        <span class="activity-empty-icon" aria-hidden="true">
+                            <i data-lucide="activity"></i>
+                        </span>
+                        <h3>No activity yet</h3>
+                        <p>Actions you perform—such as adding modules, confirming endpoints, or cancelling scans—will appear here in real time.</p>
+                        <span class="activity-empty-hint">
+                            <i data-lucide="shield-check" aria-hidden="true"></i>
+                            <span>Stored only until you sign out</span>
+                        </span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                var nowUtc = DateTime.UtcNow;
+                <ol class="activity-list" aria-labelledby="activity-heading" tabindex="0">
+                    @foreach (var activity in Model.Activities)
+                    {
+                        <li class="activity-item @activity.ToneClass">
+                            <span class="activity-icon"><i data-lucide="@activity.Icon" aria-hidden="true"></i></span>
+                            <div>
+                                <p>
+                                    @activity.Action
+                                    @if (!string.IsNullOrWhiteSpace(activity.TargetUrl))
+                                    {
+                                        <a class="activity-target-link" href="@activity.TargetUrl"><strong>@activity.TargetName</strong></a>
+                                    }
+                                    else
+                                    {
+                                        <strong>@activity.TargetName</strong>
+                                    }
+                                </p>
+                                <span class="activity-time" title="@activity.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)">
+                                    @activity.FormatRelativeTime(nowUtc)
+                                </span>
+                            </div>
+                        </li>
+                    }
+                </ol>
+            }
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/modules.js" asp-append-version="true"></script>
+}
