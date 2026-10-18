@@ -141,6 +141,37 @@ public class ModuleEndpointScannerTests : IDisposable
     }
 
     [Fact]
+    public async Task ScanOrEnqueueAsync_ImageNotFoundLocally_PullsScannerImageAndRetriesCreate()
+    {
+        var createAttempts = 0;
+        string? imageQuery = null;
+        _responder = (request, cancellationToken) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/containers/create", StringComparison.Ordinal) && ++createAttempts == 1)
+                return Task.FromResult(JsonResponse(new { message = "No such image: custom-scanner:test" }, HttpStatusCode.NotFound));
+            if (path.EndsWith("/images/create", StringComparison.Ordinal))
+            {
+                imageQuery = request.RequestUri.Query;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"status\":\"Pull complete\"}\n", Encoding.UTF8, "application/json")
+                });
+            }
+            return RespondAsync(request, cancellationToken);
+        };
+
+        var response = await _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory);
+
+        Assert.False(response.WasQueued);
+        Assert.NotNull(response.Result);
+        Assert.Equal(2, createAttempts);
+        Assert.NotNull(imageQuery);
+        Assert.Contains("fromImage=custom-scanner", imageQuery, StringComparison.Ordinal);
+        Assert.Contains("tag=test", imageQuery, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ScanOrEnqueueAsync_NonzeroExit_ReportsStderrAndRemovesContainer()
     {
         _responder = (request, cancellationToken) =>

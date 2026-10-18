@@ -28,7 +28,7 @@ public sealed class DockerOptions
     /// The Docker image used for scanning modules.
     /// </summary>
     [Required]
-    public string ScannerImage { get; set; } = "modulix-scanner:latest";
+    public string ScannerImage { get; set; } = "ghcr.io/maxmeyer-05/modulix-scanner:latest";
 
     /// <summary>
     /// The maximum number of concurrent scans allowed.
