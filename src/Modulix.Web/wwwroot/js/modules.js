@@ -21,7 +21,7 @@ document.querySelectorAll("[data-copy]").forEach(button => {
         return;
     }
 
-    const intervalSeconds = Number.parseInt(container.dataset.autoRefresh || "60", 10);
+    const intervalSeconds = Number.parseInt(container.dataset.autoRefresh || "300", 10);
     if (!Number.isFinite(intervalSeconds) || intervalSeconds <= 0) {
         return;
     }
@@ -29,6 +29,16 @@ document.querySelectorAll("[data-copy]").forEach(button => {
     const countdownEl = container.querySelector("[data-auto-refresh-countdown]");
     const refreshLink = container.querySelector("[data-auto-refresh-link]");
     let remainingSeconds = intervalSeconds;
+
+    const formatDuration = (totalSeconds) => {
+        if (totalSeconds < 60) {
+            return `${totalSeconds}s`;
+        }
+
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+    };
 
     const updateLabel = (text) => {
         if (countdownEl) {
@@ -64,7 +74,7 @@ document.querySelectorAll("[data-copy]").forEach(button => {
             return;
         }
 
-        updateLabel(`Auto-refresh in ${remainingSeconds}s`);
+        updateLabel(`Auto-refresh in ${formatDuration(remainingSeconds)}`);
     }, 1000);
 })();
 
