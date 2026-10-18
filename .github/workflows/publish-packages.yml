@@ -1,0 +1,63 @@
+name: Publish Packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-nuget:
+    name: Publish Client NuGet Packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Modulix.slnx
+
+      - name: Pack Client & Abstraction
+        run: |
+          dotnet pack src/libraries/Modulix.Client.Abstraction/Modulix.Client.Abstraction.csproj -c Release -o ./nupkgs
+          dotnet pack src/libraries/Modulix.Client/Modulix.Client.csproj -c Release -o ./nupkgs
+
+      - name: Push to GitHub NuGet Registry
+        run: |
+          dotnet nuget push "./nupkgs/*.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
+
+  publish-scanner-image:
+    name: Publish Scanner Docker Image (GHCR)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Scanner Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: src/Modulix.Scanner
+          file: src/Modulix.Scanner/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/maxmeyer-05/modulix-scanner:latest
+            ghcr.io/maxmeyer-05/modulix-scanner:1.0.0
