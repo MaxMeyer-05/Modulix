@@ -52,6 +52,11 @@ builder.Services.AddAuthentication(options =>
         options.ResponseType = OpenIdConnectResponseType.Code;
         options.UsePkce = true;
         options.SaveTokens = true;
+
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        
         options.RequireHttpsMetadata = authSettings.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
     });
 
