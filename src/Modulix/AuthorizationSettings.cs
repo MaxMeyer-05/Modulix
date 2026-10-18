@@ -21,7 +21,7 @@ public class AuthorizationSettings
     /// <summary>
     /// The authority URL for the OIDC provider.
     /// </summary>
-    /// <value>A URL like "http://{host}/auth/realms/{realmName}"</value>
+    /// <value>A URL like "http://{host}/realms/{realmName}"</value>
     [Url]
     public required string Authority { get; set; }
 

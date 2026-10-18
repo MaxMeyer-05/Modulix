@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ScanQueuePage;
 
@@ -25,6 +26,11 @@ public class IndexModel : PageModel
     private readonly IModulixApi _modulixApiClient;
 
     /// <summary>
+    /// The user session activity service.
+    /// </summary>
+    private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
     /// The logger instance.
     /// </summary>
     private readonly ILogger<IndexModel> _logger;
@@ -33,12 +39,15 @@ public class IndexModel : PageModel
     /// Initializes a new instance of the <see cref="IndexModel"/> class.
     /// </summary>
     /// <param name="modulixApiClient">The Modulix API client.</param>
+    /// <param name="userActivityService">The user session activity service.</param>
     /// <param name="logger">The logger instance.</param>
     public IndexModel(
         IModulixApi modulixApiClient,
+        IUserActivityService userActivityService,
         ILogger<IndexModel> logger)
     {
         _modulixApiClient = modulixApiClient;
+        _userActivityService = userActivityService;
         _logger = logger;
     }
 
@@ -106,10 +115,11 @@ public class IndexModel : PageModel
     /// Cancels a queued module scan by module ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module whose scan should be cancelled.</param>
+    /// <param name="moduleName">The display name of the module whose scan is cancelled.</param>
     /// <param name="q">Current search filter.</param>
     /// <param name="priority">Current priority filter.</param>
     /// <param name="state">Current state filter.</param>
-    public async Task<IActionResult> OnPostCancelAsync(Guid moduleId, string? q, string? priority, string? state)
+    public async Task<IActionResult> OnPostCancelAsync(Guid moduleId, string? moduleName, string? q, string? priority, string? state)
     {
         try
         {
@@ -118,10 +128,19 @@ public class IndexModel : PageModel
                 moduleId,
                 ct: HttpContext.RequestAborted);
 
+            var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName : moduleId.ToString();
+            _userActivityService.Record(
+                User,
+                "Cancelled scan for",
+                targetName,
+                "x-circle",
+                UserActivityTone.Warning,
+                Url.Page("/ScanQueuePage/Index"));
+
             TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
                 204,
                 "Scan cancelled",
-                $"Cancelled the queued scan for module {moduleId}.",
+                $"Cancelled the queued scan for module {targetName}.",
                 IsSuccess: true));
         }
         catch (HttpRequestException exception)

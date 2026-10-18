@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
+using Modulix.Web.Services;
+
 namespace Modulix.Web.Pages.LogsPage;
 
 /// <summary>
@@ -16,12 +18,19 @@ public partial class IndexModel : PageModel
     private readonly string _directory;
 
     /// <summary>
+    /// The user session activity service.
+    /// </summary>
+    private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="IndexModel"/> class.
     /// </summary>
     /// <param name="env">The web host environment.</param>
-    public IndexModel(IWebHostEnvironment env)
+    /// <param name="userActivityService">The user session activity service.</param>
+    public IndexModel(IWebHostEnvironment env, IUserActivityService userActivityService)
     {
         _directory = Path.Combine(env.ContentRootPath, "logs");
+        _userActivityService = userActivityService;
     }
 
     /// <summary>
@@ -87,6 +96,13 @@ public partial class IndexModel : PageModel
             {
                 file.Delete();
                 Feedback = $"{file.Name} deleted.";
+                _userActivityService.Record(
+                    User,
+                    "Deleted log file",
+                    file.Name,
+                    "trash-2",
+                    UserActivityTone.Warning,
+                    Url.Page("/LogsPage/Index"));
             }
         }
         catch (IOException)

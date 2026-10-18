@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
 }
 
-<div class="modules-page" data-auto-refresh="60">
+<div class="modules-page" data-auto-refresh="300">
     <header class="modules-header">
         <div class="modules-title">
             <h1>Scan queue</h1>
@@ -30,7 +30,7 @@
         <div class="modules-header-actions">
             <span class="auto-refresh-status" aria-live="off">
                 <span class="auto-refresh-dot" aria-hidden="true"></span>
-                <span data-auto-refresh-countdown>Auto-refresh in 60s</span>
+                <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
             </span>
             <a class="module-button" data-auto-refresh-link href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = Model.PriorityFilter, state = Model.StateFilter })">
                 <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
@@ -170,6 +170,7 @@
                             <td class="data-table-actions-col">
                                 <form method="post" asp-page-handler="Cancel" class="inline-action-form">
                                     <input type="hidden" name="moduleId" value="@item.ModuleId" />
+                                    <input type="hidden" name="moduleName" value="@displayName" />
                                     <input type="hidden" name="q" value="@Model.Query" />
                                     <input type="hidden" name="priority" value="@Model.PriorityFilter" />
                                     <input type="hidden" name="state" value="@Model.StateFilter" />

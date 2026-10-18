@@ -255,40 +255,6 @@
   display: none;
 }
 
-.notifications-panel {
-  right: 0;
-  width: 320px;
-  max-width: calc(100vw - 104px);
-}
-
-.notifications-panel h2 {
-  margin: 0;
-  padding: 14px 16px;
-  border-bottom: 1px solid #333d4b;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.notifications-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 28px 16px;
-  color: #a5afbd;
-  text-align: center;
-}
-
-.notifications-empty ::deep svg {
-  width: 28px;
-  height: 28px;
-  color: var(--sidebar-accent);
-}
-
-.notifications-empty p {
-  margin: 0;
-}
-
 @media (max-width: 640px) {
   .app-shell {
     --sidebar-width: 220px;
