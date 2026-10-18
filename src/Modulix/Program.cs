@@ -61,7 +61,7 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "RL1Labs API",
+        Title = "Modulix API",
         Version = FileVersionInfo
             .GetVersionInfo(
                 typeof(Program).Assembly.Location)

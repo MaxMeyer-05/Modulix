@@ -4,10 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyTitle>Modulix - HttpClient</AssemblyTitle>
+    <AssemblyTitle>Modulix - Client</AssemblyTitle>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Title>Modulix - HttpClient</Title>
+    <Title>Modulix - Client</Title>
     <Authors>Max Meyer</Authors>
     <Product>Modulix</Product>
     <Description>HTTP client library for the Modulix framework.</Description>

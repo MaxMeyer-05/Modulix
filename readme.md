@@ -1,8 +1,8 @@
-# Modulix Service
+# Modulix
 
-Modulix is an ASP.NET Core service for managing modular .NET applications in Docker containers. It accepts published applications as ZIP archives, discovers their HTTP endpoints, stores module metadata in SQLite, manages container creation, startup, updates, and deletion, and dynamically routes incoming HTTP requests to running module containers through a YARP reverse proxy.
+Modulix is a .NET 10 platform for hosting, inspecting, and managing modular .NET applications inside isolated Docker containers. It accepts published .NET applications as ZIP archives, inspects their assemblies in an isolated scanner container to discover HTTP endpoints, persists module and endpoint metadata in SQLite, provisions and manages module containers, and dynamically routes incoming HTTP traffic to running modules through an in-memory YARP reverse proxy.
 
-The repository also includes a standalone endpoint scanner, a Docker orchestration library, a YARP reverse proxy library, and a .NET HTTP client library.
+In addition to the core management service and API gateway, the repository provides an ASP.NET Core Razor Pages web frontend (`Modulix.Web`), a standalone CLI endpoint scanner (`Modulix.Scanner`), and reusable class libraries for Docker orchestration, YARP reverse proxy management, and typed HTTP client integration.
 
 ## Contribute
 
@@ -10,146 +10,162 @@ The repository also includes a standalone endpoint scanner, a Docker orchestrati
 
 - .NET 10 SDK.
 - Docker Engine, or Docker Desktop configured to use Linux containers.
-- A reachable Keycloak instance with a configured issuer, audience, and OpenID Connect discovery endpoint.
-- Write access to the database, module storage, and log directories.
+- A reachable OpenID Connect / OAuth 2.0 identity provider (such as Keycloak) for JWT bearer authentication (`Modulix`) and interactive + client-credentials authentication (`Modulix.Web`).
+- Write access to the SQLite database, module storage, and log directories.
 
-The service connects to the local Docker daemon through the Windows named pipe or `/var/run/docker.sock` on Linux. The daemon must be able to access the module storage directory because scanner containers mount it as a read-only volume. On Docker Desktop, enable file sharing for that directory if required.
+The server connects to the local Docker daemon via `/var/run/docker.sock` on Linux or the Windows named pipe. The Docker daemon must have access to the configured module storage directory because scanner containers mount extracted module directories as read-only volumes.
 
 ### Configuration
 
-Use [src/Modulix/appsettings.Template.json](src/Modulix/appsettings.Template.json) as the reference for [src/Modulix/appsettings.json](src/Modulix/appsettings.json). Replace the Keycloak placeholders with values from your environment. Do not commit credentials or environment-specific secrets.
+Both runnable web applications provide template configuration files that can be copied to `appsettings.json` or overridden via .NET User Secrets and environment variables (using `__` for nested keys, e.g., `Authorization__Authority`). Do not commit credentials or environment-specific secrets.
 
-For local development, configuration values can be overridden with .NET User Secrets:
+#### Core Server (`src/Modulix`)
 
-```powershell
-dotnet user-secrets set "Keycloak:Issuer" "http://localhost:8080/realms/modulix" --project src/Modulix
-dotnet user-secrets set "Keycloak:Audience" "modulix-api" --project src/Modulix
-dotnet user-secrets set "Keycloak:MetadataAddress" "http://localhost:8080/realms/modulix/.well-known/openid-configuration" --project src/Modulix
-```
-
-These are example values; they must match your Keycloak realm and client configuration. Tokens must contain the expected audience. Administrative operations require the exact role `Admin` in the token's `roles` claim, so configure a Keycloak protocol mapper if necessary.
+Use [./src/Modulix/appsettings.Template.json](./src/Modulix/appsettings.Template.json) as the reference for `./src/Modulix/appsettings.json`:
 
 | Setting | Template value | Purpose |
 | --- | --- | --- |
-| `ConnectionStrings:ServerDatabase` | `Data Source=modulix.db` | SQLite connection string. |
-| `Modulix:StorageBasePath` | `storage/modules` | Module files; relative paths are resolved against the application's content root. |
-| `Modulix:MaximumArchiveEntryCount` | `1000` | Maximum number of entries in an uploaded archive. |
-| `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed archive size, equivalent to 512 MiB. |
-| `Docker:NetworkName` | `modulix-network` | Docker bridge network for module containers. |
-| `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Runtime image used to build module containers. |
-| `Docker:ScannerImage` | `modulix-scanner:latest` | Locally built image used for endpoint discovery. |
-| `Docker:MaxConcurrentScans` | `4` | Maximum number of concurrent scans. |
-| `Keycloak:Issuer` | Placeholder | Expected JWT issuer. |
-| `Keycloak:Audience` | Placeholder | Expected JWT audience. |
-| `Keycloak:MetadataAddress` | Placeholder | OpenID Connect discovery URL. |
+| `ConnectionStrings:ServerDatabase` | `Data Source=modulix.db` | SQLite database connection string. |
+| `Modulix:StorageBasePath` | `storage/modules` | Directory for extracted module artifacts (relative paths resolve against the content root). |
+| `Modulix:MaximumArchiveEntryCount` | `1000` | Maximum number of entries allowed in an uploaded ZIP archive. |
+| `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
+| `Docker:NetworkName` | `modulix-network` | Docker bridge network attached to module containers. |
+| `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Base runtime image used when building module container images. |
+| `Docker:ScannerImage` | `modulix-scanner:latest` | Local Docker image executed for assembly endpoint discovery. |
+| `Docker:MaxConcurrentScans` | `4` | Maximum number of scanner containers running in parallel. |
+| `Authorization:Authority` | `<authority-url>` | OpenID Connect authority / issuer URL (e.g., `http://localhost:8080/realms/modulix`). |
+| `Authorization:Audience` | `modulix_api` | Expected JWT audience claim (optional; validated when set). |
 
-The `Modulix` and `Docker` options are validated at startup. Environment variables can also override configuration, using double underscores for nested keys, for example `Modulix__StorageBasePath` or `Docker__ScannerImage`.
+Example using .NET User Secrets:
 
-Serilog is configured in the `Serilog` section. The template writes warning-level and higher messages to the console and daily log files under `logs/`, retaining 30 files.
+```powershell
+dotnet user-secrets set "Authorization:Authority" "http://localhost:8080/realms/modulix" --project src/Modulix
+dotnet user-secrets set "Authorization:Audience" "modulix_api" --project src/Modulix
+```
 
-### Build and Run
+#### Web Frontend (`src/Modulix.Web`)
+
+Use [./src/Modulix.Web/appsettings.Template.json](./src/Modulix.Web/appsettings.Template.json) as the reference for `./src/Modulix.Web/appsettings.json`:
+
+| Setting | Template value | Purpose |
+| --- | --- | --- |
+| `ModulixApi:BaseUrl` | `PLACEHOLDER_FOR_MODULIX_API_BASE_URL` | Base URL of the `Modulix` backend API (e.g., `http://localhost:5284`). |
+| `Authorization:Authority` | `<authority-url>` | OpenID Connect authority URL used for user sign-in and token endpoints. |
+| `Authorization:Service:ClientId` | `modulix_Service` | OAuth 2.0 client ID for backend-to-backend client credentials requests. |
+| `Authorization:Service:ClientSecret` | `<service-account-client-secret>` | Client secret for the service account client. |
+| `Authorization:Client:ClientId` | `modulix_Client` | OpenID Connect client ID for interactive user login (Authorization Code + PKCE). |
+| `Authorization:Client:ClientSecret` | `<client-secret>` | Client secret for the interactive web client. |
+
+Both `Modulix` and `Modulix.Web` configure Serilog in the `Serilog` section to log warning-level and higher events (and `Information` for application namespaces) to the console and rolling daily log files under `logs/` (retaining 30 files).
+
+### Build, Run, and Test
 
 Run the following commands from the repository root:
 
 ```powershell
+# 1. Restore and build the solution
 dotnet restore Modulix.slnx
 dotnet build Modulix.slnx
+
+# 2. Build the isolated endpoint scanner Docker image (must match Docker:ScannerImage)
 docker build -t modulix-scanner:latest -f src/Modulix.Scanner/Dockerfile src/Modulix.Scanner
+
+# 3. Start the Modulix server API and reverse proxy (http://localhost:5284)
 dotnet run --project src/Modulix --launch-profile http
+
+# 4. Start the Modulix web frontend (http://localhost:5038)
+dotnet run --project src/Modulix.Web --launch-profile http
 ```
 
-The scanner image tag must match `Docker:ScannerImage`. The module runtime image must also be available locally or downloadable by Docker. The service creates the configured module network when provisioning a module container.
+In the `Development` environment, the backend exposes Swagger UI at `http://localhost:5284/swagger` and the OpenAPI document at `http://localhost:5284/openapi/v1.json`. Entity Framework Core applies pending SQLite migrations automatically on startup.
 
-The `http` launch profile starts the API at `http://localhost:5284` in the Development environment. Swagger UI is available at `http://localhost:5284/swagger`, and the OpenAPI document is available at `http://localhost:5284/openapi/v1.json`. These documentation endpoints are enabled only in Development.
-
-Entity Framework Core applies database migrations automatically at startup. No separate migration command is needed for normal local startup.
-
-### Tests
+To run the unit and integration test suites:
 
 ```powershell
 dotnet test Modulix.slnx
 ```
 
-The test projects cover server-side services and extensions, as well as endpoint discovery in the standalone scanner. Request examples and local/development environments are available in [postman](postman).
-
 ## Project Structure
 
 | Location | Responsibility |
 | --- | --- |
-| [src/Modulix](src/Modulix) | ASP.NET Core management API, authentication, configuration, and service registration. |
-| [src/Modulix/Controllers](src/Modulix/Controllers) | HTTP endpoints for module management. |
-| [src/Modulix/Services](src/Modulix/Services) | Module lifecycle and scan scheduling. |
-| [src/Modulix/Extensions](src/Modulix/Extensions) | Archive handling, endpoint reconciliation, and port selection. |
-| [src/Modulix/Database](src/Modulix/Database) | EF Core context, entities, and SQLite migrations. |
-| [src/Modulix/Models](src/Modulix/Models) | DTOs, status enums, and validated configuration options. |
-| [src/Modulix/Mappers](src/Modulix/Mappers) | Mapping between database entities and API models. |
-| [src/Modulix/Infrastructure](src/Modulix/Infrastructure) | Central exception handling and Problem Details responses. |
-| [src/Modulix.Scanner](src/Modulix.Scanner) | Standalone assembly scanner, JSON scan output, and scanner Dockerfile. |
-| [src/libraries/Modulix.Docker](src/libraries/Modulix.Docker) | Docker container orchestration, options, and dependency injection registration. |
-| [src/libraries/Modulix.ReverseProxy](src/libraries/Modulix.ReverseProxy) | Dynamic in-memory YARP reverse proxy configuration, routing models, and dependency injection registration. |
-| [src/libraries/Modulix.Client](src/libraries/Modulix.Client) | HTTP client implementation and dependency injection registration. |
-| [src/libraries/Modulix.Client.Abstraction](src/libraries/Modulix.Client.Abstraction) | Client interfaces, DTOs, and enums for consumers. |
-| [tests/Modulix.Tests](tests/Modulix.Tests) | Server-side tests. |
-| [tests/Modulix.Scanner.Tests](tests/Modulix.Scanner.Tests) | Standalone scanner tests and test data. |
-| [postman](postman) | API request collections and environment definitions. |
+| [./src/Modulix](./src/Modulix) | Core ASP.NET Core Web API, module lifecycle orchestration, authentication, and reverse proxy host. |
+| [./src/Modulix/Controllers](./src/Modulix/Controllers) | REST API endpoints (`ModulesManagementController`) for uploading, inspecting, confirming, updating, and deleting modules. |
+| [./src/Modulix/Services](./src/Modulix/Services) | Business logic for module lifecycle management (`ModuleService`) and bounded-concurrency scan scheduling (`ModuleEndpointScanner`). |
+| [./src/Modulix/Extensions](./src/Modulix/Extensions) | ZIP archive extraction and validation, endpoint discrepancy reconciliation, and host port allocation. |
+| [./src/Modulix/Database](./src/Modulix/Database) | Entity Framework Core `ServerContext`, database entities, and SQLite migrations. |
+| [./src/Modulix/Models](./src/Modulix/Models) | Validated configuration option models (`ModulixOptions`). |
+| [./src/Modulix/Mappers](./src/Modulix/Mappers) | Mapping extensions between database entities, DTOs, and reverse proxy route definitions. |
+| [./src/Modulix/Infrastructure](./src/Modulix/Infrastructure) | Centralized exception handling (`GlobalExceptionHandler`) producing RFC 7807 Problem Details responses. |
+| [./src/Modulix.Web](./src/Modulix.Web) | ASP.NET Core Razor Pages management UI with OIDC authentication, dashboard, module management, endpoint browser, scan queue monitor, and log viewer. |
+| [./src/Modulix.Scanner](./src/Modulix.Scanner) | Standalone CLI tool and `Dockerfile` that inspects published .NET assemblies via `MetadataLoadContext` to discover ASP.NET Core controller endpoints. |
+| [./src/libraries/Modulix.Docker](./src/libraries/Modulix.Docker) | Reusable library (`Modulix.Docker`) for Docker image generation, container lifecycle management, and isolated scanner execution via `Docker.DotNet`. |
+| [./src/libraries/Modulix.ReverseProxy](./src/libraries/Modulix.ReverseProxy) | Reusable library (`Modulix.ReverseProxy`) providing dynamic in-memory YARP route and cluster configuration (`IReverseProxyService`). |
+| [./src/libraries/Modulix.Client](./src/libraries/Modulix.Client) | Reusable HTTP client library (`Modulix.Client`) implementing `IModulixApiClient` and DI registration (`AddModulixApi`). |
+| [./src/libraries/Modulix.Client.Abstraction](./src/libraries/Modulix.Client.Abstraction) | Shared contracts library (`Modulix.Client.Abstraction`) containing `IModulixApiClient`, DTOs, and module/endpoint status enums. |
+| [./tests/Modulix.Tests](./tests/Modulix.Tests) | Unit tests for server services, archive validation, endpoint reconciliation, and reverse proxy mapping. |
+| [./tests/Modulix.Scanner.Tests](./tests/Modulix.Scanner.Tests) | Unit tests and sample assembly fixtures for the standalone endpoint scanner. |
 
 ## Key Concepts
 
-### Module Artifacts
+### Module Artifacts and Upload Validation
 
-A module is a published .NET application uploaded as a ZIP archive. Package the publish output, including the entry assembly, runtime configuration, and dependencies, rather than the source project. The application must be compatible with the configured runtime image and Linux containers.
+A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, a local storage directory, an allocated host port, discovered sub-endpoints, and a `ModuleStatus`.
 
-Each module has an ID, a unique base endpoint path, a storage location, a container port, endpoint metadata, and a lifecycle status. Upload requests are limited to 50 MiB; archive entry count and uncompressed size have separate configurable limits.
+To protect the host during extraction, uploads are capped at 50 MiB and validated against path traversal (ZipSlip), maximum entry counts (`MaximumArchiveEntryCount`), and maximum uncompressed size (`MaximumArchiveUncompressedBytes`).
 
-### Endpoint Discovery and Confirmation
+### Isolated Endpoint Discovery and Confirmation
 
-1. An administrator uploads a module, optionally supplying an initial endpoint list.
-2. Modulix extracts the archive and scans its assemblies in a temporary Docker container.
-3. The scanner returns the entry assembly filename and discovered HTTP endpoints as JSON.
-4. Modulix compares the discovered endpoints with the supplied list. Differences produce a discrepancy report and the `PendingConfirmation` status.
-5. If no manual endpoint list is supplied, discovered endpoints are accepted automatically. Modules ready for provisioning proceed through `Starting` to `Running`, or become `Failed` if provisioning fails.
-6. Administrators resolve pending endpoint differences through the confirmation API before the module is started.
+1. **Upload:** A user uploads a module ZIP archive via the API or `Modulix.Web`, optionally providing an expected list of sub-endpoints and a scan priority.
+2. **Isolated Scan:** `Modulix` runs `Modulix.Scanner` inside a short-lived, locked-down Docker container (`NetworkDisabled`, read-only bind mount, dropped Linux capabilities, non-root user) to inspect the assemblies without executing untrusted module code on the host.
+3. **Reconciliation:** The scanner outputs the entry assembly name and discovered HTTP routes (`HttpMethod` and `Path`) as JSON. `Modulix` compares the discovered endpoints against any user-supplied endpoints:
+   - If no manual endpoints were supplied, or if they match the scan result, all discovered endpoints are marked `Active` and the module proceeds directly to container provisioning (`Starting` -> `Running`).
+   - If differences exist (`MissingFromScan` or `UnexpectedInScan`), the module enters `PendingConfirmation` and returns a discrepancy report.
+4. **Confirmation:** Administrators review and confirm or reject individual endpoints via `POST /api/modules-management/modules/{moduleId}/confirm-endpoints` (or the Web UI) before the container is built and started.
 
-Scanner containers have networking disabled, mount module files read-only, and drop Linux capabilities. These restrictions reduce exposure but are not a guarantee that arbitrary uploaded code is safe. Only accept artifacts from trusted sources.
+### Priority Scan Queue
 
-### Scan Scheduling
+Concurrent scanner containers are bounded by `Docker:MaxConcurrentScans`. When all scan slots are busy, new uploads receive the `QueuedForScan` status and are placed in an in-memory priority queue. As running scans finish, queued modules are dequeued automatically in priority order, scanned, and provisioned. Queued scans can be inspected via `GET /api/modules-management/modules/queue` and cancelled via `DELETE /api/modules-management/modules/{moduleId}/cancel-scan`.
 
-`MaxConcurrentScans` limits parallel scanner containers. Additional requests enter an in-memory priority queue and receive the `QueuedForScan` status. Completed background scans update the stored module information and reconcile its endpoints. The queue is not persisted across service restarts.
+### Container Lifecycle Management
 
-Clients can poll the module details to observe progress. Cancelling a queued scan through the API also deletes the associated module.
+When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage`, builds a dedicated image for the module, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
 
-### Container Lifecycle
+Modules support in-place metadata updates (`PUT /{moduleId}`), artifact replacement with re-scanning (`PUT /{moduleId}/files`), and full teardown (`DELETE /{moduleId}/delete`), which stops and removes the container, image, database records, reverse proxy routes, and stored files.
 
-Modulix generates a Dockerfile for each module using the configured base image and starts the discovered entry assembly with `dotnet`. Module containers join the configured Docker network and use an `UnlessStopped` restart policy. Docker assigns an ephemeral host port bound to `127.0.0.1`; this is distinct from the configured container port.
+### Dynamic Reverse Proxy Routing
 
-The API supports metadata updates, replacement ZIP uploads, and module deletion. Replacement artifacts are scanned again, and file updates are rejected while endpoints await confirmation. Deletion removes the module's container, image, database records, and attempts to remove its stored files.
+`Modulix.ReverseProxy` integrates YARP with an in-memory `IProxyConfigProvider`:
 
-### Reverse Proxy Routing
+- Only modules with status `Running` and sub-endpoints with status `Active` are exposed through the proxy.
+- Incoming requests to `/{BaseUrlPath}/{EndpointPath}` matching the configured HTTP method have their `/{BaseUrlPath}` prefix stripped and are forwarded to `http://127.0.0.1:{ContainerPort}/{EndpointPath}`.
+- Reserved system prefixes (`api/modules-management`, `api`, `swagger`, `openapi`) are blocked from being registered by modules.
+- Active routes are restored from SQLite on server startup and hot-reloaded without downtime whenever modules are created, confirmed, updated, or deleted.
 
-Modulix uses `Modulix.ReverseProxy` (built on YARP) with a dynamic in-memory `IProxyConfigProvider` to route incoming HTTP requests to running module containers:
+### Web Management Portal (`Modulix.Web`)
 
-- Only modules in the `Running` status and sub-endpoints in the `Active` status are registered in the proxy configuration.
-- Requests matching `/{BaseUrlPath}/{EndpointPath}` and the endpoint's `HttpMethod` are forwarded to `http://127.0.0.1:{ContainerPort}/{EndpointPath}` with the `/{BaseUrlPath}` prefix removed.
-- Proxied routes use the `Anonymous` gateway authorization policy so module containers can enforce their own authentication and authorization rules.
-- Reserved system prefixes (`api/modules-management`, `api`, `swagger`, `openapi`) cannot be claimed by modules.
-- Active routes are loaded from the database at startup and synchronized automatically whenever modules are created, confirmed, updated, patched, or deleted.
+`Modulix.Web` provides an interactive administrative UI built with ASP.NET Core Razor Pages. Users authenticate via OpenID Connect (Authorization Code flow with PKCE), while backend requests to `Modulix` use `Modulix.Client` with automated OAuth 2.0 Client Credentials token management (`Duende.AccessTokenManagement`). The portal offers:
+
+- **Dashboard:** High-level system metrics and module status overview.
+- **Modules:** Uploading new ZIP artifacts, inspecting module details, resolving endpoint discrepancies, updating metadata/files, and deleting modules.
+- **Endpoints:** Searching and inspecting all active and inactive sub-endpoints across modules.
+- **Scan Queue:** Monitoring queued scans and priorities or cancelling pending scans.
+- **Logs:** Browsing and filtering structured Serilog log files.
 
 ### Management API
 
-All routes use the prefix `/api/modules-management/modules` and require a bearer token. Write operations additionally require the `Admin` role.
+All management routes are served under `/api/modules-management/modules` and require a valid JWT bearer token:
 
-| Method | Relative route | Purpose | Access |
-| --- | --- | --- | --- |
-| `GET` | `/` | List modules. | Authenticated |
-| `GET` | `/endpoints` | Retrieve detailed sub-endpoints across all modules. | Authenticated |
-| `GET` | `/queue` | Retrieve the current scan queue and priorities. | Authenticated |
-| `GET` | `/{moduleId}` | Retrieve module details and status. | Authenticated |
-| `GET` | `/{moduleId}/endpoints` | Retrieve module endpoints. | Authenticated |
-| `POST` | `/create` | Upload a module using `multipart/form-data`. | Admin |
-| `POST` | `/{moduleId}/confirm-endpoints` | Resolve pending endpoint discrepancies. | Admin |
-| `PUT` | `/{moduleId}` | Update module metadata. | Admin |
-| `PUT` | `/{moduleId}/files` | Upload replacement files using `multipart/form-data`. | Admin |
-| `DELETE` | `/{moduleId}/delete` | Delete a module and its resources. | Admin |
-| `DELETE` | `/{moduleId}/cancel-scan` | Cancel a queued scan and delete its module. | Admin |
-
-Creation returns `202 Accepted` when a scan is queued or endpoint confirmation is pending; otherwise, it returns `201 Created`. Global exception handling translates service errors into HTTP Problem Details responses. Refer to Swagger for request models and response schemas.
+| Method | Relative route | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | List all registered modules. |
+| `GET` | `/endpoints` | Retrieve detailed sub-endpoints across all modules. |
+| `GET` | `/queue` | Retrieve the current scan queue and priorities. |
+| `GET` | `/{moduleId}` | Retrieve module details and lifecycle status. |
+| `GET` | `/{moduleId}/endpoints` | Retrieve sub-endpoints for a specific module. |
+| `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
+| `POST` | `/{moduleId}/confirm-endpoints` | Confirm or reject pending endpoint discrepancies. |
+| `PUT` | `/{moduleId}` | Update module metadata. |
+| `PUT` | `/{moduleId}/files` | Upload replacement module files (`multipart/form-data`). |
+| `DELETE` | `/{moduleId}/delete` | Delete a module, its container/image, and stored files. |
+| `DELETE` | `/{moduleId}/cancel-scan` | Cancel a queued scan and delete the associated module. |

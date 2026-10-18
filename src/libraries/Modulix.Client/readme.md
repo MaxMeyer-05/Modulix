@@ -1,4 +1,4 @@
-# Modulix - HttpClient
+# Modulix - Client
 
 HTTP client library for the Modulix framework.
 
@@ -7,7 +7,7 @@ HTTP client library for the Modulix framework.
 To use the Modulix HTTP client library, add the following package reference to your project:
 
 ```xml
-<PackageReference Include="Modulix.HttpClient" Version="1.0.0" />
+<PackageReference Include="Modulix.Client" Version="1.0.0" />
 ```
 
 ## changelog

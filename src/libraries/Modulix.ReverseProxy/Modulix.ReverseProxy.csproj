@@ -6,14 +6,11 @@
     <Nullable>enable</Nullable>
     <AssemblyTitle>Modulix - Reverse Proxy</AssemblyTitle>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Title>Modulix - Reverse Proxy</Title>
     <Authors>Max Meyer</Authors>
     <Product>Modulix</Product>
     <Description>Reverse proxy management library for the Modulix framework.</Description>
-    <PackageTags>Modulix;ReverseProxy;Library</PackageTags>
     <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
-    <PackageReadmeFile>readme.md</PackageReadmeFile>
     <Version>1.0.0</Version>
     <FileVersion>1.0.0</FileVersion>
     <AssemblyVersion>1.0.0</AssemblyVersion>
