@@ -26,10 +26,13 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Modulix.slnx
 
+      - name: Build Client & Abstraction
+        run: dotnet build src/libraries/Modulix.Client/Modulix.Client.csproj -c Release --no-restore
+
       - name: Pack Client & Abstraction
         run: |
-          dotnet pack src/libraries/Modulix.Client.Abstraction/Modulix.Client.Abstraction.csproj -c Release -o ./nupkgs
-          dotnet pack src/libraries/Modulix.Client/Modulix.Client.csproj -c Release -o ./nupkgs
+          dotnet pack src/libraries/Modulix.Client.Abstraction/Modulix.Client.Abstraction.csproj -c Release --no-build -o ./nupkgs
+          dotnet pack src/libraries/Modulix.Client/Modulix.Client.csproj -c Release --no-build -o ./nupkgs
 
       - name: Push to GitHub NuGet Registry
         run: |

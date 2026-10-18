@@ -105,7 +105,6 @@ dotnet test Modulix.slnx
 | [./src/libraries/Modulix.Client.Abstraction](./src/libraries/Modulix.Client.Abstraction) | Shared contracts library (`Modulix.Client.Abstraction`) containing `IModulixApiClient`, DTOs, and module/endpoint status enums. |
 | [./tests/Modulix.Tests](./tests/Modulix.Tests) | Unit tests for server services, archive validation, endpoint reconciliation, and reverse proxy mapping. |
 | [./tests/Modulix.Scanner.Tests](./tests/Modulix.Scanner.Tests) | Unit tests and sample assembly fixtures for the standalone endpoint scanner. |
-| [./postman](./postman) | Postman collections and environment definitions for manual API testing. |
 
 ## Key Concepts
 
