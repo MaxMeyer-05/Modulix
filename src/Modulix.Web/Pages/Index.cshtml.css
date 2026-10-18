@@ -143,6 +143,13 @@
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
+.dashboard ::deep .dashboard-button svg {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  stroke-width: 2;
+}
+
 .dashboard ::deep .dashboard-button:hover {
   border-color: var(--dashboard-border-hover);
   background: #243244;
@@ -543,9 +550,19 @@
   text-align: center;
 }
 
-.modules-empty ::deep svg {
-  width: 32px;
-  height: 32px;
+.modules-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgb(84 212 218 / 12%);
+  color: var(--dashboard-accent);
+}
+
+.modules-empty-icon ::deep svg {
+  width: 26px;
+  height: 26px;
   color: var(--dashboard-accent);
 }
 
