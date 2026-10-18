@@ -147,18 +147,18 @@ public class IndexModel : PageModel
         {
             _logger.LogError(exception, "Error cancelling scan for module {ModuleId}.", moduleId);
             var statusCode = (int?)exception.StatusCode ?? 503;
-            var description = exception.StatusCode.HasValue
-                ? exception.Message
-                : ReasonPhrases.GetReasonPhrase(statusCode);
-
-            try
+            var description = ReasonPhrases.GetReasonPhrase(statusCode);
+            if (exception.StatusCode.HasValue)
             {
-                var problem = JsonSerializer.Deserialize<ProblemDetails>(description, JsonSerializerOptions.Web);
-                if (!string.IsNullOrWhiteSpace(problem?.Detail))
-                    description = problem.Detail;
-            }
-            catch (JsonException)
-            {
+                try
+                {
+                    var problem = JsonSerializer.Deserialize<ProblemDetails>(exception.Message, JsonSerializerOptions.Web);
+                    if (!string.IsNullOrWhiteSpace(problem?.Detail))
+                        description = problem.Detail;
+                }
+                catch (JsonException)
+                {
+                }
             }
 
             TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
