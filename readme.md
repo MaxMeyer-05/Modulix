@@ -101,8 +101,8 @@ dotnet test Modulix.slnx
 | [./src/Modulix.Scanner](./src/Modulix.Scanner) | Standalone CLI tool and `Dockerfile` that inspects published .NET assemblies via `MetadataLoadContext` to discover ASP.NET Core controller endpoints. |
 | [./src/libraries/Modulix.Docker](./src/libraries/Modulix.Docker) | Reusable library (`Modulix.Docker`) for Docker image generation, container lifecycle management, and isolated scanner execution via `Docker.DotNet`. |
 | [./src/libraries/Modulix.ReverseProxy](./src/libraries/Modulix.ReverseProxy) | Reusable library (`Modulix.ReverseProxy`) providing dynamic in-memory YARP route and cluster configuration (`IReverseProxyService`). |
-| [./src/libraries/Modulix.Client](./src/libraries/Modulix.Client) | Reusable HTTP client library (`Modulix.HttpClient`) implementing `IModulixApiClient` and DI registration (`AddModulixApi`). |
-| [./src/libraries/Modulix.Client.Abstraction](./src/libraries/Modulix.Client.Abstraction) | Shared contracts library (`Modulix.Abstraction`) containing `IModulixApiClient`, DTOs, and module/endpoint status enums. |
+| [./src/libraries/Modulix.Client](./src/libraries/Modulix.Client) | Reusable HTTP client library (`Modulix.Client`) implementing `IModulixApiClient` and DI registration (`AddModulixApi`). |
+| [./src/libraries/Modulix.Client.Abstraction](./src/libraries/Modulix.Client.Abstraction) | Shared contracts library (`Modulix.Client.Abstraction`) containing `IModulixApiClient`, DTOs, and module/endpoint status enums. |
 | [./tests/Modulix.Tests](./tests/Modulix.Tests) | Unit tests for server services, archive validation, endpoint reconciliation, and reverse proxy mapping. |
 | [./tests/Modulix.Scanner.Tests](./tests/Modulix.Scanner.Tests) | Unit tests and sample assembly fixtures for the standalone endpoint scanner. |
 | [./postman](./postman) | Postman collections and environment definitions for manual API testing. |
