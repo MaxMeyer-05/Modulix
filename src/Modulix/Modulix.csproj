@@ -36,4 +36,9 @@
     <ProjectReference Include="..\libraries\Modulix.Client.Abstraction\Modulix.Client.Abstraction.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="appsettings.*.json" CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.Template.json" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
