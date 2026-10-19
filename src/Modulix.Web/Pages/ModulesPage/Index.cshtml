@@ -139,10 +139,10 @@
                 <div class="module-card-heading">
                     <span class="module-symbol"><i data-lucide="box" aria-hidden="true"></i></span>
                     <h2>@module.ModuleName</h2>
+                    <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
                     <i class="module-card-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
                 </div>
-                <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
-                <p class="module-description">@module.Description</p>
+                <p class="module-description @(string.IsNullOrWhiteSpace(module.Description) ? "module-description-empty" : "")">@(string.IsNullOrWhiteSpace(module.Description) ? "No description provided." : module.Description)</p>
                 <dl class="module-card-facts">
                     <div><dt>Base path</dt><dd class="module-code">@module.BaseUrlPath</dd></div>
                     <div><dt>Port</dt><dd>@module.ContainerPort</dd></div>
