@@ -6,6 +6,7 @@ using Modulix.Client.Models.Dtos;
 
 namespace Modulix.Client;
 
+/// <inheritdoc cref="IModuleManagementClient"/>
 internal partial class ModulixApi : IModuleManagementClient
 {
     /// <summary>
