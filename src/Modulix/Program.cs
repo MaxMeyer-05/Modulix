@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
+using Modulix.Scanner;
+using Modulix.Scanner.Interfaces;
+
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
@@ -50,7 +53,7 @@ builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ISubEndpointService, SubEndpointService>();
-builder.Services.AddScoped<IModuleEndpointScanner, ModuleEndpointScanner>();
+builder.Services.AddScoped<IScannerService, ScannerService>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
 builder.Services.AddDockerServices();

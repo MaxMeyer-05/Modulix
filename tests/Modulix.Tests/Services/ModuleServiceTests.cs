@@ -26,6 +26,7 @@ using Modulix.Models.Options;
 
 using Modulix.Docker.Services;
 using Modulix.ReverseProxy.Services;
+using Modulix.Scanner.Interfaces;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
@@ -2194,6 +2195,20 @@ public class ModuleServiceTests : IDisposable
                 await BeforeRemove(containerId);
             if (RemoveException is not null)
                 throw RemoveException;
+        }
+
+        public async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
+        {
+            using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 

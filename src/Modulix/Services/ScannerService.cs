@@ -6,6 +6,7 @@ using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
 using Modulix.Database.DbContexts;
+using Modulix.Scanner.Interfaces;
 using Modulix.Services.Interfaces;
 
 namespace Modulix.Services;

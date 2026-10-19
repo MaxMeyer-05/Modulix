@@ -13,6 +13,7 @@ using Modulix.Database.DbContexts;
 
 using Modulix.Extensions;
 using Modulix.Docker.Services;
+using Modulix.Scanner.Interfaces;
 using Modulix.ReverseProxy.Services;
 using Modulix.Services.Interfaces;
 
@@ -152,7 +153,7 @@ public class ModuleService : IModuleService
         catch
         {
             if (builtContainerId is not null)
-                await TryRemoveModuleContainerAsync(builtContainerId, module.Id);
+                await _dockerService.TryRemoveModuleContainerAsync(builtContainerId, module.Id);
 
             (module.ContainerId, module.Status) = previousState;
             _context.Entry(module).State = EntityState.Unchanged;
@@ -268,7 +269,7 @@ public class ModuleService : IModuleService
             if (scanResponse.WasQueued)
                 _endpointScanner.CancelScan(module.Id);
             if (string.IsNullOrWhiteSpace(module.ContainerId) ||
-                await TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
+                await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
                 _directoryExtension.DeleteModuleDirectory(module.StoragePath, module.Id);
             }
@@ -448,7 +449,7 @@ public class ModuleService : IModuleService
         {
             if (module.ContainerId != previousVersion.ContainerId && !string.IsNullOrWhiteSpace(module.ContainerId))
             {
-                await TryRemoveModuleContainerAsync(module.ContainerId, module.Id);
+                await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id);
             }
 
             (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status) = previousVersion;
@@ -467,7 +468,7 @@ public class ModuleService : IModuleService
         if (module.Status == ModuleStatus.Running)
         {
             if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
-                await TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))
+                await _dockerService.TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))
             {
                 _directoryExtension.DeleteModuleDirectory(previousVersion.StoragePath, module.Id);
             }
@@ -482,26 +483,5 @@ public class ModuleService : IModuleService
                 ? "Endpoints require confirmation before the updated container is activated."
                 : "Replacement container activated successfully."
         };
-    }
-
-    /// <summary>
-    /// Attempts to remove a Docker container associated with a module.
-    /// </summary>
-    /// <param name="containerId">The ID of the container to remove.</param>
-    /// <param name="moduleId">The ID of the module associated with the container.</param>
-    /// <returns>True if the container was successfully removed; otherwise, false.</returns>
-    private async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
-    {
-        using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try
-        {
-            await _dockerService.RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to clean up container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
-            return false;
-        }
     }
 }

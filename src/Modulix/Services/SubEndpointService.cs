@@ -109,7 +109,7 @@ public class SubEndpointService : ISubEndpointService
         {
             if (!string.IsNullOrWhiteSpace(previousContainerId))
             {
-                await TryRemoveModuleContainerAsync(previousContainerId, module.Id);
+                await _dockerService.TryRemoveModuleContainerAsync(previousContainerId, module.Id);
                 module.ContainerId = null;
             }
 
@@ -139,7 +139,7 @@ public class SubEndpointService : ISubEndpointService
         catch
         {
             if (candidateId is not null)
-                await TryRemoveModuleContainerAsync(candidateId, module.Id);
+                await _dockerService.TryRemoveModuleContainerAsync(candidateId, module.Id);
 
             module.ContainerId = previousContainerId;
             module.Status = ModuleStatus.PendingConfirmation;
@@ -190,26 +190,5 @@ public class SubEndpointService : ISubEndpointService
 
         _logger.LogDebug("Retrieved {Count} sub-endpoints for module with ID '{ModuleId}'.", subEndpoints.Count, moduleId);
         return subEndpointDtos;
-    }
-
-    /// <summary>
-    /// Attempts to remove a Docker container associated with a module.
-    /// </summary>
-    /// <param name="containerId">The ID of the container to remove.</param>
-    /// <param name="moduleId">The ID of the module associated with the container.</param>
-    /// <returns>True if the container was successfully removed; otherwise, false.</returns>
-    private async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
-    {
-        using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try
-        {
-            await _dockerService.RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to clean up container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
-            return false;
-        }
     }
 }

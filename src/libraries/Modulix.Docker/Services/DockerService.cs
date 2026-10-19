@@ -180,6 +180,22 @@ public class DockerService : IDockerService, IDisposable
     }
 
     /// <inheritdoc/>
+    public async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
+    {
+        using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            await RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task RunContainerAsync(string containerId, CancellationToken ct = default)
     {
         await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);

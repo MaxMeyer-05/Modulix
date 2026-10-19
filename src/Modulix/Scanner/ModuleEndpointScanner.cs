@@ -12,10 +12,11 @@ using Modulix.Client.Models.Enums;
 using Modulix.Docker.Options;
 using Modulix.ReverseProxy.Services;
 
+using Modulix.Scanner.Interfaces;
 using Modulix.Services.Interfaces;
 using Modulix.Database.DbContexts;
 
-namespace Modulix.Services;
+namespace Modulix.Scanner;
 
 /// <inheritdoc cref="IModuleEndpointScanner"/>
 public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
@@ -266,9 +267,9 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                         var result = await RunDockerScannerAsync(nextJob.HostDirectoryPath, nextJob.CancellationTokenSource.Token);
 
                         await using var scope = _scopeFactory.CreateAsyncScope();
-                        var _moduleService = scope.ServiceProvider.GetRequiredService<IModuleService>();
+                        var _scannerService = scope.ServiceProvider.GetRequiredService<IScannerService>();
 
-                        await _moduleService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, nextJob.CancellationTokenSource.Token);
+                        await _scannerService.ProcessQueuedScanResultAsync(nextJob.ModuleId, result, nextJob.CancellationTokenSource.Token);
                     }
                     catch (OperationCanceledException)
                     {
