@@ -55,6 +55,51 @@ public class DirectoryExtension
     }
 
     /// <summary>
+    /// Extracts the contents of a module ZIP archive to the specified destination directory,
+    /// normalizing both Windows ('\') and Unix ('/') entry path separators across platforms.
+    /// </summary>
+    /// <param name="archivePath">The path to the module ZIP archive.</param>
+    /// <param name="destinationDirectoryPath">The directory to extract the archive contents into.</param>
+    /// <exception cref="IOException">Thrown if an archive entry attempts path traversal outside the destination directory.</exception>
+    public void ExtractModuleArchive(string archivePath, string destinationDirectoryPath)
+    {
+        var fullDestinationDirPath = Path.GetFullPath(destinationDirectoryPath);
+        if (!Path.EndsInDirectorySeparator(fullDestinationDirPath))
+            fullDestinationDirPath += Path.DirectorySeparatorChar;
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        using var archive = ZipFile.OpenRead(archivePath);
+        foreach (var entry in archive.Entries)
+        {
+            var normalizedEntryName = entry.FullName
+                .Replace('\\', Path.DirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar);
+
+            var fileDestinationPath = Path.GetFullPath(Path.Combine(fullDestinationDirPath, normalizedEntryName));
+            if (!fileDestinationPath.StartsWith(fullDestinationDirPath, comparison))
+                throw new IOException("Extracting Zip entry would have resulted in a file outside the specified destination directory.");
+
+            if (Path.GetFileName(fileDestinationPath).Length == 0)
+            {
+                if (entry.Length != 0)
+                    throw new IOException("Zip entry name ends in directory separator character but contains data.");
+
+                Directory.CreateDirectory(fileDestinationPath);
+            }
+            else
+            {
+                if (Path.GetDirectoryName(fileDestinationPath) is { Length: > 0 } parentDirectory)
+                    Directory.CreateDirectory(parentDirectory);
+
+                entry.ExtractToFile(fileDestinationPath, overwrite: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Deletes a temporary file used during module update.
     /// </summary>
     /// <param name="filePath">The path to the temporary file to delete.</param>
@@ -127,7 +172,7 @@ public class DirectoryExtension
             }
 
             ValidateModuleArchive(tmpZipPath);
-            ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
+            ExtractModuleArchive(tmpZipPath, targetPath);
             _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
         }
         catch

@@ -490,7 +490,7 @@ public class ModuleService : IModuleService
 
             _directoryExtension.ValidateModuleArchive(tmpZipPath);
             Directory.CreateDirectory(versionDirectory);
-            ZipFile.ExtractToDirectory(tmpZipPath, versionDirectory);
+            _directoryExtension.ExtractModuleArchive(tmpZipPath, versionDirectory);
             ct.ThrowIfCancellationRequested();
 
             var scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);

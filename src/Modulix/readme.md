@@ -12,5 +12,8 @@ dotnet run --project src/Modulix --launch-profile http
 
 ## changelog
 
+### 1.0.1
+- Minor bug fixes and https support.
+
 ### 1.0.0
 - Initial release of the Modulix server and API.

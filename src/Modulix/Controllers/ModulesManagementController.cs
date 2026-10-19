@@ -92,6 +92,38 @@ public class ModulesManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Starts a module.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module to start.</param>
+    /// <returns>
+    /// A 200 OK response with the details of the started module.
+    /// A 404 Not Found response if the module could not be found.
+    /// </returns>
+    [HttpPost("{moduleId}/start")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ModuleDetailDto>> StartModuleAsync([FromRoute] Guid moduleId)
+    {
+        return Ok();
+    }
+
+    /// <summary>
+    /// Stops a module.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module to stop.</param>
+    /// <returns>
+    /// A 200 OK response with the details of the stopped module.
+    /// A 404 Not Found response if the module could not be found.
+    /// </returns>
+    [HttpPost("{moduleId}/stop")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ModuleDetailDto>> StopModuleAsync([FromRoute] Guid moduleId)
+    {
+        return Ok();
+    }
+
+    /// <summary>
     /// Retrieves all modules.
     /// </summary>
     /// <returns>

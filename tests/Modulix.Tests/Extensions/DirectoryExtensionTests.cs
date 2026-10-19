@@ -142,9 +142,26 @@ public class DirectoryExtensionTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
     }
 
+    [Fact]
+    public async Task CreateModuleTargetPathAsync_BackslashSeparatedEntries_ExtractsNestedDirectories()
+    {
+        var moduleId = Guid.NewGuid();
+        using var contents = CreateArchive(
+            ("runtimes\\linux-x64\\", ""),
+            ("runtimes\\linux-x64\\native\\libe_sqlite3.so", "native-binary"));
+
+        var result = await _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents));
+
+        var expectedFilePath = Path.Combine(result, "runtimes", "linux-x64", "native", "libe_sqlite3.so");
+        Assert.True(File.Exists(expectedFilePath));
+        Assert.Equal("native-binary", await File.ReadAllTextAsync(expectedFilePath));
+    }
+
     [Theory]
     [InlineData("../escaped.dll")]
+    [InlineData("..\\escaped.dll")]
     [InlineData("nested/../../escaped.dll")]
+    [InlineData("nested\\..\\..\\escaped.dll")]
     public async Task CreateModuleTargetPathAsync_PathTraversal_DoesNotWriteOutsideTargetAndCleansPartialExtraction(string entryName)
     {
         var moduleId = Guid.NewGuid();
