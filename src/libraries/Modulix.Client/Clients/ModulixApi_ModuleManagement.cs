@@ -174,4 +174,24 @@ internal partial class ModulixApi : IModuleManagementClient
         return await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(cancellationToken: ct)
              ?? throw new JsonException("The API returned an empty response.");
     }
+
+    public async Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    {
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stop";
+        using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<ModuleDetailDto>() 
+            ?? throw new JsonException("The API returned an empty response.");
+    }
+
+    public async Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    {
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/start";
+        using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<ModuleDetailDto>() 
+            ?? throw new JsonException("The API returned an empty response.");
+    }
 }

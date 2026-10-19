@@ -38,6 +38,34 @@ public interface IModuleManagementClient
     Task<(HttpStatusCode StatusCode, ModuleCreationResultDto Result)> CreateModuleWithStatusAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
+    /// Stops a specific module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>The result of the module stop operation.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null);
+    
+    /// <summary>
+    /// Starts a specific module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>The result of the module start operation.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null);
+
+    /// <summary>
     /// Confirms the endpoint for a specific module.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
