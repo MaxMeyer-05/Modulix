@@ -324,6 +324,11 @@ public class ModuleService : IModuleService
         if (module is null)
             return;
 
+        if (module.Status == ModuleStatus.QueuedForScan)
+        {
+            _endpointScanner.CancelScan(moduleId);
+        }
+
         if (!string.IsNullOrEmpty(module.ContainerId))
         {
             await _dockerService.RemoveContainerAsync(module.ContainerId, module.Id, ct);

@@ -56,8 +56,10 @@
 }
 .module-button-primary { background: var(--module-accent); border-color: var(--module-accent); color: #0b1018; font-weight: 600; }
 .module-button-danger { color: #ff9299; }
+.module-button-danger-solid { background: #a83746; border-color: #a83746; color: #fff; font-weight: 600; }
 .module-button:hover:not(:disabled) { background: #263544; }
 .module-button-primary:hover:not(:disabled) { background: #83e7eb; border-color: #83e7eb; }
+.module-button-danger-solid:hover:not(:disabled) { background: #c64252; border-color: #c64252; }
 .module-button:disabled { opacity: 0.55; cursor: not-allowed; }
 .module-icon-button { width: 32px; height: 32px; min-height: 32px; padding: 0; background: transparent; border-color: transparent; }
 .module-icon-button:hover { background: #263544; color: var(--module-accent); }
@@ -151,6 +153,8 @@
 .module-form-fields { display: flex; flex-direction: column; gap: 18px; min-width: 0; margin: 0; padding: 24px; border: 0; }
 .module-form-fields:disabled { opacity: 0.65; }
 .module-form-fields label { display: flex; flex-direction: column; gap: 8px; color: #d3dbe6; font-size: 13px; }
+.module-dialog-description { margin: 0; color: var(--module-muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.module-dialog-description strong, .module-result-body strong { color: var(--module-text); font-weight: 500; }
 .module-field-label { color: #d3dbe6; font-size: 13px; }
 .required-mark { display: inline; color: var(--module-accent); }
 .module-form-fields input:not([type="file"]), .module-form-fields textarea { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #384453; border-radius: 6px; background: #101721; color: var(--module-text); font-size: 13px; color-scheme: dark; }

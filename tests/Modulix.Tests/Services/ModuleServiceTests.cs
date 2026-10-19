@@ -1683,6 +1683,30 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal(hasContainer ? ["existing-container"] : Array.Empty<string>(), _dockerService.RemovedContainerIds);
     }
 
+    [Fact]
+    [Trait("Feature", "DeleteModule")]
+    public async Task DeleteModuleAsync_QueuedForScan_CancelsScanAndDeletesModule()
+    {
+        // Arrange
+        var moduleDir = Path.Combine(_testRootDirectory, "queued_module_to_delete");
+        Directory.CreateDirectory(moduleDir);
+
+        var module = CreateTestModuleEntity("Queued Delete", "api/v1/queued-delete", 8010);
+        module.StoragePath = moduleDir;
+        module.Status = ModuleStatus.QueuedForScan;
+
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        // Act
+        await _sut.DeleteModuleAsync(module.Id);
+
+        // Assert
+        Assert.Equal([module.Id], _endpointScanner.CancelledModuleIds);
+        Assert.False(Directory.Exists(moduleDir));
+        Assert.Null(await _context.Modules.FindAsync(module.Id));
+    }
+
     #endregion
 
     #region ReverseProxy Synchronization Tests

@@ -4,12 +4,39 @@
 @{
     var module = Model.Module;
     ViewData["Title"] = module?.ModuleName ?? "Module not found";
+    var reopenEdit = Model.EditError is not null;
+    var reopenUpdateFiles = Model.UpdateFilesError is not null;
+    var reopenDelete = Model.DeleteError is not null;
+    var detailUrl = module is not null ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : Url.Page("/ModulesPage/Index");
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
 }
 <div class="modules-page">
     <a class="module-back-link" asp-page="/ModulesPage/Index"><i data-lucide="arrow-left" aria-hidden="true"></i><span>All modules</span></a>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="modules-error" role="alert">
+            <i data-lucide="circle-alert" aria-hidden="true"></i>
+            <div>
+                <strong>Module request failed</strong>
+                <div asp-validation-summary="All"></div>
+            </div>
+        </div>
+    }
+
+    @if (Model.Feedback is { } feedback)
+    {
+        <div class="queue-feedback @(feedback.IsSuccess ? "queue-feedback-success" : "modules-error")" role="status">
+            <i data-lucide="@(feedback.IsSuccess ? "check-circle-2" : "circle-alert")" aria-hidden="true"></i>
+            <div>
+                <strong>@feedback.Title</strong>
+                <p>@feedback.Description</p>
+            </div>
+        </div>
+    }
+
     @if (module is null)
     {
         <div class="module-empty-state">
@@ -47,8 +74,17 @@
                         <ul class="module-endpoint-list">
                             @foreach (var endpoint in module.Endpoints)
                             {
+                                var methodUpper = endpoint.HttpMethod.ToUpperInvariant();
+                                var methodClass = methodUpper switch
+                                {
+                                    "GET" => "method-get",
+                                    "POST" => "method-post",
+                                    "PUT" or "PATCH" => "method-put",
+                                    "DELETE" => "method-delete",
+                                    _ => "method-other"
+                                };
                                 <li>
-                                    <div class="endpoint-route"><span class="endpoint-method @(endpoint.HttpMethod == "GET" ? "method-get" : "method-post")">@endpoint.HttpMethod</span><span class="module-code">@module.BaseUrlPath@endpoint.EndpointPath</span></div>
+                                    <div class="endpoint-route"><span class="endpoint-method @methodClass">@methodUpper</span><span class="module-code">@module.BaseUrlPath@endpoint.EndpointPath</span></div>
                                     <span class="endpoint-state">@(endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation ? "Pending confirmation" : endpoint.Status.ToString())</span>
                                     <div class="endpoint-metadata"><span>Created @endpoint.CreatedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span><span class="module-code">@endpoint.Id</span></div>
                                 </li>
@@ -67,13 +103,139 @@
                     <div class="module-detail-actions">
                         <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button></span>
                         <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button></span>
-                        <span title="Edit the module name and description. Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button></span>
-                        <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button></span>
-                        <span title="Not connected in this preview"><button class="module-button module-button-danger" type="button" disabled><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button></span>
+                        <button class="module-button" type="button" id="edit-module-button" popovertarget="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
+                        <button class="module-button" type="button" id="update-files-button" popovertarget="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
+                        <button class="module-button module-button-danger" type="button" id="delete-module-button" popovertarget="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
                     </div>
                 </section>
             </aside>
         </div>
+
+        <div class="module-dialog @(reopenEdit ? "module-dialog-open" : "")" id="edit-module-dialog" popover="@(reopenEdit ? null : "auto")" role="dialog" aria-labelledby="edit-module-heading">
+            <div class="module-dialog-heading">
+                <div class="modules-title"><h2 id="edit-module-heading">Edit module details</h2></div>
+                @if (reopenEdit)
+                {
+                    <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+                }
+                else
+                {
+                    <button class="module-icon-button" type="button" popovertarget="edit-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                }
+            </div>
+            <form id="edit-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Edit" asp-route-id="@module.Id">
+                @if (Model.EditError is { } editError)
+                {
+                    <div class="module-form-error" role="alert">
+                        <strong>@editError.Title</strong> <span class="module-code">HTTP @editError.StatusCode</span>
+                        <p>@editError.Description</p>
+                    </div>
+                }
+                <fieldset class="module-form-fields" id="module-edit-fields">
+                    <label>
+                        <span>Module name <span class="required-mark">*</span></span>
+                        <input name="ModuleName" value="@(Model.EditInput?.ModuleName ?? module.ModuleName)" required maxlength="100" placeholder="AnalyticsModule" autofocus />
+                    </label>
+                    <label>
+                        <span>Description</span>
+                        <textarea name="Description" rows="3" maxlength="500" placeholder="Optional description">@(Model.EditInput is not null ? Model.EditInput.Description : module.Description)</textarea>
+                    </label>
+                </fieldset>
+                <div class="module-dialog-footer">
+                    @if (reopenEdit)
+                    {
+                        <a class="module-button" href="@detailUrl">Cancel</a>
+                    }
+                    else
+                    {
+                        <button class="module-button" type="button" popovertarget="edit-module-dialog" popovertargetaction="hide">Cancel</button>
+                    }
+                    <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
+                </div>
+            </form>
+        </div>
+
+        <div class="module-dialog @(reopenUpdateFiles ? "module-dialog-open" : "")" id="update-files-dialog" popover="@(reopenUpdateFiles ? null : "auto")" role="dialog" aria-labelledby="update-files-heading">
+            <div class="module-dialog-heading">
+                <div class="modules-title"><h2 id="update-files-heading">Update module files</h2></div>
+                @if (reopenUpdateFiles)
+                {
+                    <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+                }
+                else
+                {
+                    <button class="module-icon-button" type="button" popovertarget="update-files-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                }
+            </div>
+            <form id="update-files-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="UpdateFiles" asp-route-id="@module.Id" enctype="multipart/form-data">
+                @if (Model.UpdateFilesError is { } filesError)
+                {
+                    <div class="module-form-error" role="alert">
+                        <strong>@filesError.Title</strong> <span class="module-code">HTTP @filesError.StatusCode</span>
+                        <p>@filesError.Description</p>
+                    </div>
+                }
+                <fieldset class="module-form-fields" id="module-update-files-fields">
+                    <p class="module-dialog-description">Upload a new ZIP archive to patch <strong>@module.ModuleName</strong>. The archive will be scanned with high priority before replacing the active container.</p>
+                    <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
+                    <label class="module-upload" id="module-update-upload-area" for="module-update-archive">
+                        <i data-lucide="upload" aria-hidden="true"></i>
+                        <strong>Choose a ZIP archive</strong>
+                        <input id="module-update-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
+                    </label>
+                </fieldset>
+                <div class="module-dialog-footer">
+                    @if (reopenUpdateFiles)
+                    {
+                        <a class="module-button" href="@detailUrl">Cancel</a>
+                    }
+                    else
+                    {
+                        <button class="module-button" type="button" popovertarget="update-files-dialog" popovertargetaction="hide">Cancel</button>
+                    }
+                    <button class="module-button module-button-primary" type="submit"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
+                </div>
+            </form>
+        </div>
+
+        <div class="module-dialog @(reopenDelete ? "module-dialog-open" : "")" id="delete-module-dialog" popover="@(reopenDelete ? null : "auto")" role="dialog" aria-labelledby="delete-module-heading" aria-describedby="delete-module-description">
+            <div class="module-dialog-heading">
+                <div class="modules-title"><h2 id="delete-module-heading">Delete module?</h2></div>
+                @if (reopenDelete)
+                {
+                    <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+                }
+                else
+                {
+                    <button class="module-icon-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                }
+            </div>
+            <form id="delete-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Delete" asp-route-id="@module.Id">
+                @if (Model.DeleteError is { } deleteError)
+                {
+                    <div class="module-form-error" role="alert">
+                        <strong>@deleteError.Title</strong> <span class="module-code">HTTP @deleteError.StatusCode</span>
+                        <p>@deleteError.Description</p>
+                    </div>
+                }
+                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                <div class="module-result-body">
+                    <p id="delete-module-description">Permanently delete <strong>@module.ModuleName</strong> (<span class="module-code">@module.BaseUrlPath</span>)? This will stop and remove its container, delete its extracted files, and unregister all endpoints. This cannot be undone.</p>
+                </div>
+                <div class="module-dialog-footer">
+                    @if (reopenDelete)
+                    {
+                        <a class="module-button" href="@detailUrl">Cancel</a>
+                    }
+                    else
+                    {
+                        <button class="module-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide">Cancel</button>
+                    }
+                    <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
+                </div>
+            </form>
+        </div>
+
         <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
     }
 </div>

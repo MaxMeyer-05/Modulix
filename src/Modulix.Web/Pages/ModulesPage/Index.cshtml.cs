@@ -126,6 +126,11 @@ public class IndexModel : PageModel
     public CreationResult? CreationSuccess { get; private set; }
 
     /// <summary>
+    /// Feedback from a completed module action (such as deleting a module).
+    /// </summary>
+    public DetailModel.ActionFeedback? Feedback { get; private set; }
+
+    /// <summary>
     /// Handles the GET request for the index page.
     /// </summary>
     /// <param name="q">The search text.</param>
@@ -136,6 +141,9 @@ public class IndexModel : PageModel
     {
         if (TempData[ResultKey] is string json)
             CreationSuccess = JsonSerializer.Deserialize<CreationResult>(json);
+
+        if (TempData[DetailModel.FeedbackKey] is string feedbackJson)
+            Feedback = JsonSerializer.Deserialize<DetailModel.ActionFeedback>(feedbackJson);
 
         await LoadModulesAsync(q, status, sort);
         return Page();

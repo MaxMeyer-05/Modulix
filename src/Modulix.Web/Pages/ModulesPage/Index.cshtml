@@ -49,6 +49,17 @@
         </div>
     }
 
+    @if (Model.Feedback is { } feedback)
+    {
+        <div class="queue-feedback @(feedback.IsSuccess ? "queue-feedback-success" : "modules-error")" role="status">
+            <i data-lucide="@(feedback.IsSuccess ? "check-circle-2" : "circle-alert")" aria-hidden="true"></i>
+            <div>
+                <strong>@feedback.Title</strong>
+                <p>@feedback.Description</p>
+            </div>
+        </div>
+    }
+
     <section class="module-metrics" aria-label="Module status overview">
         <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
            href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "", sort = Model.SortBy })">
