@@ -1,5 +1,6 @@
 using Serilog;
 using System.Diagnostics;
+using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
@@ -121,6 +122,34 @@ builder.Services.AddControllers(options =>
 {
     options.SuppressAsyncSuffixInActionNames = false;
 });
+
+var httpsSettings = builder.Configuration
+    .GetSection(HttpsSettings.SectionName)
+    .Get<HttpsSettings>()
+    ?? HttpsSettings.Default;
+
+if (httpsSettings.Enabled)
+{
+    if (httpsSettings.Port is int httpsPort)
+    {
+        builder.Services.AddHttpsRedirection(options => options.HttpsPort = httpsPort);
+    }
+
+    if (!string.IsNullOrWhiteSpace(httpsSettings.CertificatePath)
+        && !httpsSettings.CertificatePath.StartsWith('<'))
+    {
+        builder.WebHost.ConfigureKestrel(serverOptions =>
+        {
+            serverOptions.ConfigureHttpsDefaults(httpsOptions =>
+            {
+                httpsOptions.ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile(
+                    httpsSettings.CertificatePath,
+                    httpsSettings.CertificatePassword);
+            });
+        });
+    }
+}
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -146,6 +175,16 @@ if (app.Environment.IsDevelopment())
     
     app.MapSwagger();
     app.MapSwaggerUI();
+}
+
+if (httpsSettings.Enabled)
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
+    app.UseHttpsRedirection();
 }
 
 app.UseExceptionHandler();

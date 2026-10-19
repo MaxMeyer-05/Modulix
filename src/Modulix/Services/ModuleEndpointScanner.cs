@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 
 using Docker.DotNet;
@@ -317,8 +318,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     private async Task<ModuleScanResultDto> RunDockerScannerAsync(string hostDirectoryPath, CancellationToken ct)
     {
         var containerName = $"modulix-scanner-{Guid.NewGuid():N}";
-
-        var createResponse = await _dockerClient.Containers.CreateContainerAsync(new CreateContainerParameters
+        var createParameters = new CreateContainerParameters
         {
             Image = _options.ScannerImage,
             Name = containerName,
@@ -330,7 +330,19 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                 AutoRemove = false,
                 CapDrop = ["ALL"]
             }
-        }, ct);
+        };
+
+        CreateContainerResponse createResponse;
+        try
+        {
+            createResponse = await _dockerClient.Containers.CreateContainerAsync(createParameters, ct);
+        }
+        catch (DockerApiException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogInformation("Scanner image '{ScannerImage}' not found locally. Pulling image...", _options.ScannerImage);
+            await PullScannerImageAsync(_options.ScannerImage, ct);
+            createResponse = await _dockerClient.Containers.CreateContainerAsync(createParameters, ct);
+        }
 
         try
         {
@@ -372,6 +384,44 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
                 _logger.LogWarning(ex, "Failed to remove scanner container '{ContainerName}'.", containerName);
             }
         }
+    }
+
+    /// <summary>
+    /// Pulls the configured scanner Docker image from the container registry.
+    /// </summary>
+    /// <param name="scannerImage">The image reference (optionally including a tag).</param>
+    /// <param name="ct">The cancellation token to observe while pulling the image.</param>
+    private async Task PullScannerImageAsync(string scannerImage, CancellationToken ct)
+    {
+        var lastSlash = scannerImage.LastIndexOf('/');
+        var lastColon = scannerImage.LastIndexOf(':');
+
+        string fromImage;
+        string tag;
+        if (lastColon > lastSlash)
+        {
+            fromImage = scannerImage[..lastColon];
+            tag = scannerImage[(lastColon + 1)..];
+        }
+        else
+        {
+            fromImage = scannerImage;
+            tag = "latest";
+        }
+
+        await _dockerClient.Images.CreateImageAsync(
+            new ImagesCreateParameters
+            {
+                FromImage = fromImage,
+                Tag = tag
+            },
+            null,
+            new Progress<JSONMessage>(message =>
+            {
+                if (!string.IsNullOrWhiteSpace(message.Status))
+                    _logger.LogDebug("[Docker Pull: {ScannerImage}] {Status}", scannerImage, message.Status);
+            }),
+            ct);
     }
 
     /// <summary>

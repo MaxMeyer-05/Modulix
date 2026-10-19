@@ -31,10 +31,14 @@ Use [./src/Modulix/appsettings.Template.json](./src/Modulix/appsettings.Template
 | `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
 | `Docker:NetworkName` | `modulix-network` | Docker bridge network attached to module containers. |
 | `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Base runtime image used when building module container images. |
-| `Docker:ScannerImage` | `modulix-scanner:latest` | Local Docker image executed for assembly endpoint discovery. |
+| `Docker:ScannerImage` | `ghcr.io/maxmeyer-05/modulix-scanner:latest` | Docker image executed for assembly endpoint discovery (pulled automatically if not present locally). |
 | `Docker:MaxConcurrentScans` | `4` | Maximum number of scanner containers running in parallel. |
 | `Authorization:Authority` | `<authority-url>` | OpenID Connect authority / issuer URL (e.g., `http://localhost:8080/realms/modulix`). |
 | `Authorization:Audience` | `modulix_api` | Expected JWT audience claim (optional; validated when set). |
+| `Https:Enabled` | `false` | Enables HTTPS redirection and (outside `Development`) HSTS. |
+| `Https:Port` | `7142` | Optional HTTPS port used for redirecting HTTP requests. |
+| `Https:CertificatePath` | `<optional-path-to-certificate.pfx>` | Optional path to a `.pfx` certificate file for Kestrel. |
+| `Https:CertificatePassword` | `<optional-certificate-password>` | Optional password for the Kestrel `.pfx` certificate. |
 
 Example using .NET User Secrets:
 
@@ -55,6 +59,10 @@ Use [./src/Modulix.Web/appsettings.Template.json](./src/Modulix.Web/appsettings.
 | `Authorization:Service:ClientSecret` | `<service-account-client-secret>` | Client secret for the service account client. |
 | `Authorization:Client:ClientId` | `modulix_Client` | OpenID Connect client ID for interactive user login (Authorization Code + PKCE). |
 | `Authorization:Client:ClientSecret` | `<client-secret>` | Client secret for the interactive web client. |
+| `Https:Enabled` | `false` | Enables HTTPS redirection and (outside `Development`) HSTS. |
+| `Https:Port` | `7062` | Optional HTTPS port used for redirecting HTTP requests. |
+| `Https:CertificatePath` | `<optional-path-to-certificate.pfx>` | Optional path to a `.pfx` certificate file for Kestrel. |
+| `Https:CertificatePassword` | `<optional-certificate-password>` | Optional password for the Kestrel `.pfx` certificate. |
 
 Both `Modulix` and `Modulix.Web` configure Serilog in the `Serilog` section to log warning-level and higher events (and `Information` for application namespaces) to the console and rolling daily log files under `logs/` (retaining 30 files).
 
@@ -67,17 +75,21 @@ Run the following commands from the repository root:
 dotnet restore Modulix.slnx
 dotnet build Modulix.slnx
 
-# 2. Build the isolated endpoint scanner Docker image (must match Docker:ScannerImage)
-docker build -t modulix-scanner:latest -f src/Modulix.Scanner/Dockerfile src/Modulix.Scanner
+# 2. (Optional) Pull or build the isolated endpoint scanner Docker image
+docker pull ghcr.io/maxmeyer-05/modulix-scanner:latest
 
-# 3. Start the Modulix server API and reverse proxy (http://localhost:5284)
+# 3. Start the Modulix server API and reverse proxy (http://localhost:5284 or https://localhost:7142)
 dotnet run --project src/Modulix --launch-profile http
+# or with HTTPS:
+dotnet run --project src/Modulix --launch-profile https
 
-# 4. Start the Modulix web frontend (http://localhost:5038)
+# 4. Start the Modulix web frontend (http://localhost:5038 or https://localhost:7062)
 dotnet run --project src/Modulix.Web --launch-profile http
+# or with HTTPS:
+dotnet run --project src/Modulix.Web --launch-profile https
 ```
 
-In the `Development` environment, the backend exposes Swagger UI at `http://localhost:5284/swagger` and the OpenAPI document at `http://localhost:5284/openapi/v1.json`. Entity Framework Core applies pending SQLite migrations automatically on startup.
+In the `Development` environment, the backend exposes Swagger UI at `/swagger` and the OpenAPI document at `/openapi/v1.json` (on `http://localhost:5284` or `https://localhost:7142` depending on the chosen profile). Entity Framework Core applies pending SQLite migrations automatically on startup.
 
 To run the unit and integration test suites:
 
