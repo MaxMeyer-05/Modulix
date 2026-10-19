@@ -30,6 +30,7 @@ public sealed class GlobalExceptionHandler: IExceptionHandler
         var (statusCode, title, detail) = exception switch
         {
             ArgumentException => (StatusCodes.Status400BadRequest, "Invalid request.", exception.Message),
+            InvalidDataException => (StatusCodes.Status400BadRequest, "Invalid archive.", "The uploaded archive is not a valid ZIP file."),
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized.", exception.Message),
             KeyNotFoundException => (StatusCodes.Status404NotFound, "Resource not found.", exception.Message),
             InvalidOperationException => (StatusCodes.Status409Conflict, "Operation conflict.", exception.Message),

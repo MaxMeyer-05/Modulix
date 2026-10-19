@@ -42,7 +42,13 @@ public class ModuleEndpointScanner : IModuleEndpointScanner
             if (assemblyName.Name?.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal) == true ||
                 assemblyName.Name?.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) == true)
             {
-                return null;
+                try
+                {
+                    return Default.LoadFromAssemblyName(assemblyName);
+                }
+                catch (FileNotFoundException)
+                {
+                }
             }
 
             var dependencyPath = _resolver.ResolveAssemblyToPath(assemblyName);

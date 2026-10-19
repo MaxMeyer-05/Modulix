@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -126,6 +126,11 @@ public class IndexModel : PageModel
     public CreationResult? CreationSuccess { get; private set; }
 
     /// <summary>
+    /// Feedback from a completed module action (such as deleting a module).
+    /// </summary>
+    public DetailModel.ActionFeedback? Feedback { get; private set; }
+
+    /// <summary>
     /// Handles the GET request for the index page.
     /// </summary>
     /// <param name="q">The search text.</param>
@@ -136,6 +141,9 @@ public class IndexModel : PageModel
     {
         if (TempData[ResultKey] is string json)
             CreationSuccess = JsonSerializer.Deserialize<CreationResult>(json);
+
+        if (TempData[DetailModel.FeedbackKey] is string feedbackJson)
+            Feedback = JsonSerializer.Deserialize<DetailModel.ActionFeedback>(feedbackJson);
 
         await LoadModulesAsync(q, status, sort);
         return Page();
@@ -187,15 +195,25 @@ public class IndexModel : PageModel
                 .Replace("\n", string.Empty);
             _logger.LogDebug("Creating a new module with name {ModuleName}.", sanitizedModuleName);
 
-            var response = await _modulixApiClient.ModuleManagement.CreateModuleWithStatusAsync(
+            using var response = await _modulixApiClient.ModuleManagement.CreateModuleAsync(
                 input, ct: HttpContext.RequestAborted);
 
-            var module = response.Result.Module;
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                return new CreationResult(error.StatusCode, error.Title, error.Detail, null);
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
+                cancellationToken: HttpContext.RequestAborted)
+                ?? throw new JsonException("The API returned an empty response.");
+
+            var module = result.Module;
             var statusCode = (int)response.StatusCode;
             var moduleUrl = statusCode is 201 or 202
                 ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : null;
-            var description = !string.IsNullOrWhiteSpace(response.Result.Message)
-                ? response.Result.Message
+            var description = !string.IsNullOrWhiteSpace(result.Message)
+                ? result.Message
                 : ReasonPhrases.GetReasonPhrase(statusCode);
 
             _logger.LogInformation("Module creation returned HTTP {StatusCode} for {ModuleId}.", statusCode, module.Id);
@@ -212,21 +230,7 @@ public class IndexModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error creating module.");
-            var statusCode = (int?)exception.StatusCode ?? 503;
-            var description = ReasonPhrases.GetReasonPhrase(statusCode);
-            if (exception.StatusCode.HasValue)
-            {
-                try
-                {
-                    var problem = JsonSerializer.Deserialize<ProblemDetails>(exception.Message, JsonSerializerOptions.Web);
-                    if (!string.IsNullOrWhiteSpace(problem?.Detail))
-                        description = problem.Detail;
-                }
-                catch (JsonException)
-                {
-                }
-            }
-            return Failure(statusCode, description);
+            return Failure(503, "The API could not be reached. Please try again later.");
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -263,7 +267,18 @@ public class IndexModel : PageModel
 
         try
         {
-            var modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync();
+            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ModelState.AddModelError(string.Empty, error.DisplayMessage);
+                return;
+            }
+
+            var modules = await response.Content.ReadFromJsonAsync<List<ModuleDto>>(
+                cancellationToken: HttpContext.RequestAborted) ?? [];
             _logger.LogDebug("Successfully loaded {ModuleCount} modules.", modules.Count);
 
             TotalModules = modules.Count;
@@ -289,19 +304,7 @@ public class IndexModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "ERROR loading modules.");
-            var message = exception.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized =>
-                    "401 Unauthorized: The API rejected your access token. Please sign in again.",
-                HttpStatusCode.InternalServerError =>
-                    "500 Internal Server Error: The API could not load the modules. Please try again later.",
-                HttpStatusCode statusCode when (int)statusCode >= 500 =>
-                    $"API server error (HTTP {(int)statusCode}). Please try again later.",
-                HttpStatusCode statusCode =>
-                    $"Failed to load modules (HTTP {(int)statusCode}).",
-                _ => "The API could not be reached. Please try again later."
-            };
-            ModelState.AddModelError(string.Empty, message);
+            ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
     }
 

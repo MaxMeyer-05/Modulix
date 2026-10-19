@@ -47,8 +47,8 @@ document.querySelectorAll("[data-copy]").forEach(button => {
     };
 
     const isEditingFilter = () => {
-        const addDialog = document.getElementById("add-module-dialog");
-        if (addDialog && (addDialog.classList.contains("module-dialog-open") || addDialog.matches(":popover-open"))) {
+        const openDialog = document.querySelector(".module-dialog.module-dialog-open, .module-dialog:popover-open");
+        if (openDialog) {
             return true;
         }
 

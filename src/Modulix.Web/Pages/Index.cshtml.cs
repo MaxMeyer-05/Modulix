@@ -1,4 +1,4 @@
-using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 
 using Microsoft.AspNetCore.Mvc;
@@ -211,26 +211,22 @@ public class IndexModel : PageModel
         {
             _logger.LogDebug("Loading all modules for dashboard.");
 
-            Modules = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(ct: ct);
+            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(ct: ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(ct);
+                ModelState.AddModelError(string.Empty, error.DisplayMessage);
+                return;
+            }
+
+            Modules = await response.Content.ReadFromJsonAsync<List<ModuleDto>>(cancellationToken: ct) ?? [];
 
             _logger.LogDebug("Successfully loaded {ModuleCount} modules.", Modules.Count);
         }
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "ERROR loading modules.");
-            var message = exception.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized =>
-                    "401 Unauthorized: The API rejected your access token. Please sign in again.",
-                HttpStatusCode.InternalServerError =>
-                    "500 Internal Server Error: The API could not load the modules. Please try again later.",
-                HttpStatusCode statusCode when (int)statusCode >= 500 =>
-                    $"API server error (HTTP {(int)statusCode}). Please try again later.",
-                HttpStatusCode statusCode =>
-                    $"Failed to load modules (HTTP {(int)statusCode}).",
-                _ => "The API could not be reached. Please try again later."
-            };
-            ModelState.AddModelError(string.Empty, message);
+            ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
     }
 
@@ -238,7 +234,11 @@ public class IndexModel : PageModel
     {
         try
         {
-            ScanQueue = await _modulixApiClient.ModuleManagement.GetScanQueueAsync(ct: ct);
+            using var response = await _modulixApiClient.ModuleManagement.GetScanQueueAsync(ct: ct);
+            if (response.IsSuccessStatusCode)
+            {
+                ScanQueue = await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(cancellationToken: ct) ?? [];
+            }
         }
         catch (HttpRequestException exception)
         {
@@ -250,7 +250,11 @@ public class IndexModel : PageModel
     {
         try
         {
-            Endpoints = await _modulixApiClient.ModuleManagement.GetAllEndpointsDetailAsync(ct: ct);
+            using var response = await _modulixApiClient.ModuleManagement.GetAllEndpointsDetailAsync(ct: ct);
+            if (response.IsSuccessStatusCode)
+            {
+                Endpoints = await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>(cancellationToken: ct) ?? [];
+            }
         }
         catch (HttpRequestException exception)
         {
