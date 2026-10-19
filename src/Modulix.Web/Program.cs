@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography.X509Certificates;
 
 using Serilog;
 
@@ -16,6 +17,8 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Duende.AccessTokenManagement;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.UseStaticWebAssets();
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
@@ -94,16 +97,51 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
+var httpsSettings = builder.Configuration
+    .GetSection(HttpsSettings.SectionName)
+    .Get<HttpsSettings>()
+    ?? HttpsSettings.Default;
+
+if (httpsSettings.Enabled)
+{
+    if (httpsSettings.Port is int httpsPort)
+    {
+        builder.Services.AddHttpsRedirection(options => options.HttpsPort = httpsPort);
+    }
+
+    if (!string.IsNullOrWhiteSpace(httpsSettings.CertificatePath)
+        && !httpsSettings.CertificatePath.StartsWith('<'))
+    {
+        builder.WebHost.ConfigureKestrel(serverOptions =>
+        {
+            serverOptions.ConfigureHttpsDefaults(httpsOptions =>
+            {
+                httpsOptions.ServerCertificate = X509CertificateLoader.LoadPkcs12FromFile(
+                    httpsSettings.CertificatePath,
+                    httpsSettings.CertificatePassword);
+            });
+        });
+    }
+}
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
-    app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (httpsSettings.Enabled)
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
+    app.UseHttpsRedirection();
+}
+
 app.UseRouting();
 
 app.UseAuthentication();
