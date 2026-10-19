@@ -15,20 +15,6 @@ internal partial class ModulixApi : IModuleManagementClient
     private const string ModuleManagementEndpoint = "api/modules-management/modules";
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> CancelModuleScanAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
-    {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/cancel-scan";
-        return await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
-    public async Task<HttpResponseMessage> ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
-    {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/confirm-endpoints";
-        return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
     public async Task<HttpResponseMessage> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
         using var content = new MultipartFormDataContent();
@@ -67,30 +53,9 @@ internal partial class ModulixApi : IModuleManagementClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetAllEndpointsDetailAsync(CancellationToken ct = default, string? authToken = null)
-    {
-        var requestUri = $"{ModuleManagementEndpoint}/endpoints";
-        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetScanQueueAsync(CancellationToken ct = default, string? authToken = null)
-    {
-        var requestUri = $"{ModuleManagementEndpoint}/queue";
-        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
-        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
-    {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/endpoints";
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
