@@ -17,30 +17,27 @@ internal partial class ModulixApi : IModuleManagementClient
     private const string ModuleManagementEndpoint = "api/modules-management/modules";
 
     /// <inheritdoc/>
-    public async Task CancelModuleScanAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> CancelModuleScanAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/cancel-scan";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
+
         response.EnsureSuccessStatusCode();
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/confirm-endpoints";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
+    
         response.EnsureSuccessStatusCode();
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
-    {
-        var response = await CreateModuleWithStatusAsync(request, ct, authToken);
-        return response.Result;
-    }
-
-    /// <inheritdoc/>
-    public async Task<(HttpStatusCode StatusCode, ModuleCreationResultDto Result)> CreateModuleWithStatusAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
         using var content = new MultipartFormDataContent();
 
@@ -68,84 +65,81 @@ internal partial class ModulixApi : IModuleManagementClient
                 string.IsNullOrWhiteSpace(errorContent) ? response.ReasonPhrase : errorContent,
                 null, response.StatusCode);
         }
-        var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
-            cancellationToken: ct) ?? throw new JsonException("The API returned an empty response.");
-        return (response.StatusCode, result);
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> DeleteModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/delete";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
+
         response.EnsureSuccessStatusCode();
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<List<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllModulesAsync(CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<ModuleDto>>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<List<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllEndpointsDetailAsync(CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/endpoints";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<List<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetScanQueueAsync(CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/queue";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(cancellationToken: ct)
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<ModuleDetailDto>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<List<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/endpoints";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<ModuleEndpointDto>>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto request, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> UpdateModuleAsync(Guid moduleId, UpdateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken: authToken, ct: ct);
+
         response.EnsureSuccessStatusCode();
+        return response;
     }
 
     /// <inheritdoc/>
-    public async Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto request, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto request, CancellationToken ct = default, string? authToken = null)
     {
         using var content = new MultipartFormDataContent();
         content.Add(
@@ -171,27 +165,24 @@ internal partial class ModulixApi : IModuleManagementClient
                 response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(cancellationToken: ct)
-             ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
-    public async Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> StopModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stop";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<ModuleDetailDto>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 
-    public async Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> StartModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/start";
         using var response = await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<ModuleDetailDto>() 
-            ?? throw new JsonException("The API returned an empty response.");
+        return response;
     }
 }
