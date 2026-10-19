@@ -22,6 +22,11 @@ public class ScannerManagementController : ControllerBase
     private readonly IModuleService _moduleService;
 
     /// <summary>
+    /// The scanner service used to manage module scans.
+    /// </summary>
+    private readonly IScannerService _scannerService;
+
+    /// <summary>
     /// The module endpoint scanner used by the controller.
     /// </summary>
     private readonly IModuleEndpointScanner _endpointScanner;
@@ -30,12 +35,15 @@ public class ScannerManagementController : ControllerBase
     /// Initializes a new instance of the <see cref="ScannerManagementController"/> class.
     /// </summary>
     /// <param name="moduleService">The module service used to interact with module data and operations.</param>
+    /// <param name="scannerService">The scanner service used to manage module scans.</param>
     /// <param name="endpointScanner">The module endpoint scanner used by the controller.</param>
     public ScannerManagementController(
         IModuleService moduleService, 
+        IScannerService scannerService,
         IModuleEndpointScanner endpointScanner)
     {
         _moduleService = moduleService;
+        _scannerService = scannerService;
         _endpointScanner = endpointScanner;
     }
 
@@ -50,7 +58,7 @@ public class ScannerManagementController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<ModuleScanQueueItemDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<ModuleScanQueueItemDto>>> GetScanQueueAsync(CancellationToken ct = default)
     {
-        var result = await _moduleService.GetScanQueueAsync(ct);
+        var result = await _scannerService.GetScanQueueAsync(ct);
         return Ok(result);
     }
 

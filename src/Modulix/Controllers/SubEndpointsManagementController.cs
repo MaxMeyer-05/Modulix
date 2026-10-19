@@ -16,17 +16,17 @@ namespace Modulix.Controllers;
 public class SubEndpointsManagementController : ControllerBase
 {
     /// <summary>
-    /// The module service used by the controller.
+    /// The sub-endpoint service used by the controller.
     /// </summary>
-    private readonly IModuleService _moduleService;
+    private readonly ISubEndpointService _subEndpointService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SubEndpointsManagementController"/> class.
     /// </summary>
-    /// <param name="moduleService">The module service instance.</param>
-    public SubEndpointsManagementController(IModuleService moduleService)
+    /// <param name="subEndpointService">The sub-endpoint service instance.</param>
+    public SubEndpointsManagementController(ISubEndpointService subEndpointService)
     {
-        _moduleService = moduleService;
+        _subEndpointService = subEndpointService;
     }
 
     /// <summary>
@@ -41,14 +41,14 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
-    [HttpPost("{moduleId}/confirm-endpoints")]
+    [HttpPost("{moduleId}/confirm")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleDetailDto>> ConfirmModuleEndpointsAsync([FromRoute] Guid moduleId, [FromBody] ConfirmEndpointsDto dto, CancellationToken ct = default)
     { 
-        var result = await _moduleService.ConfirmEndpointsAsync(moduleId, dto, ct);
+        var result = await _subEndpointService.ConfirmSubEndpointsAsync(moduleId, dto, ct);
         return Ok(result);
     }
 
@@ -61,12 +61,12 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 200 OK response with a list of sub-endpoints for the specified module.
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
-    [HttpGet("{moduleId}/endpoints")]
+    [HttpGet("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(IEnumerable<ModuleEndpointDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
     {
-        var result = await _moduleService.GetModuleEndpointsAsync(moduleId, ct);
+        var result = await _subEndpointService.GetModuleSubEndpointsAsync(moduleId, ct);
         return Ok(result);
     }
 
@@ -77,11 +77,11 @@ public class SubEndpointsManagementController : ControllerBase
     /// <returns>
     /// A 200 OK response with a list of detailed sub-endpoints.
     /// </returns>
-    [HttpGet("endpoints")]
+    [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<ModuleEndpointsDetailDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<ModuleEndpointsDetailDto>>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
     {
-        var result = await _moduleService.GetAllEndpointsDetailAsync(ct);
+        var result = await _subEndpointService.GetAllSubEndpointsDetailAsync(ct);
         return Ok(result);
     }
 }
