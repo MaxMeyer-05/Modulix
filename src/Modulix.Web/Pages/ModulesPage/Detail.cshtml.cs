@@ -1,4 +1,4 @@
-using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -98,6 +98,148 @@ public class DetailModel : PageModel
     }
 
     /// <summary>
+    /// Starts the module container.
+    /// </summary>
+    /// <param name="id">The ID of the module to start.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostStartAsync(Guid id, [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        try
+        {
+            _logger.LogInformation("Starting module {ModuleId}.", id);
+
+            using var response = await _modulixApiClient.ModuleManagement.StartModuleAsync(
+                id,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    error.StatusCode,
+                    error.Title,
+                    error.Detail,
+                    IsSuccess: false));
+                return RedirectToPage(new { id });
+            }
+
+            var updatedModule = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
+                cancellationToken: HttpContext.RequestAborted);
+            var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
+            var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
+
+            if (updatedModule?.Status == ModuleStatus.Failed)
+            {
+                _userActivityService.Record(User, "Failed starting", targetName, "triangle-alert", UserActivityTone.Danger, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    500,
+                    "Failed to start module",
+                    $"The container for {targetName} failed to start.",
+                    IsSuccess: false));
+            }
+            else
+            {
+                _userActivityService.Record(User, "Started", targetName, "play", UserActivityTone.Success, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    (int)response.StatusCode,
+                    "Module started",
+                    $"Started module {targetName}.",
+                    IsSuccess: true));
+            }
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error starting module {ModuleId}.", id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                503,
+                ReasonPhrases.GetReasonPhrase(503),
+                "The API could not be reached. Please try again later.",
+                IsSuccess: false));
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Starting module {ModuleId} timed out.", id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                504,
+                ReasonPhrases.GetReasonPhrase(504),
+                "The API did not respond in time. Check the module status before retrying.",
+                IsSuccess: false));
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>
+    /// Stops the running module container.
+    /// </summary>
+    /// <param name="id">The ID of the module to stop.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostStopAsync(Guid id, [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        try
+        {
+            _logger.LogInformation("Stopping module {ModuleId}.", id);
+
+            using var response = await _modulixApiClient.ModuleManagement.StopModuleAsync(
+                id,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    error.StatusCode,
+                    error.Title,
+                    error.Detail,
+                    IsSuccess: false));
+                return RedirectToPage(new { id });
+            }
+
+            var updatedModule = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
+                cancellationToken: HttpContext.RequestAborted);
+            var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
+
+            _userActivityService.Record(
+                User,
+                "Stopped",
+                targetName,
+                "square",
+                UserActivityTone.Warning,
+                Url.Page("/ModulesPage/Detail", new { id }));
+
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                (int)response.StatusCode,
+                "Module stopped",
+                $"Stopped module {targetName}.",
+                IsSuccess: true));
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error stopping module {ModuleId}.", id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                503,
+                ReasonPhrases.GetReasonPhrase(503),
+                "The API could not be reached. Please try again later.",
+                IsSuccess: false));
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Stopping module {ModuleId} timed out.", id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                504,
+                ReasonPhrases.GetReasonPhrase(504),
+                "The API did not respond in time. Check the module status before retrying.",
+                IsSuccess: false));
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>
     /// Updates the name and description of the module.
     /// </summary>
     /// <param name="id">The ID of the module to update.</param>
@@ -131,10 +273,19 @@ public class DetailModel : PageModel
             var sanitizedName = trimmedName.Replace("\r", string.Empty).Replace("\n", string.Empty);
             _logger.LogInformation("Updating details for module {ModuleId} ({ModuleName}).", id, sanitizedName);
 
-            await _modulixApiClient.ModuleManagement.UpdateModuleAsync(
+            using var response = await _modulixApiClient.ModuleManagement.UpdateModuleAsync(
                 id,
                 request,
                 ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                EditInput = input;
+                EditError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
 
             _userActivityService.Record(
                 User,
@@ -145,7 +296,7 @@ public class DetailModel : PageModel
                 Url.Page("/ModulesPage/Detail", new { id }));
 
             TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                204,
+                (int)response.StatusCode,
                 "Module details updated",
                 $"Saved updated details for {trimmedName}.",
                 IsSuccess: true));
@@ -156,7 +307,7 @@ public class DetailModel : PageModel
         {
             _logger.LogError(exception, "Error updating details for module {ModuleId}.", id);
             EditInput = input;
-            EditError = MapHttpException(exception);
+            EditError = Failure(503, "The API could not be reached. Please try again later.");
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -198,10 +349,22 @@ public class DetailModel : PageModel
         {
             _logger.LogInformation("Updating files for module {ModuleId}.", id);
 
-            var result = await _modulixApiClient.ModuleManagement.UpdateModuleFilesAsync(
+            using var response = await _modulixApiClient.ModuleManagement.UpdateModuleFilesAsync(
                 id,
                 input,
                 ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                UpdateFilesError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
+                cancellationToken: HttpContext.RequestAborted)
+                ?? throw new JsonException("The API returned an empty response.");
 
             var updatedModule = result.Module;
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
@@ -261,7 +424,7 @@ public class DetailModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error updating files for module {ModuleId}.", id);
-            UpdateFilesError = MapHttpException(exception);
+            UpdateFilesError = Failure(503, "The API could not be reached. Please try again later.");
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -291,9 +454,17 @@ public class DetailModel : PageModel
         {
             _logger.LogInformation("Deleting module {ModuleId}.", id);
 
-            await _modulixApiClient.ModuleManagement.DeleteModuleAsync(
+            using var response = await _modulixApiClient.ModuleManagement.DeleteModuleAsync(
                 id,
                 ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                DeleteError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
 
             var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
             _userActivityService.Record(
@@ -305,7 +476,7 @@ public class DetailModel : PageModel
                 Url.Page("/ModulesPage/Index"));
 
             TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                204,
+                (int)response.StatusCode,
                 "Module deleted",
                 $"Deleted module {targetName} and removed its container and files.",
                 IsSuccess: true));
@@ -315,7 +486,7 @@ public class DetailModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error deleting module {ModuleId}.", id);
-            DeleteError = MapHttpException(exception);
+            DeleteError = Failure(503, "The API could not be reached. Please try again later.");
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -333,49 +504,25 @@ public class DetailModel : PageModel
         {
             _logger.LogDebug("Loading module detail for ID {ModuleId}", id);
 
-            Module = await _modulixApiClient.ModuleManagement.GetModuleByIdAsync(
+            using var response = await _modulixApiClient.ModuleManagement.GetModuleByIdAsync(
                 moduleId: id,
                 ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ModelState.AddModelError(string.Empty, error.DisplayMessage);
+                return;
+            }
+
+            Module = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
+                cancellationToken: HttpContext.RequestAborted);
         }
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "ERROR loading module detail.");
-            var message = exception.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized =>
-                    "401 Unauthorized: The API rejected your access token. Please sign in again.",
-                HttpStatusCode.NotFound =>
-                    "404 Not Found: The requested module could not be found.",
-                HttpStatusCode.InternalServerError =>
-                    "500 Internal Server Error: The API could not load the module detail. Please try again later.",
-                HttpStatusCode statusCode when (int)statusCode >= 500 =>
-                    $"API server error (HTTP {(int)statusCode}). Please try again later.",
-                HttpStatusCode statusCode =>
-                    $"Failed to load module detail (HTTP {(int)statusCode}).",
-                _ => "The API could not be reached. Please try again later."
-            };
-            ModelState.AddModelError(string.Empty, message);
+            ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
-    }
-
-    private static ActionError MapHttpException(HttpRequestException exception)
-    {
-        var statusCode = (int?)exception.StatusCode ?? 503;
-        var description = ReasonPhrases.GetReasonPhrase(statusCode);
-        if (exception.StatusCode.HasValue)
-        {
-            try
-            {
-                var problem = JsonSerializer.Deserialize<ProblemDetails>(exception.Message, JsonSerializerOptions.Web);
-                if (!string.IsNullOrWhiteSpace(problem?.Detail))
-                    description = problem.Detail;
-            }
-            catch (JsonException)
-            {
-            }
-        }
-
-        return Failure(statusCode, description);
     }
 
     private static ActionError Failure(int statusCode, string description) =>

@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Net;
+using System.Net.Http.Json;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.EndpointsPage;
 
@@ -112,8 +113,18 @@ public class IndexModel : PageModel
 
         try
         {
-            var allEndpoints = await _modulixApiClient.ModuleManagement.GetAllEndpointsDetailAsync(
+            using var response = await _modulixApiClient.ModuleManagement.GetAllEndpointsDetailAsync(
                 ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ModelState.AddModelError(string.Empty, error.DisplayMessage);
+                return Page();
+            }
+
+            var allEndpoints = await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>(
+                cancellationToken: HttpContext.RequestAborted) ?? [];
 
             _logger.LogDebug("Successfully loaded {EndpointCount} detailed endpoints.", allEndpoints.Count);
 
@@ -150,19 +161,7 @@ public class IndexModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "ERROR loading API endpoints.");
-            var message = exception.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized =>
-                    "401 Unauthorized: The API rejected your access token. Please sign in again.",
-                HttpStatusCode.InternalServerError =>
-                    "500 Internal Server Error: The API could not load the endpoints. Please try again later.",
-                HttpStatusCode statusCode when (int)statusCode >= 500 =>
-                    $"API server error (HTTP {(int)statusCode}). Please try again later.",
-                HttpStatusCode statusCode =>
-                    $"Failed to load endpoints (HTTP {(int)statusCode}).",
-                _ => "The API could not be reached. Please try again later."
-            };
-            ModelState.AddModelError(string.Empty, message);
+            ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
 
         return Page();

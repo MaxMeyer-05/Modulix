@@ -201,13 +201,102 @@ public class ModuleService : IModuleService
     /// <inheritdoc/>
     public async Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var module = await _context.Modules
+            .Include(m => m.SubEndpoints)
+            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
+
+        if (module is null)
+            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
+
+        if (module.Status == ModuleStatus.Running)
+            throw new InvalidOperationException($"Module '{moduleId}' is already running.");
+
+        if (module.Status == ModuleStatus.Starting)
+            throw new InvalidOperationException($"Module '{moduleId}' is already starting.");
+
+        if (module.Status == ModuleStatus.QueuedForScan)
+            throw new InvalidOperationException($"Module '{moduleId}' cannot be started while queued for scanning.");
+
+        if (module.Status == ModuleStatus.PendingConfirmation ||
+            module.SubEndpoints.Any(endpoint => endpoint.Status == ModuleEndpointsStatus.PendingConfirmation))
+        {
+            throw new InvalidOperationException("Module endpoints must be confirmed before starting the module.");
+        }
+
+        var previousState = (module.ContainerId, module.Status);
+        string? builtContainerId = null;
+
+        try
+        {
+            module.Status = ModuleStatus.Starting;
+
+            if (string.IsNullOrWhiteSpace(module.ContainerId))
+            {
+                builtContainerId = await _dockerService.BuildContainerAsync(
+                    module.Id,
+                    module.StoragePath,
+                    module.ModuleEntryAssemblyFileName,
+                    module.ContainerPort,
+                    ct);
+                module.ContainerId = builtContainerId;
+            }
+
+            await _dockerService.RunContainerAsync(module.ContainerId, ct);
+            await _dockerService.WaitUntilReadyAsync(module.ContainerId, ct);
+            module.Status = ModuleStatus.Running;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "Failed to start module container for module '{ModuleId}'.", module.Id);
+            module.Status = ModuleStatus.Failed;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            if (builtContainerId is not null)
+                await TryRemoveModuleContainerAsync(builtContainerId, module.Id);
+
+            (module.ContainerId, module.Status) = previousState;
+            _context.Entry(module).State = EntityState.Unchanged;
+            throw;
+        }
+
+        _moduleEndpointExtension.SynchronizeReverseProxy(module);
+        _logger.LogInformation("Started module with ID '{ModuleId}' (Status: {Status}).", moduleId, module.Status);
+        return module.ToModuleDetailDto();
     }
 
     /// <inheritdoc/>
     public async Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var module = await _context.Modules
+            .Include(m => m.SubEndpoints)
+            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
+
+        if (module is null)
+            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
+
+        if (module.Status == ModuleStatus.Stopped)
+            throw new InvalidOperationException($"Module '{moduleId}' is already stopped.");
+
+        if (module.Status is not ModuleStatus.Running and not ModuleStatus.Starting)
+            throw new InvalidOperationException($"Module '{moduleId}' is not running and cannot be stopped.");
+
+        if (!string.IsNullOrWhiteSpace(module.ContainerId))
+        {
+            await _dockerService.StopContainerAsync(module.ContainerId, ct);
+        }
+
+        module.Status = ModuleStatus.Stopped;
+        await _context.SaveChangesAsync(ct);
+
+        _moduleEndpointExtension.SynchronizeReverseProxy(module);
+        _logger.LogInformation("Stopped module with ID '{ModuleId}'.", moduleId);
+        return module.ToModuleDetailDto();
     }
 
     /// <inheritdoc/>

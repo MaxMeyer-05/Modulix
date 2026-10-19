@@ -593,6 +593,8 @@ public class ModuleEndpointScannerTests : IDisposable
         }
 
         public Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default) => throw new NotSupportedException();

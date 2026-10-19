@@ -8,6 +8,11 @@
     var reopenUpdateFiles = Model.UpdateFilesError is not null;
     var reopenDelete = Model.DeleteError is not null;
     var detailUrl = module is not null ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : Url.Page("/ModulesPage/Index");
+    var canStart = module?.Status is Modulix.Client.Models.Enums.ModuleStatus.Stopped
+        or Modulix.Client.Models.Enums.ModuleStatus.Created
+        or Modulix.Client.Models.Enums.ModuleStatus.Failed;
+    var canStop = module?.Status is Modulix.Client.Models.Enums.ModuleStatus.Running
+        or Modulix.Client.Models.Enums.ModuleStatus.Starting;
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
@@ -101,8 +106,14 @@
                 <section class="module-info-section" aria-labelledby="module-actions-heading">
                     <h2 id="module-actions-heading">Module actions</h2>
                     <div class="module-detail-actions">
-                        <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button></span>
-                        <span title="Not connected in this preview"><button class="module-button" type="button" disabled><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button></span>
+                        <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
+                            <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                            <button class="module-button" type="submit" id="start-module-button" disabled="@(!canStart)" title="@(canStart ? "Start the module container" : $"Cannot start module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
+                        </form>
+                        <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
+                            <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                            <button class="module-button" type="submit" id="stop-module-button" disabled="@(!canStop)" title="@(canStop ? "Stop the module container" : $"Cannot stop module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
+                        </form>
                         <button class="module-button" type="button" id="edit-module-button" popovertarget="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
                         <button class="module-button" type="button" id="update-files-button" popovertarget="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
                         <button class="module-button module-button-danger" type="button" id="delete-module-button" popovertarget="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>

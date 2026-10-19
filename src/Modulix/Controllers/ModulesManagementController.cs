@@ -101,9 +101,11 @@ public class ModulesManagementController : ControllerBase
     /// <returns>
     /// A 200 OK response with the details of the started module.
     /// A 404 Not Found response if the module could not be found.
+    /// A 409 Conflict response if the module cannot be started in its current state.
     /// </returns>
     [HttpPost("{moduleId}/start")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleDetailDto>> StartModuleAsync([FromRoute] Guid moduleId, CancellationToken ct = default)
     {
@@ -119,9 +121,11 @@ public class ModulesManagementController : ControllerBase
     /// <returns>
     /// A 200 OK response with the details of the stopped module.
     /// A 404 Not Found response if the module could not be found.
+    /// A 409 Conflict response if the module is already stopped or not running.
     /// </returns>
     [HttpPost("{moduleId}/stop")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleDetailDto>> StopModuleAsync([FromRoute] Guid moduleId, CancellationToken ct = default)
     {

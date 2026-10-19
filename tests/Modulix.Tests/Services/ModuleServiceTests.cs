@@ -1709,6 +1709,166 @@ public class ModuleServiceTests : IDisposable
 
     #endregion
 
+    #region StartModule & StopModule Tests
+
+    [Fact]
+    [Trait("Feature", "StartModule")]
+    public async Task StartModuleAsync_ModuleNotFound_ThrowsKeyNotFoundException()
+    {
+        var nonExistentId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _sut.StartModuleAsync(nonExistentId));
+
+        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(ModuleStatus.Running)]
+    [InlineData(ModuleStatus.Starting)]
+    [InlineData(ModuleStatus.QueuedForScan)]
+    [InlineData(ModuleStatus.PendingConfirmation)]
+    [Trait("Feature", "StartModule")]
+    public async Task StartModuleAsync_InvalidStatus_ThrowsInvalidOperationException(ModuleStatus status)
+    {
+        var module = CreateTestModuleEntity("Invalid Start", "api/v1/invalid-start", 8030);
+        module.Status = status;
+        module.ContainerId = "existing-container";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.StartModuleAsync(module.Id));
+
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "StartModule")]
+    public async Task StartModuleAsync_StoppedModuleWithContainer_StartsExistingContainerAndSynchronizesProxy()
+    {
+        var module = CreateTestModuleEntity("Stopped Module", "api/v1/stopped", 8031);
+        module.Status = ModuleStatus.Stopped;
+        module.ContainerId = "existing-container";
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/ping",
+            Status = ModuleEndpointsStatus.Active
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var result = await _sut.StartModuleAsync(module.Id);
+
+        Assert.Equal(ModuleStatus.Running, result.Status);
+        Assert.Equal("existing-container", result.ContainerId);
+        Assert.Equal(["start", "ready"], _dockerService.Calls);
+        Assert.Contains(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
+    }
+
+    [Fact]
+    [Trait("Feature", "StartModule")]
+    public async Task StartModuleAsync_ModuleWithoutContainer_BuildsAndStartsContainer()
+    {
+        var module = CreateTestModuleEntity("Unbuilt Module", "api/v1/unbuilt", 8032);
+        module.Status = ModuleStatus.Created;
+        module.ContainerId = null;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var result = await _sut.StartModuleAsync(module.Id);
+
+        Assert.Equal(ModuleStatus.Running, result.Status);
+        Assert.Equal("replacement-container", result.ContainerId);
+        Assert.Equal(["build", "start", "ready"], _dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "StartModule")]
+    public async Task StartModuleAsync_DockerStartFails_PersistsFailedStatus()
+    {
+        var module = CreateTestModuleEntity("Failing Start", "api/v1/failing-start", 8033);
+        module.Status = ModuleStatus.Stopped;
+        module.ContainerId = "existing-container";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _dockerService.StartException = new InvalidOperationException("Container start failed.");
+
+        var result = await _sut.StartModuleAsync(module.Id);
+
+        Assert.Equal(ModuleStatus.Failed, result.Status);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        Assert.Equal(ModuleStatus.Failed, persisted.Status);
+    }
+
+    [Fact]
+    [Trait("Feature", "StopModule")]
+    public async Task StopModuleAsync_ModuleNotFound_ThrowsKeyNotFoundException()
+    {
+        var nonExistentId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _sut.StopModuleAsync(nonExistentId));
+
+        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(ModuleStatus.Stopped)]
+    [InlineData(ModuleStatus.Created)]
+    [InlineData(ModuleStatus.Failed)]
+    [InlineData(ModuleStatus.QueuedForScan)]
+    [InlineData(ModuleStatus.PendingConfirmation)]
+    [Trait("Feature", "StopModule")]
+    public async Task StopModuleAsync_InvalidStatus_ThrowsInvalidOperationException(ModuleStatus status)
+    {
+        var module = CreateTestModuleEntity("Invalid Stop", "api/v1/invalid-stop", 8034);
+        module.Status = status;
+        module.ContainerId = "existing-container";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.StopModuleAsync(module.Id));
+
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "StopModule")]
+    public async Task StopModuleAsync_RunningModule_StopsContainerAndRemovesProxyRoutes()
+    {
+        var module = CreateTestModuleEntity("Running Module", "api/v1/running", 8035);
+        module.Status = ModuleStatus.Running;
+        module.ContainerId = "running-container";
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            HttpMethod = "GET",
+            EndpointPath = "/ping",
+            Status = ModuleEndpointsStatus.Active
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _reverseProxyService.UpsertModule(new Modulix.ReverseProxy.Models.ProxyModuleDefinition
+        {
+            ModuleId = module.Id,
+            BaseUrlPath = module.BaseUrlPath,
+            ContainerPort = module.ContainerPort,
+            Endpoints = [new Modulix.ReverseProxy.Models.ProxyEndpointDefinition { HttpMethod = "GET", EndpointPath = "/ping" }]
+        });
+
+        var result = await _sut.StopModuleAsync(module.Id);
+
+        Assert.Equal(ModuleStatus.Stopped, result.Status);
+        Assert.Equal(["stop:running-container"], _dockerService.Calls);
+        Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
+    }
+
+    #endregion
+
     #region ReverseProxy Synchronization Tests
 
     [Fact]
@@ -2021,6 +2181,7 @@ public class ModuleServiceTests : IDisposable
         public Task StopContainerAsync(string containerId, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
+            Calls.Add("stop:" + containerId);
             return Task.CompletedTask;
         }
 

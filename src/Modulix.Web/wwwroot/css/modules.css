@@ -138,6 +138,7 @@
 .module-copy-value > button { flex-shrink: 0; }
 .module-runtime-facts { display: flex; flex-direction: column; gap: 24px; margin: 24px 0 0; }
 .module-detail-actions { display: grid; gap: 10px; margin-top: 20px; }
+.module-detail-actions form { margin: 0; }
 .module-detail-actions .module-button { width: 100%; justify-content: flex-start; }
 .module-section-heading { flex-wrap: wrap; }
 .module-section-heading > span { color: var(--module-muted); font-size: 12px; }
