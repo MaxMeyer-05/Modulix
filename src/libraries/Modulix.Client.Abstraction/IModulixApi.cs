@@ -11,4 +11,14 @@ public interface IModulixApi
     /// Gets the client for managing modules within the Modulix API.
     /// </summary>
     IModuleManagementClient ModuleManagement { get; }
+
+    /// <summary>
+    /// Gets the client for managing sub-endpoints within the Modulix API.
+    /// </summary>
+    ISubEndpointManagementClient SubEndpointManagement { get; }
+
+    /// <summary>
+    /// Gets the client for managing the scanner within the Modulix API.
+    /// </summary>
+    IScannerManagementClient ScannerManagement { get; }
 }
