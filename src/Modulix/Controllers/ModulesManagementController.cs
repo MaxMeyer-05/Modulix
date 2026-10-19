@@ -45,6 +45,7 @@ public class ModulesManagementController : ControllerBase
     /// Creates a new module.
     /// </summary>
     /// <param name="dto">The module creation data transfer object.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// This can be either a 201 Created response if the module was successfully created,
     /// or a 202 Accepted response if the module is pending confirmation.
@@ -57,9 +58,9 @@ public class ModulesManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> CreateModuleAsync([FromForm] CreateModuleDto dto)
+    public async Task<IActionResult> CreateModuleAsync([FromForm] CreateModuleDto dto, CancellationToken ct = default)
     {
-        var result = await _moduleService.CreateModuleAsync(dto, HttpContext.RequestAborted);
+        var result = await _moduleService.CreateModuleAsync(dto, ct);
         
         if (result.Module.Status == ModuleStatus.QueuedForScan || result.Module.Status == ModuleStatus.PendingConfirmation)
         {
@@ -74,6 +75,7 @@ public class ModulesManagementController : ControllerBase
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
     /// <param name="dto">The confirmation data transfer object.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with the details of the confirmed module.
     /// A 400 Bad Request response if the input data is invalid.
@@ -85,9 +87,9 @@ public class ModulesManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ModuleDetailDto>> ConfirmModuleEndpointsAsync([FromRoute] Guid moduleId, [FromBody] ConfirmEndpointsDto dto)
+    public async Task<ActionResult<ModuleDetailDto>> ConfirmModuleEndpointsAsync([FromRoute] Guid moduleId, [FromBody] ConfirmEndpointsDto dto, CancellationToken ct = default)
     { 
-        var result = await _moduleService.ConfirmEndpointsAsync(moduleId, dto, HttpContext.RequestAborted);
+        var result = await _moduleService.ConfirmEndpointsAsync(moduleId, dto, ct);
         return Ok(result);
     }
 
@@ -95,6 +97,7 @@ public class ModulesManagementController : ControllerBase
     /// Starts a module.
     /// </summary>
     /// <param name="moduleId">The ID of the module to start.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with the details of the started module.
     /// A 404 Not Found response if the module could not be found.
@@ -102,15 +105,17 @@ public class ModulesManagementController : ControllerBase
     [HttpPost("{moduleId}/start")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ModuleDetailDto>> StartModuleAsync([FromRoute] Guid moduleId)
+    public async Task<ActionResult<ModuleDetailDto>> StartModuleAsync([FromRoute] Guid moduleId, CancellationToken ct = default)
     {
-        return Ok();
+        var result = await _moduleService.StartModuleAsync(moduleId, ct);
+        return Ok(result);
     }
 
     /// <summary>
     /// Stops a module.
     /// </summary>
     /// <param name="moduleId">The ID of the module to stop.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with the details of the stopped module.
     /// A 404 Not Found response if the module could not be found.
@@ -118,50 +123,54 @@ public class ModulesManagementController : ControllerBase
     [HttpPost("{moduleId}/stop")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ModuleDetailDto>> StopModuleAsync([FromRoute] Guid moduleId)
+    public async Task<ActionResult<ModuleDetailDto>> StopModuleAsync([FromRoute] Guid moduleId, CancellationToken ct = default)
     {
-        return Ok();
+        var result = await _moduleService.StopModuleAsync(moduleId, ct);
+        return Ok(result);
     }
 
     /// <summary>
     /// Retrieves all modules.
     /// </summary>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of all modules.
     /// </returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<ModuleDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleDto>>> GetAllModulesAsync()
+    public async Task<ActionResult<IEnumerable<ModuleDto>>> GetAllModulesAsync(CancellationToken ct = default)
     {
-        var result = await _moduleService.GetAllModulesAsync(HttpContext.RequestAborted);
+        var result = await _moduleService.GetAllModulesAsync(ct);
         return Ok(result);
     }
 
     /// <summary>
     /// Retrieves detailed information about all registered sub-endpoints across all modules.
     /// </summary>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of detailed sub-endpoints.
     /// </returns>
     [HttpGet("endpoints")]
     [ProducesResponseType(typeof(IEnumerable<ModuleEndpointsDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleEndpointsDetailDto>>> GetAllEndpointsDetailAsync()
+    public async Task<ActionResult<IEnumerable<ModuleEndpointsDetailDto>>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
     {
-        var result = await _moduleService.GetAllEndpointsDetailAsync(HttpContext.RequestAborted);
+        var result = await _moduleService.GetAllEndpointsDetailAsync(ct);
         return Ok(result);
     }
 
     /// <summary>
     /// Retrieves all modules currently in the scan queue along with their scan priority.
     /// </summary>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of queued module scans.
     /// </returns>
     [HttpGet("queue")]
     [ProducesResponseType(typeof(IEnumerable<ModuleScanQueueItemDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleScanQueueItemDto>>> GetScanQueueAsync()
+    public async Task<ActionResult<IEnumerable<ModuleScanQueueItemDto>>> GetScanQueueAsync(CancellationToken ct = default)
     {
-        var result = await _moduleService.GetScanQueueAsync(HttpContext.RequestAborted);
+        var result = await _moduleService.GetScanQueueAsync(ct);
         return Ok(result);
     }
 
@@ -169,6 +178,7 @@ public class ModulesManagementController : ControllerBase
     /// Retrieves the details of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with the details of the specified module.
     /// A 404 Not Found response if the module could not be found.
@@ -176,9 +186,9 @@ public class ModulesManagementController : ControllerBase
     [HttpGet("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleDetailDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ModuleDetailDto>> GetModuleByIdAsync(Guid moduleId)
+    public async Task<ActionResult<ModuleDetailDto>> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default)
     {
-        var result = await _moduleService.GetModuleByIdAsync(moduleId, HttpContext.RequestAborted);
+        var result = await _moduleService.GetModuleByIdAsync(moduleId, ct);
         return Ok(result);
     }
 
@@ -186,6 +196,7 @@ public class ModulesManagementController : ControllerBase
     /// Retrieves the sub-endpoints of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of sub-endpoints for the specified module.
     /// A 404 Not Found response if the module could not be found.
@@ -193,9 +204,9 @@ public class ModulesManagementController : ControllerBase
     [HttpGet("{moduleId}/endpoints")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(IEnumerable<ModuleEndpointDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId)
+    public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
     {
-        var result = await _moduleService.GetModuleEndpointsAsync(moduleId, HttpContext.RequestAborted);
+        var result = await _moduleService.GetModuleEndpointsAsync(moduleId, ct);
         return Ok(result);
     }
 
@@ -204,6 +215,7 @@ public class ModulesManagementController : ControllerBase
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
     /// <param name="dto">The module update data transfer object.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 204 No Content response indicating that the module was successfully updated.
     /// A 404 Not Found response if the module could not be found.
@@ -211,9 +223,9 @@ public class ModulesManagementController : ControllerBase
     [HttpPut("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto)
+    public async Task<IActionResult> UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default)
     {
-        await _moduleService.UpdateModuleAsync(moduleId, dto, HttpContext.RequestAborted);
+        await _moduleService.UpdateModuleAsync(moduleId, dto, ct);
         return NoContent();
     }
     /// <summary>
@@ -221,6 +233,7 @@ public class ModulesManagementController : ControllerBase
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
     /// <param name="dto">The module files update data transfer object.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 204 No Content response indicating that the module files were successfully updated.
     /// A 404 Not Found response if the module could not be found.
@@ -231,9 +244,9 @@ public class ModulesManagementController : ControllerBase
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
     [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ModuleCreationResultDto>> UpdateModuleFilesAsync(Guid moduleId, [FromForm] UpdateModuleFilesDto dto)
+    public async Task<ActionResult<ModuleCreationResultDto>> UpdateModuleFilesAsync(Guid moduleId, [FromForm] UpdateModuleFilesDto dto, CancellationToken ct = default)
     {
-        var result = await _moduleService.UpdateModuleFilesAsync(moduleId, dto, HttpContext.RequestAborted);
+        var result = await _moduleService.UpdateModuleFilesAsync(moduleId, dto, ct);
         return Ok(result);
     }
 
@@ -241,14 +254,15 @@ public class ModulesManagementController : ControllerBase
     /// Deletes a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 204 No Content response indicating that the module was successfully deleted.
     /// </returns>
     [HttpDelete("{moduleId}/delete")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> DeleteModuleAsync(Guid moduleId)
+    public async Task<IActionResult> DeleteModuleAsync(Guid moduleId, CancellationToken ct = default)
     {
-        await _moduleService.DeleteModuleAsync(moduleId, HttpContext.RequestAborted);
+        await _moduleService.DeleteModuleAsync(moduleId, ct);
         return NoContent();
     }
 
@@ -256,6 +270,7 @@ public class ModulesManagementController : ControllerBase
     /// Cancels the scan of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 204 No Content response indicating that the scan was successfully cancelled.
     /// A 400 Bad Request response if the module is not queued for scanning.
@@ -265,16 +280,16 @@ public class ModulesManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CancelScanAsync(Guid moduleId)
+    public async Task<IActionResult> CancelScanAsync(Guid moduleId, CancellationToken ct = default)
     {
-        var module = await _moduleService.GetModuleByIdAsync(moduleId, HttpContext.RequestAborted);
+        var module = await _moduleService.GetModuleByIdAsync(moduleId, ct);
         if (module.Status != ModuleStatus.QueuedForScan)
             return BadRequest(new ProblemDetails { Detail = "Module is not queued for scanning." });
 
         var cancelled = _endpointScanner.CancelScan(moduleId);
         if (cancelled)
         {
-            await _moduleService.DeleteModuleAsync(moduleId, HttpContext.RequestAborted);
+            await _moduleService.DeleteModuleAsync(moduleId, ct);
             return NoContent();
         }
 

@@ -197,6 +197,18 @@ public class ModuleService : IModuleService
         _moduleEndpointExtension.SynchronizeReverseProxy(module);
         return module.ToModuleDetailDto();
     }
+    
+    /// <inheritdoc/>
+    public async Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
 
     /// <inheritdoc/>
     public async Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default)

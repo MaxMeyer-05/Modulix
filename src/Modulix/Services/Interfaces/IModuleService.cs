@@ -17,6 +17,24 @@ public interface IModuleService
     Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default);
 
     /// <summary>
+    /// Starts a module with the specified details.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module to start.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The updated details of the module after starting.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
+    Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stops a module with the specified ID.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module to stop.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The updated details of the module after stopping.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
+    Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default);
+
+    /// <summary>
     /// Confirms the final list of endpoints for a module in PendingConfirmation state.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
