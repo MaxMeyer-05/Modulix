@@ -46,9 +46,11 @@ builder.Services.AddOptions<DockerOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
+builder.Services.AddScoped<IModuleService, ModuleService>();
+builder.Services.AddScoped<ISubEndpointService, SubEndpointService>();
+builder.Services.AddScoped<IModuleEndpointScanner, ModuleEndpointScanner>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
 builder.Services.AddDockerServices();
