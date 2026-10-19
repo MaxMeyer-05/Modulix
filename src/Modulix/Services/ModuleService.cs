@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -91,111 +90,6 @@ public class ModuleService : IModuleService
         _directoryExtension = directoryExtension;
         _moduleEndpointExtension = moduleEndpointExtension;
         _reverseProxyService = reverseProxyService;
-    }
-
-    /// <inheritdoc/>
-    public async Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default)
-    {
-        var module = await _context.Modules
-            .Include(m => m.SubEndpoints)
-            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
-
-        if (module is null)
-            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
-
-        if (module.Status != ModuleStatus.PendingConfirmation)
-            throw new InvalidOperationException($"Module '{moduleId}' is not in PendingConfirmation status.");
-
-        var previousEndpoints = module.SubEndpoints
-            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
-            .ToList();
-
-        var pendingEndpoints = module.SubEndpoints
-            .Where(e => e.Status == ModuleEndpointsStatus.PendingConfirmation)
-            .ToList();
-
-        foreach (var endpoint in pendingEndpoints)
-        {
-            // Check if the pending endpoint is confirmed as an extra endpoint
-            if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee =>
-                ee.HttpMethod.Equals(endpoint.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
-                ee.EndpointPath.Equals(endpoint.EndpointPath, StringComparison.OrdinalIgnoreCase)) == true))
-            {
-                endpoint.Status = ModuleEndpointsStatus.Active;
-            }
-            // Check if the pending endpoint is confirmed as a missing endpoint
-            else if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me =>
-                me.HttpMethod.Equals(endpoint.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
-                me.EndpointPath.Equals(endpoint.EndpointPath, StringComparison.OrdinalIgnoreCase)) == true))
-            {
-                _context.ModuleEndpoints.Remove(endpoint);
-            }
-        }
-
-        if (dto.ConfirmedEndpoints.Count == 0 || pendingEndpoints.Any(endpoint =>
-                endpoint.Status == ModuleEndpointsStatus.PendingConfirmation &&
-                _context.Entry(endpoint).State != EntityState.Deleted))
-        {
-            await _context.SaveChangesAsync(ct);
-            return module.ToModuleDetailDto();
-        }
-
-        module.Status = ModuleStatus.Created;
-        var previousContainerId = module.ContainerId;
-        string? candidateId = null;
-
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(previousContainerId))
-            {
-                await TryRemoveModuleContainerAsync(previousContainerId, module.Id);
-                module.ContainerId = null;
-            }
-
-            module.Status = ModuleStatus.Starting;
-            candidateId = await _dockerService.BuildContainerAsync(
-                module.Id,
-                module.StoragePath,
-                module.ModuleEntryAssemblyFileName,
-                module.ContainerPort,
-                ct);
-            module.ContainerId = candidateId;
-
-            await _dockerService.RunContainerAsync(candidateId, ct);
-            await _dockerService.WaitUntilReadyAsync(candidateId, ct);
-            module.Status = ModuleStatus.Running;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start confirmed module container {ModuleId}.", module.Id);
-            module.Status = ModuleStatus.Failed;
-        }
-
-        try
-        {
-            await _context.SaveChangesAsync(ct);
-        }
-        catch
-        {
-            if (candidateId is not null)
-                await TryRemoveModuleContainerAsync(candidateId, module.Id);
-
-            module.ContainerId = previousContainerId;
-            module.Status = ModuleStatus.PendingConfirmation;
-            _context.Entry(module).State = EntityState.Unchanged;
-
-            foreach (var previousEndpoint in previousEndpoints)
-            {
-                previousEndpoint.Endpoint.Status = previousEndpoint.Status;
-                _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
-                if (!module.SubEndpoints.Contains(previousEndpoint.Endpoint))
-                    module.SubEndpoints.Add(previousEndpoint.Endpoint);
-            }
-            throw;
-        }
-
-        _moduleEndpointExtension.SynchronizeReverseProxy(module);
-        return module.ToModuleDetailDto();
     }
     
     /// <inheritdoc/>
@@ -407,17 +301,6 @@ public class ModuleService : IModuleService
         };
     }
 
-        /// <inheritdoc/>
-    public async Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default)
-    {
-        var module = await _context.Modules.Include(m => m.SubEndpoints).FirstOrDefaultAsync(m => m.Id == moduleId, ct);
-        if (module == null || module.Status != ModuleStatus.QueuedForScan) return;
-
-        module.ModuleEntryAssemblyFileName = result.EntryAssemblyFileName;
-        module.Status = ModuleStatus.Created;
-        await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, result.DiscoveredEndpoints, ct);
-    }
-
     /// <inheritdoc/>
     public async Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default)
     {
@@ -469,43 +352,6 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
-    {
-        var subEndpointsDetail = await _context.ModuleEndpoints
-            .Include(se => se.Module)
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleEndpointsDetailDto()).ToList();
-
-        _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
-
-        return subEndpointsDetailDtos;
-    }
-
-    /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default)
-    {
-        var queuedScans = _endpointScanner.GetQueuedScans();
-        if (queuedScans.Count == 0)
-            return [];
-
-        var moduleIds = queuedScans.Select(item => item.ModuleId).Distinct().ToList();
-        var moduleNames = await _context.Modules
-            .AsNoTracking()
-            .Where(module => moduleIds.Contains(module.Id))
-            .ToDictionaryAsync(module => module.Id, module => module.ModuleName, ct);
-
-        return queuedScans.Select(item => new ModuleScanQueueItemDto
-        {
-            ModuleId = item.ModuleId,
-            ModuleName = moduleNames.GetValueOrDefault(item.ModuleId, string.Empty),
-            Priority = item.Priority,
-            IsRunning = item.IsRunning
-        }).ToList();
-    }
-
-    /// <inheritdoc/>
     public async Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default)
     {
         var module = await _context.Modules
@@ -516,24 +362,6 @@ public class ModuleService : IModuleService
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
         return module.ToModuleDetailDto();
-    }
-
-    /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
-    {
-        var exists = await _context.Modules.FindAsync([moduleId], ct);
-        if (exists is null)
-            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
-
-        var subEndpoints = await _context.ModuleEndpoints
-            .AsNoTracking()
-            .Where(e => e.ModuleId == moduleId)
-            .ToListAsync(ct);
-
-        var subEndpointDtos = subEndpoints.Select(se => se.ToEndpointDto()).ToList();
-
-        _logger.LogDebug("Retrieved {Count} sub-endpoints for module with ID '{ModuleId}'.", subEndpoints.Count, moduleId);
-        return subEndpointDtos;
     }
 
     /// <inheritdoc/>
