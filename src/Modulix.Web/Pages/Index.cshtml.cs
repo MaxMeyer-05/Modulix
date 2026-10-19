@@ -234,7 +234,7 @@ public class IndexModel : PageModel
     {
         try
         {
-            using var response = await _modulixApiClient.ModuleManagement.GetScanQueueAsync(ct: ct);
+            using var response = await _modulixApiClient.ScannerManagement.GetScanQueueAsync(ct: ct);
             if (response.IsSuccessStatusCode)
             {
                 ScanQueue = await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(cancellationToken: ct) ?? [];
@@ -250,7 +250,7 @@ public class IndexModel : PageModel
     {
         try
         {
-            using var response = await _modulixApiClient.ModuleManagement.GetAllEndpointsDetailAsync(ct: ct);
+            using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(ct: ct);
             if (response.IsSuccessStatusCode)
             {
                 Endpoints = await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>(cancellationToken: ct) ?? [];
