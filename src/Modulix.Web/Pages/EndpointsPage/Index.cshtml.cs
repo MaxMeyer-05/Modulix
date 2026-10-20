@@ -42,7 +42,7 @@ public class IndexModel : PageModel
     /// <summary>
     /// The filtered and sorted list of module sub-endpoints.
     /// </summary>
-    public List<ModuleEndpointsDetailDto> Endpoints { get; private set; } = [];
+    public List<ModuleSubEndpointsDetailDto> Endpoints { get; private set; } = [];
 
     /// <summary>
     /// Available distinct module names for filtering.
@@ -122,7 +122,7 @@ public class IndexModel : PageModel
                 return Page();
             }
 
-            var allEndpoints = await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>(
+            var allEndpoints = await response.Content.ReadFromJsonAsync<List<ModuleSubEndpointsDetailDto>>(
                 cancellationToken: HttpContext.RequestAborted) ?? [];
 
             _logger.LogDebug("Successfully loaded {EndpointCount} detailed endpoints.", allEndpoints.Count);

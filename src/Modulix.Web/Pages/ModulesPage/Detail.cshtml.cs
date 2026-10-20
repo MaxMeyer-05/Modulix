@@ -70,9 +70,24 @@ public class DetailModel : PageModel
     public ActionError? EditError { get; private set; }
 
     /// <summary>
+    /// Gets the submitted version update form values when a file update failed.
+    /// </summary>
+    public ModuleVersionCreateDto? UpdateFilesInput { get; private set; }
+
+    /// <summary>
     /// Gets the error from a failed module file update attempt.
     /// </summary>
     public ActionError? UpdateFilesError { get; private set; }
+
+    /// <summary>
+    /// Gets the selected target version when a rollback attempt failed.
+    /// </summary>
+    public string? RollbackVersion { get; private set; }
+
+    /// <summary>
+    /// Gets the error from a failed module rollback attempt.
+    /// </summary>
+    public ActionError? RollbackError { get; private set; }
 
     /// <summary>
     /// Gets the error from a failed module deletion attempt.
@@ -321,11 +336,11 @@ public class DetailModel : PageModel
     }
 
     /// <summary>
-    /// Uploads a replacement ZIP archive to patch the module's files.
+    /// Uploads a replacement ZIP archive to deploy a new version of the module.
     /// </summary>
     /// <param name="id">The ID of the module to patch.</param>
-    /// <param name="input">The uploaded archive file.</param>
-    public async Task<IActionResult> OnPostUpdateFilesAsync(Guid id, [FromForm] UpdateModuleFilesDto input)
+    /// <param name="input">The new version metadata and uploaded archive file.</param>
+    public async Task<IActionResult> OnPostUpdateFilesAsync(Guid id, [FromForm] ModuleVersionCreateDto input)
     {
         if (!ModelState.IsValid)
         {
@@ -333,6 +348,7 @@ public class DetailModel : PageModel
                 .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
                     ? "A form field has an invalid value." : error.ErrorMessage);
             ModelState.Clear();
+            UpdateFilesInput = input;
             UpdateFilesError = Failure(400, string.Join(" ", errors));
             await LoadModuleAsync(id);
             return Page();
@@ -340,6 +356,7 @@ public class DetailModel : PageModel
 
         if (input.ModuleFile is null || !input.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
+            UpdateFilesInput = input;
             UpdateFilesError = Failure(400, "Choose a ZIP archive.");
             await LoadModuleAsync(id);
             return Page();
@@ -347,9 +364,9 @@ public class DetailModel : PageModel
 
         try
         {
-            _logger.LogInformation("Updating files for module {ModuleId}.", id);
+            _logger.LogInformation("Creating new version for module {ModuleId}.", id);
 
-            using var response = await _modulixApiClient.ModuleManagement.UpdateModuleFilesAsync(
+            using var response = await _modulixApiClient.ModuleVersionManagement.CreateModuleVersionAsync(
                 id,
                 input,
                 ct: HttpContext.RequestAborted);
@@ -357,6 +374,7 @@ public class DetailModel : PageModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                UpdateFilesInput = input;
                 UpdateFilesError = new ActionError(error.StatusCode, error.Title, error.Detail);
                 await LoadModuleAsync(id);
                 return Page();
@@ -424,17 +442,105 @@ public class DetailModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error updating files for module {ModuleId}.", id);
+            UpdateFilesInput = input;
             UpdateFilesError = Failure(503, "The API could not be reached. Please try again later.");
         }
         catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
             _logger.LogError(exception, "Updating files for module {ModuleId} timed out.", id);
+            UpdateFilesInput = input;
             UpdateFilesError = Failure(504, "The API did not respond in time. Check the module status before retrying.");
         }
         catch (JsonException exception)
         {
             _logger.LogError(exception, "Invalid response while updating files for module {ModuleId}.", id);
+            UpdateFilesInput = input;
             UpdateFilesError = Failure(502, "The API returned an invalid response. Check the module status before retrying.");
+        }
+
+        await LoadModuleAsync(id);
+        return Page();
+    }
+
+    /// <summary>
+    /// Rolls back the module to a specified earlier version.
+    /// </summary>
+    /// <param name="id">The ID of the module to roll back.</param>
+    /// <param name="version">The target version string to roll back to.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostRollbackAsync(Guid id, [FromForm] string? version, [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            RollbackError = Failure(400, "Select a target version to roll back to.");
+            await LoadModuleAsync(id);
+            return Page();
+        }
+
+        var trimmedVersion = version.Trim();
+        RollbackVersion = trimmedVersion;
+
+        try
+        {
+            var sanitizedVersion = trimmedVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
+            _logger.LogInformation("Rolling back module {ModuleId} to version {Version}.", id, sanitizedVersion);
+
+            using var response = await _modulixApiClient.ModuleVersionManagement.RollbackModuleVersionAsync(
+                id,
+                trimmedVersion,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                RollbackError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
+            var updatedModule = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
+                cancellationToken: HttpContext.RequestAborted);
+            var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
+            var resolvedVersion = updatedModule?.CurrentVersion ?? trimmedVersion;
+            var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
+
+            if (updatedModule?.Status == ModuleStatus.Failed)
+            {
+                _userActivityService.Record(User, "Failed rolling back", $"{targetName} ({resolvedVersion})", "triangle-alert", UserActivityTone.Danger, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    500,
+                    "Rollback container failed",
+                    $"Rolled back {targetName} to version {resolvedVersion}, but the container failed to start.",
+                    IsSuccess: false));
+            }
+            else
+            {
+                _userActivityService.Record(User, "Rolled back", $"{targetName} to {resolvedVersion}", "rotate-ccw", UserActivityTone.Update, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    (int)response.StatusCode,
+                    "Module rolled back",
+                    $"Rolled back {targetName} to version {resolvedVersion}.",
+                    IsSuccess: true));
+            }
+
+            return RedirectToPage(new { id });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error rolling back module {ModuleId}.", id);
+            RollbackError = Failure(503, "The API could not be reached. Please try again later.");
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Rolling back module {ModuleId} timed out.", id);
+            RollbackError = Failure(504, "The API did not respond in time. Check the module status before retrying.");
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogError(exception, "Invalid response while rolling back module {ModuleId}.", id);
+            RollbackError = Failure(502, "The API returned an invalid response. Check the module status before retrying.");
         }
 
         await LoadModuleAsync(id);

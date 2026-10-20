@@ -165,10 +165,20 @@
 .module-dialog-description strong, .module-result-body strong { color: var(--module-text); font-weight: 500; }
 .module-field-label { color: #d3dbe6; font-size: 13px; }
 .required-mark { display: inline; color: var(--module-accent); }
-.module-form-fields input:not([type="file"]), .module-form-fields textarea { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #384453; border-radius: 6px; background: #101721; color: var(--module-text); font-size: 13px; color-scheme: dark; }
+.module-form-fields input:not([type="file"]), .module-form-fields textarea, .module-form-fields select { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #384453; border-radius: 6px; background: #101721; color: var(--module-text); font-size: 13px; color-scheme: dark; }
+.module-form-fields select { height: auto; }
 .modules-page input::placeholder, .modules-page textarea::placeholder { color: #8998ab; }
 .module-form-fields textarea { resize: vertical; }
 .module-form-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 16px; }
+.module-optional-label { color: var(--module-muted); font-size: 12px; font-weight: 400; }
+.module-field-hint { margin: 4px 0 0; color: var(--module-muted); font-size: 12px; line-height: 1.4; }
+.module-subendpoints-group { display: flex; flex-direction: column; gap: 10px; }
+.module-subendpoints-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.module-subendpoints-list { display: flex; flex-direction: column; gap: 8px; }
+.module-subendpoints-list:empty { display: none; }
+.module-subendpoint-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) 32px; align-items: center; gap: 8px; }
+.module-subendpoint-remove { color: var(--module-muted); }
+.module-subendpoint-remove:hover { color: #ff9299; background: #34212a; }
 .module-upload { align-items: center; padding: 24px 16px; border: 1px dashed #486171; border-radius: 6px; text-align: center; cursor: pointer; }
 .module-upload svg { width: 24px; height: 24px; color: var(--module-accent); }
 .module-upload strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
