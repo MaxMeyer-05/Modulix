@@ -13,7 +13,7 @@ To use the Modulix Docker library, add the following package reference to your p
 ## changelog
 
 ### 1.1.0
-- 
+- Added `TryRemoveModuleContainerAsync` for safe module container cleanup with timeout handling.
 
 ### 1.0.0
 - Initial release of the Modulix Docker library.
