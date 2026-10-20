@@ -100,7 +100,7 @@ public class IndexModel : PageModel
     /// <summary>
     /// Gets all registered endpoints across modules.
     /// </summary>
-    public List<ModuleEndpointsDetailDto> Endpoints { get; private set; } = [];
+    public List<ModuleSubEndpointsDetailDto> Endpoints { get; private set; } = [];
 
     /// <summary>
     /// Gets the number of running modules.
@@ -253,7 +253,7 @@ public class IndexModel : PageModel
             using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(ct: ct);
             if (response.IsSuccessStatusCode)
             {
-                Endpoints = await response.Content.ReadFromJsonAsync<List<ModuleEndpointsDetailDto>>(cancellationToken: ct) ?? [];
+                Endpoints = await response.Content.ReadFromJsonAsync<List<ModuleSubEndpointsDetailDto>>(cancellationToken: ct) ?? [];
             }
         }
         catch (HttpRequestException exception)

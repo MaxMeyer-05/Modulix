@@ -78,3 +78,96 @@ document.querySelectorAll("[data-copy]").forEach(button => {
     }, 1000);
 })();
 
+(() => {
+    const addButton = document.getElementById("add-subendpoint-button");
+    const list = document.getElementById("initial-endpoints-list");
+    const form = document.getElementById("add-module-form");
+
+    if (!addButton || !list) {
+        return;
+    }
+
+    const methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+
+    const reindexRows = () => {
+        list.querySelectorAll("[data-subendpoint-row]").forEach((row, index) => {
+            const select = row.querySelector("select");
+            const input = row.querySelector("input");
+            if (select) {
+                select.name = `InitialEndpoints[${index}].HttpMethod`;
+            }
+            if (input) {
+                input.name = `InitialEndpoints[${index}].EndpointPath`;
+            }
+        });
+    };
+
+    const createRow = (index) => {
+        const row = document.createElement("div");
+        row.className = "module-subendpoint-row";
+        row.setAttribute("data-subendpoint-row", "");
+
+        const select = document.createElement("select");
+        select.name = `InitialEndpoints[${index}].HttpMethod`;
+        select.setAttribute("aria-label", "HTTP method");
+        methods.forEach((method) => {
+            const option = document.createElement("option");
+            option.value = method;
+            option.textContent = method;
+            select.appendChild(option);
+        });
+
+        const input = document.createElement("input");
+        input.name = `InitialEndpoints[${index}].EndpointPath`;
+        input.required = true;
+        input.maxLength = 200;
+        input.pattern = "/.*";
+        input.placeholder = "/api/v1/items";
+        input.setAttribute("aria-label", "Endpoint path");
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "module-icon-button module-subendpoint-remove";
+        removeButton.setAttribute("data-remove-subendpoint", "");
+        removeButton.setAttribute("aria-label", "Remove endpoint");
+        removeButton.title = "Remove endpoint";
+
+        const icon = document.createElement("i");
+        icon.setAttribute("data-lucide", "trash-2");
+        icon.setAttribute("aria-hidden", "true");
+        removeButton.appendChild(icon);
+
+        row.append(select, input, removeButton);
+        return { row, input };
+    };
+
+    addButton.addEventListener("click", () => {
+        const nextIndex = list.querySelectorAll("[data-subendpoint-row]").length;
+        const { row, input } = createRow(nextIndex);
+        list.appendChild(row);
+        if (window.lucide && typeof window.lucide.createIcons === "function") {
+            window.lucide.createIcons();
+        }
+        input.focus();
+    });
+
+    list.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-remove-subendpoint]");
+        if (!removeButton) {
+            return;
+        }
+
+        const row = removeButton.closest("[data-subendpoint-row]");
+        if (row) {
+            row.remove();
+            reindexRows();
+        }
+    });
+
+    if (form) {
+        form.addEventListener("submit", () => {
+            reindexRows();
+        });
+    }
+})();
+

@@ -56,7 +56,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 200 OK response with a list of versions for the specified module.
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
-    [HttpGet("{moduleId:guid}")]
+    [HttpGet("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(IEnumerable<ModuleVersionDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<ModuleVersionDto>>> GetModuleVersionsByModuleIdAsync([FromRoute] Guid moduleId, CancellationToken ct = default)
@@ -76,7 +76,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 400 Bad Request response if the version parameter is invalid.
     /// A 404 Not Found response if the module or version could not be found.
     /// </returns>
-    [HttpGet("{moduleId:guid}/version/{version}")]
+    [HttpGet("{moduleId}/version/{version}")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleVersionDto), StatusCodes.Status200OK)]
@@ -99,7 +99,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// A 409 Conflict response if the version already exists or the module cannot be updated.
     /// </returns>
-    [HttpPost("{moduleId:guid}/version")]
+    [HttpPost("{moduleId}/version")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
@@ -135,7 +135,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if the module cannot be rolled back in its current state.
     /// </returns>
-    [HttpPost("{moduleId:guid}/rollback/{version}")]
+    [HttpPost("{moduleId}/rollback/{version}")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -159,7 +159,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if the new version name already exists.
     /// </returns>
-    [HttpPut("{moduleId:guid}/version/{version}")]
+    [HttpPut("{moduleId}/version/{version}")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -182,7 +182,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if attempting to delete the currently active version.
     /// </returns>
-    [HttpDelete("{moduleId:guid}/version/{version}")]
+    [HttpDelete("{moduleId}/version/{version}/delete")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

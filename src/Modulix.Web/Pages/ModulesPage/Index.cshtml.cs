@@ -188,6 +188,27 @@ public class IndexModel : PageModel
         if (!input.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             return Failure(400, "Choose a ZIP archive.");
 
+        if (input.InitialEndpoints is not null)
+        {
+            var normalizedEndpoints = input.InitialEndpoints
+                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+                .Select(ep =>
+                {
+                    var path = ep.EndpointPath.Trim();
+                    if (!path.StartsWith('/'))
+                        path = "/" + path;
+
+                    return new CreateModuleSubEndpointDto
+                    {
+                        HttpMethod = ep.HttpMethod.Trim().ToUpperInvariant(),
+                        EndpointPath = path
+                    };
+                })
+                .ToList();
+
+            input.InitialEndpoints = normalizedEndpoints.Count > 0 ? normalizedEndpoints : null;
+        }
+
         try
         {
             var sanitizedModuleName = input.ModuleName
@@ -292,7 +313,9 @@ public class IndexModel : PageModel
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
                     .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (StatusFilter.Length == 0 || module.Status.ToString() == StatusFilter));
+                && (StatusFilter.Length == 0
+                    || module.Status.ToString() == StatusFilter
+                    || (StatusFilter == nameof(ModuleStatus.PendingConfirmation) && module.Status == ModuleStatus.QueuedForScan)));
 
             Modules = (SortBy switch
             {

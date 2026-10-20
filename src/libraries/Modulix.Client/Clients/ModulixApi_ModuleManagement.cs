@@ -30,6 +30,21 @@ internal partial class ModulixApi : IModuleManagementClient
         if (request.ContainerPort is int port)
             content.Add(new StringContent(port.ToString(CultureInfo.InvariantCulture)), nameof(request.ContainerPort));
 
+        if (request.InitialEndpoints is not null)
+        {
+            var index = 0;
+            foreach (var endpoint in request.InitialEndpoints)
+            {
+                content.Add(
+                    new StringContent(endpoint.HttpMethod),
+                    $"{nameof(request.InitialEndpoints)}[{index}].{nameof(CreateModuleSubEndpointDto.HttpMethod)}");
+                content.Add(
+                    new StringContent(endpoint.EndpointPath),
+                    $"{nameof(request.InitialEndpoints)}[{index}].{nameof(CreateModuleSubEndpointDto.EndpointPath)}");
+                index++;
+            }
+        }
+
         content.Add(new StreamContent(request.ModuleFile.OpenReadStream()),
             nameof(request.ModuleFile), Path.GetFileName(request.ModuleFile.FileName));
 

@@ -5,12 +5,6 @@
     ViewData["Title"] = "Modules";
     var modules = Model.Modules;
     var reopen = Model.CreationError is not null;
-    var statuses = new (string Value, string Label)[]
-    {
-        ("", "All statuses"), ("Running", "Running"), ("Starting", "Starting"),
-        ("PendingConfirmation", "Pending confirmation"), ("QueuedForScan", "Queued for scan"),
-        ("Created", "Created"), ("Stopped", "Stopped"), ("Failed", "Failed")
-    };
     var sorts = new (string Value, string Label)[]
     {
         ("newest", "Newest first"), ("name", "Name A-Z"), ("name-desc", "Name Z-A")
@@ -109,18 +103,14 @@
     </section>
 
     <form class="modules-toolbar" method="get" action="@closeUrl">
+        @if (!string.IsNullOrEmpty(Model.StatusFilter))
+        {
+            <input type="hidden" name="status" value="@Model.StatusFilter" />
+        }
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="module-search" name="q" type="search" value="@Model.Query" placeholder="Search modules..." aria-label="Search modules" autocomplete="off" />
         </div>
-        <label class="module-select-label"><span>Status</span>
-            <select id="module-status-filter" name="status">
-                @foreach (var (value, label) in statuses)
-                {
-                    <option value="@value" selected="@(Model.StatusFilter == value)">@label</option>
-                }
-            </select>
-        </label>
         <label class="module-select-label"><span>Sort by</span>
             <select id="module-sort" name="sort">
                 @foreach (var (value, label) in sorts)
@@ -182,11 +172,49 @@
                 </div>
             }
             <fieldset class="module-form-fields" id="module-creation-fields">
-                <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" value="@Model.Input?.ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
-                <label>Description<textarea name="Description" rows="3" maxlength="500" placeholder="Optional description">@Model.Input?.Description</textarea></label>
+                <div class="module-form-row">
+                    <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" value="@Model.Input?.ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
+                    <label><span>Version <span class="required-mark">*</span></span><input name="Version" value="@(Model.Input?.Version ?? "v1.0.0")" required maxlength="50" placeholder="v1.0.0" /></label>
+                </div>
+                <label>Description<textarea name="Description" rows="2" maxlength="500" placeholder="Optional description">@Model.Input?.Description</textarea></label>
+                <label>Changelog<textarea name="Changelog" rows="2" maxlength="500" placeholder="Optional changelog for the initial version">@Model.Input?.Changelog</textarea></label>
                 <div class="module-form-row">
                     <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" value="@Model.Input?.BaseUrlPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
                     <label>Container port<input name="ContainerPort" value="@Model.Input?.ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
+                </div>
+                <div class="module-subendpoints-group">
+                    <div class="module-subendpoints-header">
+                        <div>
+                            <span class="module-field-label">Sub-endpoints <span class="module-optional-label">(optional)</span></span>
+                            <p class="module-field-hint">Pre-register expected HTTP routes to compare against the scanner result.</p>
+                        </div>
+                        <button class="module-button module-button-compact" type="button" id="add-subendpoint-button">
+                            <i data-lucide="plus" aria-hidden="true"></i><span>Add endpoint</span>
+                        </button>
+                    </div>
+                    <div class="module-subendpoints-list" id="initial-endpoints-list">
+                        @if (Model.Input?.InitialEndpoints is not null)
+                        {
+                            var idx = 0;
+                            foreach (var ep in Model.Input.InitialEndpoints)
+                            {
+                                var currentMethod = (ep.HttpMethod ?? "GET").ToUpperInvariant();
+                                <div class="module-subendpoint-row" data-subendpoint-row>
+                                    <select name="InitialEndpoints[@idx].HttpMethod" aria-label="HTTP method">
+                                        @foreach (var httpMethod in new[] { "GET", "POST", "PUT", "PATCH", "DELETE" })
+                                        {
+                                            <option value="@httpMethod" selected="@(currentMethod == httpMethod)">@httpMethod</option>
+                                        }
+                                    </select>
+                                    <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" pattern="/.*" placeholder="/api/v1/items" aria-label="Endpoint path" />
+                                    <button class="module-icon-button module-subendpoint-remove" type="button" data-remove-subendpoint aria-label="Remove endpoint" title="Remove endpoint">
+                                        <i data-lucide="trash-2" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                                idx++;
+                            }
+                        }
+                    </div>
                 </div>
                 <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
                 <label class="module-upload" id="module-upload-area" for="module-archive">
