@@ -23,7 +23,7 @@ public interface ISubEndpointService
     /// </summary>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of detailed sub-endpoint information.</returns>
-    Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default);
+    Task<IEnumerable<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves all registered sub-endpoints for a specific module.
@@ -32,5 +32,5 @@ public interface ISubEndpointService
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all registered sub-endpoints for the specified module.</returns> 
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default);
+    Task<IEnumerable<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default);
 }

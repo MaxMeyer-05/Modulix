@@ -245,6 +245,7 @@ public class ModuleService : IModuleService
             module.SubEndpoints.Add(new ModuleEndpoint
             {
                 ModuleId = module.Id,
+                ModuleVersion = initialVersion,
                 HttpMethod = ep.HttpMethod,
                 EndpointPath = ep.EndpointPath,
                 Status = ModuleEndpointsStatus.PendingConfirmation 
@@ -266,7 +267,7 @@ public class ModuleService : IModuleService
             throw;
         }
 
-        EndpointDiscrepancyReportDto? discrepancyReport = null;
+        SubEndpointDiscrepancyReportDto? discrepancyReport = null;
         // Log the final status of the module after attempting to provision the Docker container
         try
         {
@@ -311,10 +312,10 @@ public class ModuleService : IModuleService
         return new ModuleCreationResultDto
         {
             Module = module.ToModuleDetailDto(),
-            DiscrepancyReport = scanResponse.WasQueued ? null : discrepancyReport ?? new EndpointDiscrepancyReportDto
+            DiscrepancyReport = scanResponse.WasQueued ? null : discrepancyReport ?? new SubEndpointDiscrepancyReportDto
             {
                 ModuleId = module.Id,
-                MatchedEndpoints = manualRoutes.Count == 0 ? null : manualRoutes.Select(endpoint => new DiscoveredEndpointDto
+                MatchedEndpoints = manualRoutes.Count == 0 ? null : manualRoutes.Select(endpoint => new DiscoveredSubEndpointDto
                 {
                     HttpMethod = endpoint.HttpMethod,
                     EndpointPath = endpoint.EndpointPath
@@ -377,6 +378,7 @@ public class ModuleService : IModuleService
     {
         var module = await _context.Modules
             .Include(m => m.SubEndpoints)
+                .ThenInclude(e => e.ModuleVersion)
             .Include(m => m.Versions)
             .AsNoTracking()
             .SingleOrDefaultAsync(m => m.Id == moduleId, ct);

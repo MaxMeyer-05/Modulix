@@ -28,6 +28,12 @@ public class ModuleEndpoint
     public Guid ModuleId { get; set; }
 
     /// <summary>
+    /// The unique identifier of the module version in which this endpoint was discovered.
+    /// </summary>
+    [Required]
+    public int ModuleVersionId { get; set; }
+
+    /// <summary>
     /// The HTTP method of the endpoint (e.g., GET, POST).
     /// </summary>
     [Required]
@@ -59,4 +65,11 @@ public class ModuleEndpoint
     [Required]
     [ForeignKey(nameof(ModuleId))]
     public Module Module { get; set; } = null!;
+
+    /// <summary>
+    /// The module version in which this endpoint was discovered.
+    /// </summary>
+    [Required]
+    [ForeignKey(nameof(ModuleVersionId))]
+    public ModuleVersion ModuleVersion { get; set; } = null!;
 }

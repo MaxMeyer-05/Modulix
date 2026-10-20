@@ -60,6 +60,11 @@ public class ServerContext : DbContext
         {
             entity.Property(e => e.Status)
                 .HasConversion<string>();
+
+            entity.HasOne(e => e.ModuleVersion)
+                .WithMany(v => v.DiscoveredEndpoints)
+                .HasForeignKey(e => e.ModuleVersionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

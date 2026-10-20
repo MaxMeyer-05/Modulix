@@ -10,31 +10,33 @@ namespace Modulix.Mappers;
 public static class SubEndpointMapper
 {
     /// <summary>
-    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleEndpointsDetailDto"/>.
+    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleSubEndpointsDetailDto"/>.
     /// </summary>
     /// <param name="endpoint">The <see cref="ModuleEndpoint"/> entity to be mapped.</param>
-    /// <returns>The corresponding <see cref="ModuleEndpointsDetailDto"/>.</returns>
-    public static ModuleEndpointsDetailDto ToModuleSubEndpointsDetailDto(this ModuleEndpoint endpoint) => new()
+    /// <returns>The corresponding <see cref="ModuleSubEndpointsDetailDto"/>.</returns>
+    public static ModuleSubEndpointsDetailDto ToModuleSubEndpointsDetailDto(this ModuleEndpoint endpoint) => new()
     {
         Id = endpoint.Id,
         HttpMethod = endpoint.HttpMethod,
         EndpointPath = endpoint.EndpointPath,
         Status = endpoint.Status,
+        DiscoveredInVersion = endpoint.ModuleVersion?.Version ?? string.Empty,
         CreatedAtUtc = endpoint.CreatedAtUtc,
         ModuleName = endpoint.Module.ModuleName
     };
 
     /// <summary>
-    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleEndpointDto"/>.
+    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleSubEndpointDto"/>.
     /// </summary>
     /// <param name="endpoint">The <see cref="ModuleEndpoint"/> entity to be mapped.</param>
-    /// <returns>The corresponding <see cref="ModuleEndpointDto"/>.</returns>
-    public static ModuleEndpointDto ToSubEndpointDto(this ModuleEndpoint endpoint) => new()
+    /// <returns>The corresponding <see cref="ModuleSubEndpointDto"/>.</returns>
+    public static ModuleSubEndpointDto ToSubEndpointDto(this ModuleEndpoint endpoint) => new()
     {
         Id = endpoint.Id,
         HttpMethod = endpoint.HttpMethod,
         EndpointPath = endpoint.EndpointPath,
         Status = endpoint.Status,
+        DiscoveredInVersion = endpoint.ModuleVersion?.Version ?? string.Empty,
         CreatedAtUtc = endpoint.CreatedAtUtc
     };
 }

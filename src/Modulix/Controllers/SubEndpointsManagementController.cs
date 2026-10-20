@@ -63,8 +63,8 @@ public class SubEndpointsManagementController : ControllerBase
     /// </returns>
     [HttpGet("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(IEnumerable<ModuleEndpointDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
+    [ProducesResponseType(typeof(IEnumerable<ModuleSubEndpointDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ModuleSubEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
     {
         var result = await _subEndpointService.GetModuleSubEndpointsAsync(moduleId, ct);
         return Ok(result);
@@ -78,8 +78,8 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 200 OK response with a list of detailed sub-endpoints.
     /// </returns>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<ModuleEndpointsDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleEndpointsDetailDto>>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
+    [ProducesResponseType(typeof(IEnumerable<ModuleSubEndpointsDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<ModuleSubEndpointsDetailDto>>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
     {
         var result = await _subEndpointService.GetAllSubEndpointsDetailAsync(ct);
         return Ok(result);

@@ -164,10 +164,11 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default)
     {
         var subEndpointsDetail = await _context.ModuleEndpoints
             .Include(se => se.Module)
+            .Include(se => se.ModuleVersion)
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -179,13 +180,14 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default)
+    public async Task<IEnumerable<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default)
     {
         var exists = await _context.Modules.FindAsync([moduleId], ct);
         if (exists is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
         var subEndpoints = await _context.ModuleEndpoints
+            .Include(se => se.ModuleVersion)
             .AsNoTracking()
             .Where(e => e.ModuleId == moduleId)
             .ToListAsync(ct);

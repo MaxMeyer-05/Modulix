@@ -64,4 +64,9 @@ public class ModuleVersion
     /// </summary>
     [ForeignKey(nameof(ModuleId))]
     public Module Module { get; set; } = null!;
+
+    /// <summary>
+    /// The endpoints discovered in this version of the module.
+    /// </summary>
+    public ICollection<ModuleEndpoint> DiscoveredEndpoints { get; set; } = [];
 }

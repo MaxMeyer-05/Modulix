@@ -121,13 +121,16 @@ public class ModuleEndpointExtension
     /// <param name="discoveredEndpoints">The list of endpoints discovered for the module.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A discrepancy report, or null if no discrepancies were found.</returns>
-    public async Task<EndpointDiscrepancyReportDto?> CreateEndpointDiscrepancyReportAsync(
+    public async Task<SubEndpointDiscrepancyReportDto?> CreateEndpointDiscrepancyReportAsync(
         Module module,
-        List<DiscoveredEndpointDto> discoveredEndpoints,
+        List<DiscoveredSubEndpointDto> discoveredEndpoints,
         CancellationToken ct = default)
     {
+        var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
+            ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
+
         var initialEndpoints = module.SubEndpoints.ToList();
-        EndpointDiscrepancyReportDto? report = null;
+        SubEndpointDiscrepancyReportDto? report = null;
 
         if (initialEndpoints.Count == 0)
         {
@@ -136,6 +139,8 @@ public class ModuleEndpointExtension
                 module.SubEndpoints.Add(new ModuleEndpoint
                 {
                     ModuleId = module.Id,
+                    ModuleVersionId = currentVersion.Id,
+                    ModuleVersion = currentVersion,
                     HttpMethod = scanned.HttpMethod,
                     EndpointPath = scanned.EndpointPath,
                     Status = ModuleEndpointsStatus.Active
@@ -145,9 +150,9 @@ public class ModuleEndpointExtension
         }
         else
         {
-            var matched = new List<DiscoveredEndpointDto>();
-            var extra = new List<DiscoveredEndpointDto>();
-            var missing = new List<DiscoveredEndpointDto>();
+            var matched = new List<DiscoveredSubEndpointDto>();
+            var extra = new List<DiscoveredSubEndpointDto>();
+            var missing = new List<DiscoveredSubEndpointDto>();
 
             foreach (var initial in initialEndpoints)
             {
@@ -158,12 +163,12 @@ public class ModuleEndpointExtension
                 if (found)
                 {
                     initial.Status = ModuleEndpointsStatus.Active;
-                    matched.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
+                    matched.Add(new DiscoveredSubEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
                 }
                 else
                 {
                     initial.Status = ModuleEndpointsStatus.PendingConfirmation;
-                    missing.Add(new DiscoveredEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
+                    missing.Add(new DiscoveredSubEndpointDto { HttpMethod = initial.HttpMethod, EndpointPath = initial.EndpointPath });
                 }
             }
 
@@ -178,6 +183,8 @@ public class ModuleEndpointExtension
                     module.SubEndpoints.Add(new ModuleEndpoint
                     {
                         ModuleId = module.Id,
+                        ModuleVersionId = currentVersion.Id,
+                        ModuleVersion = currentVersion,
                         HttpMethod = scanned.HttpMethod,
                         EndpointPath = scanned.EndpointPath,
                         Status = ModuleEndpointsStatus.PendingConfirmation
@@ -189,7 +196,7 @@ public class ModuleEndpointExtension
             bool hasDiscrepancy = extra.Count > 0 || missing.Count > 0;
             if (hasDiscrepancy)
             {
-                report = new EndpointDiscrepancyReportDto
+                report = new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
                     HasDiscrepancy = true,
@@ -209,9 +216,6 @@ public class ModuleEndpointExtension
         {
             try
             {
-                var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
-                    ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
-
                 module.Status = ModuleStatus.Starting;
                 var containerId = await _dockerService.BuildContainerAsync(
                     module.Id,

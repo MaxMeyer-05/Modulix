@@ -156,7 +156,7 @@ public class ModuleVersionService : IModuleVersionService
         var newVersion = dto.ToVersionEntity();
         newVersion.ModuleId = module.Id;
         newVersion.StoragePath = versionDirectory;
-        EndpointDiscrepancyReportDto? report = null;
+        SubEndpointDiscrepancyReportDto? report = null;
 
         try
         {
@@ -252,7 +252,24 @@ public class ModuleVersionService : IModuleVersionService
             throw new InvalidOperationException($"Module '{moduleId}' is already on version '{targetVersion.Version}'.");
 
         var previousState = (module.ContainerId, module.CurrentVersion, module.Status);
+        var previousEndpointStatuses = module.SubEndpoints
+            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
+            .ToList();
         string? builtContainerId = null;
+
+        foreach (var endpoint in module.SubEndpoints)
+        {
+            var endpointVersion = endpoint.ModuleVersion
+                ?? module.Versions.FirstOrDefault(v => v.Id == endpoint.ModuleVersionId);
+
+            var existedInTargetVersion = endpointVersion is not null &&
+                (endpointVersion.ReleasedAtUtc < targetVersion.ReleasedAtUtc ||
+                 (endpointVersion.ReleasedAtUtc == targetVersion.ReleasedAtUtc && endpointVersion.Id <= targetVersion.Id));
+
+            endpoint.Status = existedInTargetVersion
+                ? ModuleEndpointsStatus.Active
+                : ModuleEndpointsStatus.Inactive;
+        }
 
         try
         {
@@ -288,6 +305,13 @@ public class ModuleVersionService : IModuleVersionService
 
             (module.ContainerId, module.CurrentVersion, module.Status) = previousState;
             _context.Entry(module).State = EntityState.Unchanged;
+
+            foreach (var previousEndpoint in previousEndpointStatuses)
+            {
+                previousEndpoint.Endpoint.Status = previousEndpoint.Status;
+                _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
+            }
+
             throw;
         }
 
@@ -360,6 +384,7 @@ public class ModuleVersionService : IModuleVersionService
         var normalizedVersion = version.Trim();
         var module = await _context.Modules
             .Include(m => m.Versions)
+            .Include(m => m.SubEndpoints)
             .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
 
         if (module is null)
@@ -371,6 +396,31 @@ public class ModuleVersionService : IModuleVersionService
 
         if (string.Equals(module.CurrentVersion, moduleVersion.Version, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Cannot delete the currently active version '{moduleVersion.Version}' of module '{moduleId}'.");
+
+        var nextVersion = module.Versions
+            .Where(v => v.Id != moduleVersion.Id &&
+                (v.ReleasedAtUtc > moduleVersion.ReleasedAtUtc ||
+                 (v.ReleasedAtUtc == moduleVersion.ReleasedAtUtc && v.Id > moduleVersion.Id)))
+            .OrderBy(v => v.ReleasedAtUtc)
+            .ThenBy(v => v.Id)
+            .FirstOrDefault();
+
+        var discoveredEndpoints = module.SubEndpoints
+            .Where(e => e.ModuleVersionId == moduleVersion.Id)
+            .ToList();
+
+        if (nextVersion is not null)
+        {
+            foreach (var endpoint in discoveredEndpoints)
+            {
+                endpoint.ModuleVersionId = nextVersion.Id;
+                endpoint.ModuleVersion = nextVersion;
+            }
+        }
+        else if (discoveredEndpoints.Count > 0)
+        {
+            _context.ModuleEndpoints.RemoveRange(discoveredEndpoints);
+        }
 
         _directoryExtension.DeleteModuleDirectory(moduleVersion.StoragePath, moduleId);
 
