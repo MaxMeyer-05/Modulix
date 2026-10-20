@@ -7,6 +7,7 @@
     var reopenEdit = Model.EditError is not null;
     var reopenUpdateFiles = Model.UpdateFilesError is not null;
     var reopenRollback = Model.RollbackError is not null;
+    var reopenConfirmEndpoints = Model.ConfirmEndpointsError is not null;
     var reopenDelete = Model.DeleteError is not null;
     var detailUrl = module is not null ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : Url.Page("/ModulesPage/Index");
     var canStart = module?.Status is Modulix.Client.Models.Enums.ModuleStatus.Stopped
@@ -23,8 +24,13 @@
     var rollbackVersions = orderedVersions
         .Where(v => !string.Equals(v.Version, module?.CurrentVersion, StringComparison.Ordinal))
         .ToList();
+    var pendingEndpoints = module?.Endpoints
+        .Where(e => e.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation)
+        .ToList() ?? [];
     var hasPendingEndpoints = module?.Status == Modulix.Client.Models.Enums.ModuleStatus.PendingConfirmation
-        || (module?.Endpoints.Any(e => e.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation) ?? false);
+        || pendingEndpoints.Count > 0;
+    var canConfirmEndpoints = module?.Status == Modulix.Client.Models.Enums.ModuleStatus.PendingConfirmation
+        && pendingEndpoints.Count > 0;
     var canRollback = module is not null
         && rollbackVersions.Count > 0
         && module.Status != Modulix.Client.Models.Enums.ModuleStatus.QueuedForScan
@@ -95,7 +101,18 @@
                     </dl>
                 </section>
                 <section class="module-info-section" aria-labelledby="module-endpoints-heading">
-                    <div class="module-section-heading"><h2 id="module-endpoints-heading">Registered endpoints</h2><span>@module.Endpoints.Count() endpoints</span></div>
+                    <div class="module-section-heading">
+                        <h2 id="module-endpoints-heading">Registered endpoints</h2>
+                        <div class="module-section-heading-actions">
+                            <span>@module.Endpoints.Count() endpoints</span>
+                            @if (canConfirmEndpoints)
+                            {
+                                <button class="module-button module-button-compact module-button-primary" type="button" popovertarget="confirm-endpoints-dialog">
+                                    <i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm pending (@pendingEndpoints.Count)</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
                     @if (!module.Endpoints.Any())
                     {
                         <p class="module-section-empty">No endpoints registered.</p>
@@ -114,9 +131,26 @@
                                     "DELETE" => "method-delete",
                                     _ => "method-other"
                                 };
+                                var isPendingEndpoint = endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation;
                                 <li>
-                                    <div class="endpoint-route"><span class="endpoint-method @methodClass">@methodUpper</span><span class="module-code">@module.BaseUrlPath@endpoint.EndpointPath</span></div>
-                                    <span class="endpoint-state">@(endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation ? "Pending confirmation" : endpoint.Status.ToString())</span>
+                                    <div class="endpoint-route"><span class="endpoint-method @methodClass">@methodUpper</span><span class="module-code">/@module.BaseUrlPath.Trim('/')@endpoint.EndpointPath</span></div>
+                                    <div class="endpoint-status-actions">
+                                        <span class="endpoint-state @(isPendingEndpoint ? "endpoint-state-pending" : "")">@(isPendingEndpoint ? "Pending confirmation" : endpoint.Status.ToString())</span>
+                                        @if (isPendingEndpoint && module.Status == Modulix.Client.Models.Enums.ModuleStatus.PendingConfirmation)
+                                        {
+                                            <form class="inline-action-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="ConfirmEndpoints" asp-route-id="@module.Id">
+                                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                                <input type="hidden" name="decisions[0].HttpMethod" value="@endpoint.HttpMethod" />
+                                                <input type="hidden" name="decisions[0].EndpointPath" value="@endpoint.EndpointPath" />
+                                                <button class="module-button module-button-compact module-button-primary" type="submit" name="decisions[0].Action" value="activate" title="Confirm and activate this endpoint">
+                                                    <i data-lucide="check" aria-hidden="true"></i><span>Confirm</span>
+                                                </button>
+                                                <button class="module-button module-button-compact module-button-danger" type="submit" name="decisions[0].Action" value="remove" title="Remove this pending endpoint">
+                                                    <i data-lucide="trash-2" aria-hidden="true"></i><span>Remove</span>
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
                                     <div class="endpoint-metadata">
                                         @if (!string.IsNullOrWhiteSpace(endpoint.DiscoveredInVersion))
                                         {
@@ -147,6 +181,7 @@
                             <input type="hidden" name="moduleName" value="@module.ModuleName" />
                             <button class="module-button" type="submit" id="stop-module-button" disabled="@(!canStop)" title="@(canStop ? "Stop the module container" : $"Cannot stop module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
                         </form>
+                        <button class="module-button @(canConfirmEndpoints ? "module-button-primary" : "")" type="button" id="confirm-endpoints-button" popovertarget="confirm-endpoints-dialog" disabled="@(!canConfirmEndpoints)" title="@(canConfirmEndpoints ? $"Review and confirm {pendingEndpoints.Count} pending endpoint(s)" : "No pending endpoints require confirmation")"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
                         <button class="module-button" type="button" id="edit-module-button" popovertarget="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
                         <button class="module-button" type="button" id="update-files-button" popovertarget="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
                         <button class="module-button" type="button" id="rollback-module-button" popovertarget="rollback-module-dialog" disabled="@(!canRollback)" title="@rollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
@@ -298,6 +333,78 @@
                         <button class="module-button" type="button" popovertarget="rollback-module-dialog" popovertargetaction="hide">Cancel</button>
                     }
                     <button class="module-button module-button-primary" type="submit" disabled="@(rollbackVersions.Count == 0)"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                </div>
+            </form>
+        </div>
+
+        <div class="module-dialog @(reopenConfirmEndpoints ? "module-dialog-open" : "")" id="confirm-endpoints-dialog" popover="@(reopenConfirmEndpoints ? null : "auto")" role="dialog" aria-labelledby="confirm-endpoints-heading" aria-describedby="confirm-endpoints-description">
+            <div class="module-dialog-heading">
+                <div class="modules-title"><h2 id="confirm-endpoints-heading">Confirm pending endpoints</h2></div>
+                @if (reopenConfirmEndpoints)
+                {
+                    <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+                }
+                else
+                {
+                    <button class="module-icon-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                }
+            </div>
+            <form id="confirm-endpoints-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="ConfirmEndpoints" asp-route-id="@module.Id">
+                @if (Model.ConfirmEndpointsError is { } confirmError)
+                {
+                    <div class="module-form-error" role="alert">
+                        <strong>@confirmError.Title</strong> <span class="module-code">HTTP @confirmError.StatusCode</span>
+                        <p>@confirmError.Description</p>
+                    </div>
+                }
+                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                <fieldset class="module-form-fields" id="module-confirm-endpoints-fields">
+                    <p class="module-dialog-description" id="confirm-endpoints-description">Review the pending endpoints for <strong>@module.ModuleName</strong>. Choose whether to activate each endpoint or remove it. Once all pending endpoints are resolved, the module container will be built and started automatically.</p>
+                    @if (pendingEndpoints.Count == 0)
+                    {
+                        <p class="module-section-empty">No pending endpoints require confirmation.</p>
+                    }
+                    else
+                    {
+                        <div class="confirm-endpoints-list">
+                            @for (var i = 0; i < pendingEndpoints.Count; i++)
+                            {
+                                var pendingEp = pendingEndpoints[i];
+                                var methodUpper = pendingEp.HttpMethod.ToUpperInvariant();
+                                var methodClass = methodUpper switch
+                                {
+                                    "GET" => "method-get",
+                                    "POST" => "method-post",
+                                    "PUT" or "PATCH" => "method-put",
+                                    "DELETE" => "method-delete",
+                                    _ => "method-other"
+                                };
+                                <div class="confirm-endpoint-item">
+                                    <input type="hidden" name="decisions[@i].HttpMethod" value="@pendingEp.HttpMethod" />
+                                    <input type="hidden" name="decisions[@i].EndpointPath" value="@pendingEp.EndpointPath" />
+                                    <div class="endpoint-route">
+                                        <span class="endpoint-method @methodClass">@methodUpper</span>
+                                        <span class="module-code">/@module.BaseUrlPath.Trim('/')@pendingEp.EndpointPath</span>
+                                    </div>
+                                    <select name="decisions[@i].Action" aria-label="Action for @methodUpper @pendingEp.EndpointPath">
+                                        <option value="activate" selected>Confirm (Activate)</option>
+                                        <option value="remove">Remove endpoint</option>
+                                    </select>
+                                </div>
+                            }
+                        </div>
+                    }
+                </fieldset>
+                <div class="module-dialog-footer">
+                    @if (reopenConfirmEndpoints)
+                    {
+                        <a class="module-button" href="@detailUrl">Cancel</a>
+                    }
+                    else
+                    {
+                        <button class="module-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide">Cancel</button>
+                    }
+                    <button class="module-button module-button-primary" type="submit" disabled="@(pendingEndpoints.Count == 0)"><i data-lucide="check" aria-hidden="true"></i><span>Confirm endpoints</span></button>
                 </div>
             </form>
         </div>

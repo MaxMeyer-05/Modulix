@@ -90,6 +90,11 @@ public class DetailModel : PageModel
     public ActionError? RollbackError { get; private set; }
 
     /// <summary>
+    /// Gets the error from a failed endpoint confirmation attempt.
+    /// </summary>
+    public ActionError? ConfirmEndpointsError { get; private set; }
+
+    /// <summary>
     /// Gets the error from a failed module deletion attempt.
     /// </summary>
     public ActionError? DeleteError { get; private set; }
@@ -548,6 +553,138 @@ public class DetailModel : PageModel
     }
 
     /// <summary>
+    /// Confirms or removes pending sub-endpoints for a module in PendingConfirmation status.
+    /// </summary>
+    /// <param name="id">The ID of the module.</param>
+    /// <param name="decisions">The confirmation decisions for pending endpoints.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostConfirmEndpointsAsync(
+        Guid id,
+        [FromForm] List<EndpointConfirmationDecision>? decisions,
+        [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        var validDecisions = decisions?
+            .Where(d => !string.IsNullOrWhiteSpace(d.HttpMethod) && !string.IsNullOrWhiteSpace(d.EndpointPath))
+            .ToList() ?? [];
+
+        if (validDecisions.Count == 0)
+        {
+            ConfirmEndpointsError = Failure(400, "No pending endpoints were selected for confirmation.");
+            await LoadModuleAsync(id);
+            return Page();
+        }
+
+        var activateEndpoints = validDecisions
+            .Where(d => !string.Equals(d.Action, "remove", StringComparison.OrdinalIgnoreCase))
+            .Select(d => new DiscoveredSubEndpointDto
+            {
+                HttpMethod = d.HttpMethod.Trim().ToUpperInvariant(),
+                EndpointPath = d.EndpointPath.Trim()
+            })
+            .ToList();
+
+        var removeEndpoints = validDecisions
+            .Where(d => string.Equals(d.Action, "remove", StringComparison.OrdinalIgnoreCase))
+            .Select(d => new DiscoveredSubEndpointDto
+            {
+                HttpMethod = d.HttpMethod.Trim().ToUpperInvariant(),
+                EndpointPath = d.EndpointPath.Trim()
+            })
+            .ToList();
+
+        var request = new ConfirmEndpointsDto
+        {
+            ConfirmedEndpoints =
+            [
+                new SubEndpointDiscrepancyReportDto
+                {
+                    ModuleId = id,
+                    HasDiscrepancy = true,
+                    ExtraEndpoints = activateEndpoints.Count > 0 ? activateEndpoints : null,
+                    MissingEndpoints = removeEndpoints.Count > 0 ? removeEndpoints : null
+                }
+            ]
+        };
+
+        try
+        {
+            _logger.LogInformation(
+                "Confirming endpoints for module {ModuleId} (Activate: {ActivateCount}, Remove: {RemoveCount}).",
+                id,
+                activateEndpoints.Count,
+                removeEndpoints.Count);
+
+            using var response = await _modulixApiClient.SubEndpointManagement.ConfirmEndpointAsync(
+                id,
+                request,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ConfirmEndpointsError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
+            var updatedModule = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
+                cancellationToken: HttpContext.RequestAborted);
+            var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
+            var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
+
+            if (updatedModule?.Status == ModuleStatus.Failed)
+            {
+                _userActivityService.Record(User, "Failed starting confirmed", targetName, "triangle-alert", UserActivityTone.Danger, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    500,
+                    "Container failed after confirmation",
+                    $"Confirmed endpoints for {targetName}, but the module container failed to start.",
+                    IsSuccess: false));
+            }
+            else if (updatedModule?.Status == ModuleStatus.PendingConfirmation)
+            {
+                _userActivityService.Record(User, "Updated pending endpoints for", targetName, "check-circle-2", UserActivityTone.Update, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    (int)response.StatusCode,
+                    "Endpoint decision saved",
+                    $"Updated endpoint status for {targetName}. Confirm remaining pending endpoints to start the module.",
+                    IsSuccess: true));
+            }
+            else
+            {
+                _userActivityService.Record(User, "Confirmed endpoints for", targetName, "check-circle-2", UserActivityTone.Success, detailUrl);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    (int)response.StatusCode,
+                    "Endpoints confirmed",
+                    $"Confirmed endpoints and activated module {targetName}.",
+                    IsSuccess: true));
+            }
+
+            return RedirectToPage(new { id });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error confirming endpoints for module {ModuleId}.", id);
+            ConfirmEndpointsError = Failure(503, "The API could not be reached. Please try again later.");
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Confirming endpoints for module {ModuleId} timed out.", id);
+            ConfirmEndpointsError = Failure(504, "The API did not respond in time. Check the module status before retrying.");
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogError(exception, "Invalid response while confirming endpoints for module {ModuleId}.", id);
+            ConfirmEndpointsError = Failure(502, "The API returned an invalid response. Check the module status before retrying.");
+        }
+
+        await LoadModuleAsync(id);
+        return Page();
+    }
+
+    /// <summary>
     /// Deletes the module, its container, storage directory, and registered endpoints.
     /// </summary>
     /// <param name="id">The ID of the module to delete.</param>
@@ -643,4 +780,25 @@ public class DetailModel : PageModel
     /// Represents feedback from a completed module action.
     /// </summary>
     public sealed record ActionFeedback(int StatusCode, string Title, string Description, bool IsSuccess);
+
+    /// <summary>
+    /// Represents a user decision for confirming or removing a pending module endpoint.
+    /// </summary>
+    public sealed class EndpointConfirmationDecision
+    {
+        /// <summary>
+        /// The HTTP method of the pending endpoint.
+        /// </summary>
+        public string HttpMethod { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The relative path of the pending endpoint.
+        /// </summary>
+        public string EndpointPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The chosen action ("activate" to keep and activate, or "remove" to delete).
+        /// </summary>
+        public string Action { get; set; } = "activate";
+    }
 }
