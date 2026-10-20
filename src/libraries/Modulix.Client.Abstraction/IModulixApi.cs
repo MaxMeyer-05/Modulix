@@ -21,4 +21,9 @@ public interface IModulixApi
     /// Gets the client for managing the scanner within the Modulix API.
     /// </summary>
     IScannerManagementClient ScannerManagement { get; }
+
+    /// <summary>
+    /// Gets the client for managing module versions within the Modulix API.
+    /// </summary>
+    IModuleVersionClient ModuleVersionManagement { get; }
 }

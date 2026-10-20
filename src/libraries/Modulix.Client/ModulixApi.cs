@@ -19,6 +19,9 @@ internal partial class ModulixApi : IModulixApi
     /// <inheritdoc/>
     public IScannerManagementClient ScannerManagement => this;
 
+    /// <inheritdoc/>
+    public IModuleVersionClient ModuleVersionManagement => this;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ModulixApi"/> class with the specified <see cref="HttpClient"/>.
     /// </summary>

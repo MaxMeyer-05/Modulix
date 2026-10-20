@@ -182,7 +182,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if attempting to delete the currently active version.
     /// </returns>
-    [HttpDelete("{moduleId:guid}/version/{version}")]
+    [HttpDelete("{moduleId:guid}/version/{version}/delete")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
