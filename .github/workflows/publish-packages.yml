@@ -55,6 +55,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract Scanner version from csproj
+        id: scanner_version
+        run: |
+          VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Modulix.Scanner/Modulix.Scanner.csproj | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Scanner Docker image
         uses: docker/build-push-action@v6
         with:
@@ -63,4 +69,4 @@ jobs:
           push: true
           tags: |
             ghcr.io/maxmeyer-05/modulix-scanner:latest
-            ghcr.io/maxmeyer-05/modulix-scanner:1.0.0
+            ghcr.io/maxmeyer-05/modulix-scanner:${{ steps.scanner_version.outputs.version }}

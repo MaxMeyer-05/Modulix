@@ -415,8 +415,7 @@ public class ModuleEndpointScannerTests : IDisposable
                 ModuleName = "Queued module",
                 BaseUrlPath = "api/queued",
                 ContainerPort = 8080,
-                StoragePath = _testRootDirectory,
-                ModuleEntryAssemblyFileName = "module.dll",
+                CurrentVersion = "v1.0.0",
                 Status = ModuleStatus.QueuedForScan
             });
             await _context.SaveChangesAsync();

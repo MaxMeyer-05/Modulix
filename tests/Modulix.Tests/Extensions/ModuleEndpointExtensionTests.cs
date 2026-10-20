@@ -93,7 +93,7 @@ public class ModuleEndpointExtensionTests : IDisposable
     {
         var module = await CreateModuleAsync();
         var discovered = discoversEndpoints
-            ? new List<DiscoveredEndpointDto> { new() { HttpMethod = "GET", EndpointPath = "/health" } }
+            ? new List<DiscoveredSubEndpointDto> { new() { HttpMethod = "GET", EndpointPath = "/health" } }
             : [];
 
         var report = await _sut.CreateEndpointDiscrepancyReportAsync(module, discovered);
@@ -103,7 +103,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         Assert.Equal(ModuleStatus.Running, persisted.Status);
         Assert.Equal("candidate", persisted.ContainerId);
         Assert.Equal(new[] { "build", "start:candidate", "ready:candidate" }, _dockerService.Calls);
-        Assert.Equal((module.Id, module.StoragePath, "module.dll", 8080), _dockerService.BuildArguments);
+        Assert.Equal((module.Id, module.Versions.Single().StoragePath, "module.dll", 8080), _dockerService.BuildArguments);
         if (discoversEndpoints)
         {
             var endpoint = Assert.Single(persisted.SubEndpoints);
@@ -127,11 +127,11 @@ public class ModuleEndpointExtensionTests : IDisposable
     [Fact]
     public async Task CreateEndpointDiscrepancyReportAsync_AllRoutesMatchIgnoringCase_ActivatesWithoutDuplicatesAndWaitsForReadiness()
     {
-        var module = await CreateModuleAsync(new CreateModuleEndpointDto { HttpMethod = "GET", EndpointPath = "/Items" });
+        var module = await CreateModuleAsync(new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/Items" });
         var endpointId = Assert.Single(module.SubEndpoints).Id;
 
         var report = await _sut.CreateEndpointDiscrepancyReportAsync(module,
-            [new DiscoveredEndpointDto { HttpMethod = "get", EndpointPath = "/items" }]);
+            [new DiscoveredSubEndpointDto { HttpMethod = "get", EndpointPath = "/items" }]);
 
         Assert.Null(report);
         var persisted = await LoadPersistedModuleAsync(module.Id);
@@ -146,13 +146,13 @@ public class ModuleEndpointExtensionTests : IDisposable
     public async Task CreateEndpointDiscrepancyReportAsync_MixedRoutes_PersistsDiscrepanciesWithoutStartingContainer()
     {
         var module = await CreateModuleAsync(
-            new CreateModuleEndpointDto { HttpMethod = "GET", EndpointPath = "/items" },
-            new CreateModuleEndpointDto { HttpMethod = "DELETE", EndpointPath = "/old" });
+            new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/items" },
+            new CreateModuleSubEndpointDto { HttpMethod = "DELETE", EndpointPath = "/old" });
 
         var report = await _sut.CreateEndpointDiscrepancyReportAsync(module,
         [
-            new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/items" },
-            new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/new" }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/items" },
+            new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/new" }
         ]);
 
         Assert.NotNull(report);
@@ -197,21 +197,29 @@ public class ModuleEndpointExtensionTests : IDisposable
 
     #region Test Fakes & Helpers
 
-    private async Task<Module> CreateModuleAsync(params CreateModuleEndpointDto[] endpoints)
+    private async Task<Module> CreateModuleAsync(params CreateModuleSubEndpointDto[] endpoints)
     {
         var module = new Module
         {
             ModuleName = "Test module",
             BaseUrlPath = "api/module",
             ContainerPort = 8080,
-            StoragePath = "/test/module",
-            ModuleEntryAssemblyFileName = "module.dll",
+            CurrentVersion = "v1.0.0",
             Status = ModuleStatus.Created
         };
+        var version = new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = "v1.0.0",
+            StoragePath = "/test/module",
+            ModuleEntryAssemblyFileName = "module.dll"
+        };
+        module.Versions.Add(version);
         foreach (var endpoint in endpoints)
             module.SubEndpoints.Add(new ModuleEndpoint
             {
                 ModuleId = module.Id,
+                ModuleVersion = version,
                 HttpMethod = endpoint.HttpMethod,
                 EndpointPath = endpoint.EndpointPath,
                 Status = ModuleEndpointsStatus.PendingConfirmation
@@ -222,7 +230,7 @@ public class ModuleEndpointExtensionTests : IDisposable
     }
 
     private Task<Module> LoadPersistedModuleAsync(Guid moduleId) =>
-        _context.Modules.AsNoTracking().Include(module => module.SubEndpoints).SingleAsync(module => module.Id == moduleId);
+        _context.Modules.AsNoTracking().Include(module => module.SubEndpoints).Include(module => module.Versions).SingleAsync(module => module.Id == moduleId);
 
     private sealed class RecordingDockerService : IDockerService
     {

@@ -129,6 +129,7 @@ public class SubEndpointServiceTests : IDisposable
         {
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -138,6 +139,7 @@ public class SubEndpointServiceTests : IDisposable
         {
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "POST",
             EndpointPath = "/legacy",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -153,11 +155,11 @@ public class SubEndpointServiceTests : IDisposable
         {
             ConfirmedEndpoints =
             [
-                new EndpointDiscrepancyReportDto
+                new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = missingEndpoint.HttpMethod, EndpointPath = missingEndpoint.EndpointPath }],
-                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = extraEndpoint.HttpMethod, EndpointPath = extraEndpoint.EndpointPath }]
+                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = missingEndpoint.HttpMethod, EndpointPath = missingEndpoint.EndpointPath }],
+                    ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = extraEndpoint.HttpMethod, EndpointPath = extraEndpoint.EndpointPath }]
                 }
             ]
         };
@@ -189,6 +191,7 @@ public class SubEndpointServiceTests : IDisposable
         {
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -202,10 +205,10 @@ public class SubEndpointServiceTests : IDisposable
         {
             ConfirmedEndpoints =
             [
-                new EndpointDiscrepancyReportDto
+                new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/health" }]
+                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/health" }]
                 }
             ]
         };
@@ -234,6 +237,7 @@ public class SubEndpointServiceTests : IDisposable
         module.SubEndpoints.Add(new ModuleEndpoint
         {
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -241,6 +245,7 @@ public class SubEndpointServiceTests : IDisposable
         module.SubEndpoints.Add(new ModuleEndpoint
         {
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "POST",
             EndpointPath = "/legacy",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -248,12 +253,12 @@ public class SubEndpointServiceTests : IDisposable
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
 
-        var missing = new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" };
-        var extra = new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" };
+        var missing = new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" };
+        var extra = new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" };
         var partial = new ConfirmEndpointsDto
         {
             ConfirmedEndpoints = confirmMissing || confirmExtra
-                ? [new EndpointDiscrepancyReportDto
+                ? [new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
                     MissingEndpoints = confirmMissing ? [missing] : null,
@@ -276,7 +281,7 @@ public class SubEndpointServiceTests : IDisposable
 
         var confirmedResult = await _sut.ConfirmSubEndpointsAsync(module.Id, new ConfirmEndpointsDto
         {
-            ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+            ConfirmedEndpoints = [new SubEndpointDiscrepancyReportDto
             {
                 ModuleId = module.Id,
                 MissingEndpoints = [missing],
@@ -300,6 +305,7 @@ public class SubEndpointServiceTests : IDisposable
         module.SubEndpoints.Add(new ModuleEndpoint
         {
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -314,10 +320,10 @@ public class SubEndpointServiceTests : IDisposable
 
         var result = await _sut.ConfirmSubEndpointsAsync(module.Id, new ConfirmEndpointsDto
         {
-            ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+            ConfirmedEndpoints = [new SubEndpointDiscrepancyReportDto
             {
                 ModuleId = module.Id,
-                ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+                ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
             }]
         });
 
@@ -338,12 +344,14 @@ public class SubEndpointServiceTests : IDisposable
     {
         var module = CreateTestModuleEntity("Unsaved Confirmation", "api/v1/unsaved-confirmation", 8085);
         module.Status = ModuleStatus.PendingConfirmation;
-        module.StoragePath = Path.Combine(_testRootDirectory, "pending-module");
-        Directory.CreateDirectory(module.StoragePath);
-        await File.WriteAllTextAsync(Path.Combine(module.StoragePath, "module.dll"), "original");
+        var currentVersion = module.Versions.Single();
+        currentVersion.StoragePath = Path.Combine(_testRootDirectory, "pending-module");
+        Directory.CreateDirectory(currentVersion.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(currentVersion.StoragePath, "module.dll"), "original");
         module.SubEndpoints.Add(new ModuleEndpoint
         {
             ModuleId = module.Id,
+            ModuleVersion = currentVersion,
             HttpMethod = "GET",
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -351,6 +359,7 @@ public class SubEndpointServiceTests : IDisposable
         module.SubEndpoints.Add(new ModuleEndpoint
         {
             ModuleId = module.Id,
+            ModuleVersion = currentVersion,
             HttpMethod = "POST",
             EndpointPath = "/legacy",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -370,11 +379,11 @@ public class SubEndpointServiceTests : IDisposable
         var exception = await Record.ExceptionAsync(() =>
             _sut.ConfirmSubEndpointsAsync(module.Id, new ConfirmEndpointsDto
             {
-                ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
+                ConfirmedEndpoints = [new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }],
-                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" }]
+                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }],
+                    ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" }]
                 }]
             }, cancellation.Token));
 
@@ -385,7 +394,7 @@ public class SubEndpointServiceTests : IDisposable
         Assert.Null(persisted.ContainerId);
         Assert.Equal(2, persisted.SubEndpoints.Count);
         Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
-        Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(module.StoragePath, "module.dll")));
+        Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(currentVersion.StoragePath, "module.dll")));
 
         _saveInterceptor.ExceptionToThrow = null;
         _saveInterceptor.BeforeSave = null;
@@ -421,8 +430,8 @@ public class SubEndpointServiceTests : IDisposable
     {
         // Arrange
         var module = CreateTestModuleEntity("Gateway", "api/v1/gw", 8004);
-        var ep1 = new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = module.Id, HttpMethod = "GET", EndpointPath = "/a" };
-        var ep2 = new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = module.Id, HttpMethod = "POST", EndpointPath = "/b" };
+        var ep1 = new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = module.Id, ModuleVersion = module.Versions.Single(), HttpMethod = "GET", EndpointPath = "/a" };
+        var ep2 = new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = module.Id, ModuleVersion = module.Versions.Single(), HttpMethod = "POST", EndpointPath = "/b" };
 
         _context.Modules.Add(module);
         _context.ModuleEndpoints.AddRange(ep1, ep2);
@@ -441,18 +450,28 @@ public class SubEndpointServiceTests : IDisposable
 
     #region Test Fakes & Helpers
 
-    private static Module CreateTestModuleEntity(string name, string basePath, int port) => new()
+    private static Module CreateTestModuleEntity(string name, string basePath, int port)
     {
-        Id = Guid.NewGuid(),
-        ModuleName = name,
-        Description = "Description for " + name,
-        BaseUrlPath = basePath.TrimStart('/'),
-        ContainerPort = port,
-        StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
-        ModuleEntryAssemblyFileName = "module.dll",
-        Status = ModuleStatus.Created,
-        CreatedAtUtc = DateTime.UtcNow
-    };
+        var module = new Module
+        {
+            Id = Guid.NewGuid(),
+            ModuleName = name,
+            Description = "Description for " + name,
+            BaseUrlPath = basePath.TrimStart('/'),
+            ContainerPort = port,
+            CurrentVersion = "v1.0.0",
+            Status = ModuleStatus.Created,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        module.Versions.Add(new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = "v1.0.0",
+            StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
+            ModuleEntryAssemblyFileName = "module.dll"
+        });
+        return module;
+    }
 
     private sealed class FakeDockerService : IDockerService
     {
