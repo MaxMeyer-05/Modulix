@@ -171,9 +171,9 @@ Modules support:
 
 ### Management API
 
-All management endpoints require a valid JWT bearer token and are grouped into four controllers:
+All management endpoints require a valid JWT bearer token and are organized by controller:
 
-#### Modules (`/api/modules-management/modules`)
+#### Modules (`ModulesManagementController` — `/api/modules-management/modules`)
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
@@ -185,7 +185,7 @@ All management endpoints require a valid JWT bearer token and are grouped into f
 | `PUT` | `/{moduleId}` | Update module metadata (`ModuleName`, `Description`). |
 | `DELETE` | `/{moduleId}/delete` | Delete a module, its container/image, versions, and stored files. |
 
-#### Module Versions (`/api/version-management/module-versions`)
+#### Module Versions (`ModuleVersionsManagementController` — `/api/version-management/module-versions`)
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
@@ -197,7 +197,7 @@ All management endpoints require a valid JWT bearer token and are grouped into f
 | `PUT` | `/{moduleId}/version/{version}` | Update version metadata (`Version`, `Changelog`). |
 | `DELETE` | `/{moduleId}/version/{version}/delete` | Delete an inactive version of a module and its files. |
 
-#### Sub-Endpoints (`/api/endpoint-management/sub-endpoints`)
+#### Sub-Endpoints (`SubEndpointsManagementController` — `/api/endpoint-management/sub-endpoints`)
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
@@ -205,7 +205,7 @@ All management endpoints require a valid JWT bearer token and are grouped into f
 | `GET` | `/{moduleId}` | Retrieve sub-endpoints for a specific module. |
 | `POST` | `/{moduleId}/confirm` | Confirm or reject pending endpoint discrepancies. |
 
-#### Scanner (`/api/scanner-management/scanner`)
+#### Scanner (`ScannerManagementController` — `/api/scanner-management/scanner`)
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
