@@ -35,8 +35,8 @@ public static class ModuleVersionMapper
     {
         return new ModuleVersion
         {
-            Version = dto.Version,
-            Changelog = dto.Changelog
+            Version = dto.Version.Trim(),
+            Changelog = dto.Changelog?.Trim()
         };
     }
 
@@ -47,7 +47,7 @@ public static class ModuleVersionMapper
     /// <param name="dto">The <see cref="ModuleVersionUpdateDto"/> containing the updated values.</param>
     public static void UpdateVersionEntity(this ModuleVersion entity, ModuleVersionUpdateDto dto)
     {
-        entity.Version = dto.Version ?? entity.Version;
-        entity.Changelog = dto.Changelog ?? entity.Changelog;
+        entity.Version = dto.Version?.Trim() ?? entity.Version;
+        entity.Changelog = dto.Changelog?.Trim() ?? entity.Changelog;
     }
 }

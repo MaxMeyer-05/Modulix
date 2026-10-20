@@ -162,27 +162,6 @@ public class ModulesManagementController : ControllerBase
         await _moduleService.UpdateModuleAsync(moduleId, dto, ct);
         return NoContent();
     }
-    /// <summary>
-    /// Updates the files of a specific module by its ID.
-    /// </summary>
-    /// <param name="moduleId">The ID of the module.</param>
-    /// <param name="dto">The module files update data transfer object.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>
-    /// A 204 No Content response indicating that the module files were successfully updated.
-    /// A 404 Not Found response if the module could not be found.
-    /// A 409 Conflict response if the module is already confirmed.
-    /// </returns>
-    [HttpPut("{moduleId}/files")]
-    [Consumes("multipart/form-data")]
-    [RequestSizeLimit(MaximumUploadBytes)]
-    [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
-    [ProducesResponseType(typeof(ModuleCreationResultDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ModuleCreationResultDto>> UpdateModuleFilesAsync(Guid moduleId, [FromForm] UpdateModuleFilesDto dto, CancellationToken ct = default)
-    {
-        var result = await _moduleService.UpdateModuleFilesAsync(moduleId, dto, ct);
-        return Ok(result);
-    }
 
     /// <summary>
     /// Deletes a specific module by its ID.

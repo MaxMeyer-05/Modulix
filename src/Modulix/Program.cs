@@ -52,6 +52,7 @@ builder.Services.AddOptions<DockerOptions>()
 builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
+builder.Services.AddScoped<IModuleVersionService, ModuleVersionService>();
 builder.Services.AddScoped<ISubEndpointService, SubEndpointService>();
 builder.Services.AddScoped<IScannerService, ScannerService>();
 

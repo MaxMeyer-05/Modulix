@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
+
 namespace Modulix.Client.Models.Dtos;
 
 /// <summary>
@@ -29,8 +32,8 @@ public class ModuleVersionDto
     /// <summary>
     /// The storage path of the module version.
     /// </summary>
-    /// <value>e.g., /storage/modules/{moduleId}/analytics/v1.0.0</value>
-    /// <example>/storage/modules/{moduleId}/analytics/v1.0.0</example>
+    /// <value>e.g., /storage/modules/{moduleId}/versions/v1.0.0</value>
+    /// <example>/storage/modules/{moduleId}/versions/v1.0.0</example>
     public string? StoragePath { get; set; }
 
     /// <summary>
@@ -51,6 +54,8 @@ public class ModuleVersionCreateDto
     /// </summary>
     /// <value>e.g., "v1.0.0"</value>
     /// <example>v1.0.0</example>
+    [Required(ErrorMessage = "Version is required.")]
+    [MaxLength(50, ErrorMessage = "Version cannot exceed 50 characters.")]
     public string Version { get; set; } = null!;
 
     /// <summary>
@@ -58,7 +63,16 @@ public class ModuleVersionCreateDto
     /// </summary>
     /// <value>e.g., Initial release with basic analytics features.</value>
     /// <example>Initial release with basic analytics features.</example>
+    [MaxLength(500, ErrorMessage = "Changelog cannot exceed 500 characters.")]
     public string? Changelog { get; set; }
+
+    /// <summary>
+    /// The ZIP archive containing the module version's DLLs and binaries.
+    /// </summary>
+    /// <value>e.g., module.zip</value>
+    /// <example>module.zip</example>
+    [Required(ErrorMessage = "Module file is required.")]
+    public IFormFile ModuleFile { get; set; } = null!;
 }
 
 /// <summary>
@@ -67,16 +81,18 @@ public class ModuleVersionCreateDto
 public class ModuleVersionUpdateDto
 {
     /// <summary>
-    /// The version string of the module.
+    /// The updated version string of the module.
     /// </summary>
     /// <value>e.g., "v1.0.0"</value>
     /// <example>v1.0.0</example>
-    public string Version { get; set; } = null!;
+    [MaxLength(50, ErrorMessage = "Version cannot exceed 50 characters.")]
+    public string? Version { get; set; }
 
     /// <summary>
-    /// The changelog of the module version.
+    /// The updated changelog of the module version.
     /// </summary>
     /// <value>e.g., Initial release with basic analytics features.</value>
     /// <example>Initial release with basic analytics features.</example>
+    [MaxLength(500, ErrorMessage = "Changelog cannot exceed 500 characters.")]
     public string? Changelog { get; set; }
 }

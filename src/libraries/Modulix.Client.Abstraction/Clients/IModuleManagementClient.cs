@@ -92,21 +92,6 @@ public interface IModuleManagementClient
     Task<HttpResponseMessage> UpdateModuleAsync(Guid moduleId, UpdateModuleDto request, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
-    /// Updates the files of a specific module by its unique identifier.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="request">The update request containing the new module files.</param>
-    /// <param name="ct">Optional - The cancellation token.</param>
-    /// <param name="authToken">Optional - The authentication token.</param>
-    /// <returns>The HTTP response message resulting from the request to update the files of the specified module.</returns>
-    /// <exception cref="HttpRequestException">
-    /// Thrown when the request fails due to an underlying issue
-    /// or
-    /// when the HTTP response indicates a failure.
-    /// </exception>
-    Task<HttpResponseMessage> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto request, CancellationToken ct = default, string? authToken = null);
-
-    /// <summary>
     /// Deletes a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>

@@ -60,16 +60,6 @@ public interface IModuleService
     Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default);
 
     /// <summary>
-    /// Replaces the binary files of an existing module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module to update.</param>
-    /// <param name="file">The new binary file for the module.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if the module is not in a state that allows file updates.</exception>
-    Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
-
-    /// <summary>
     /// Deletes a module, cleans up its storage files, and removes all associated records.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module to delete.</param>

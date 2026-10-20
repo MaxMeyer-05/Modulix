@@ -240,37 +240,6 @@ public class UpdateModuleDto
 }
 
 /// <summary>
-/// Data transfer object for replacing the module's binary files.
-/// </summary>
-public class UpdateModuleFilesDto
-{
-    /// <summary>
-    /// The new ZIP archive replacing existing files.
-    /// </summary>
-    /// <value>e.g., module.zip</value>
-    /// <example>module.zip</example>
-    [Required(ErrorMessage = "Module file is required.")]
-    public IFormFile ModuleFile { get; set; } = null!;
-
-    /// <summary>
-    /// The version string for the new module files.
-    /// </summary>
-    /// <value>e.g., "v1.1.0"</value>
-    /// <example>v1.1.0</example>
-    [Required(ErrorMessage = "Version is required.")]
-    [MaxLength(50, ErrorMessage = "Version cannot exceed 50 characters.")]
-    public string Version { get; set; } = null!;
-
-    /// <summary>
-    /// An optional changelog for the new module version.
-    /// </summary>
-    /// <value>e.g., Bug fixes and performance improvements.</value>
-    /// <example>Bug fixes and performance improvements.</example>
-    [MaxLength(500, ErrorMessage = "Changelog cannot exceed 500 characters.")]
-    public string? Changelog { get; set; }
-}
-
-/// <summary>
 /// Represents the data required to create a new module endpoint.
 /// </summary>
 public class CreateModuleEndpointDto

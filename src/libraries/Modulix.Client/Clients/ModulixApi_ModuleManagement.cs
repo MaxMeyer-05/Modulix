@@ -21,9 +21,12 @@ internal partial class ModulixApi : IModuleManagementClient
 
         content.Add(new StringContent(request.ModuleName), nameof(request.ModuleName));
         content.Add(new StringContent(request.BaseUrlPath), nameof(request.BaseUrlPath));
+        content.Add(new StringContent(request.Version), nameof(request.Version));
 
         if (request.Description is not null)
             content.Add(new StringContent(request.Description), nameof(request.Description));
+        if (request.Changelog is not null)
+            content.Add(new StringContent(request.Changelog), nameof(request.Changelog));
         if (request.ContainerPort is int port)
             content.Add(new StringContent(port.ToString(CultureInfo.InvariantCulture)), nameof(request.ContainerPort));
 
@@ -64,26 +67,6 @@ internal partial class ModulixApi : IModuleManagementClient
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         return await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
-    public async Task<HttpResponseMessage> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto request, CancellationToken ct = default, string? authToken = null)
-    {
-        using var content = new MultipartFormDataContent();
-        content.Add(
-            new StreamContent(request.ModuleFile.OpenReadStream()),
-            nameof(request.ModuleFile),
-            Path.GetFileName(request.ModuleFile.FileName));
-
-        using var message = new HttpRequestMessage(HttpMethod.Put, $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/files")
-        {
-            Content = content
-        };
-
-        if (!string.IsNullOrWhiteSpace(authToken))
-            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
-
-        return await _httpClient.SendAsync(message, ct);
     }
 
     /// <inheritdoc/>
