@@ -10,6 +10,7 @@ namespace Modulix.Database.Entities;
 /// </summary>
 [Table("module_versions")]
 [Index(nameof(StoragePath), IsUnique = true)]
+[Index(nameof(Version), nameof(ModuleId), IsUnique = true)]
 public class ModuleVersion
 {
     /// <summary>
@@ -36,13 +37,31 @@ public class ModuleVersion
     /// The storage path for this version of the module.
     /// </summary>
     [Required]
-    [MaxLength(200)]
+    [MaxLength(500)]
     [ConcurrencyCheck]
     public string StoragePath { get; set; } = null!;
+
+    /// <summary>
+    /// The entry assembly file name for this version of the module.
+    /// </summary>
+    [Required]
+    public string ModuleEntryAssemblyFileName { get; set; } = null!;
 
     /// <summary>
     /// The release date of this version of the module.
     /// </summary>
     [Required]
-    public DateTime ReleaseDate { get; set; } = DateTime.UtcNow;
+    public DateTime ReleasedAtUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// The identifier of the module this version belongs to.
+    /// </summary>
+    [Required]
+    public Guid ModuleId { get; set; }
+
+    /// <summary>
+    /// The module entity this version belongs to.
+    /// </summary>
+    [ForeignKey(nameof(ModuleId))]
+    public Module Module { get; set; } = null!;
 }

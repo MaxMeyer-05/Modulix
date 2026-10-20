@@ -29,21 +29,6 @@ public static class ModuleMapper
     };
 
     /// <summary>
-    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleEndpointsDetailDto"/>.
-    /// </summary>
-    /// <param name="endpoint">The <see cref="ModuleEndpoint"/> entity to be mapped.</param>
-    /// <returns>The corresponding <see cref="ModuleEndpointsDetailDto"/>.</returns>
-    public static ModuleEndpointsDetailDto ToModuleEndpointsDetailDto(this ModuleEndpoint endpoint) => new()
-    {
-        Id = endpoint.Id,
-        HttpMethod = endpoint.HttpMethod,
-        EndpointPath = endpoint.EndpointPath,
-        Status = endpoint.Status,
-        CreatedAtUtc = endpoint.CreatedAtUtc,
-        ModuleName = endpoint.Module.ModuleName
-    };
-
-    /// <summary>
     /// Maps a <see cref="Module"/> entity to its corresponding <see cref="ModuleDetailDto"/>.
     /// </summary>
     /// <param name="module">The <see cref="Module"/> entity to be mapped.</param>
@@ -57,23 +42,10 @@ public static class ModuleMapper
         ContainerId = module.ContainerId,
         ContainerPort = module.ContainerPort,
         Status = module.Status,
-        StoragePath = module.StoragePath,
+        CurrentVersion = module.CurrentVersion,
         CreatedAtUtc = module.CreatedAtUtc,
-        Endpoints = module.SubEndpoints.Select(e => e.ToEndpointDto()).ToList()
-    };
-
-    /// <summary>
-    /// Converts a <see cref="ModuleEndpoint"/> entity to a <see cref="ModuleEndpointDto"/>.
-    /// </summary>
-    /// <param name="endpoint">The <see cref="ModuleEndpoint"/> entity to be mapped.</param>
-    /// <returns>The corresponding <see cref="ModuleEndpointDto"/>.</returns>
-    public static ModuleEndpointDto ToEndpointDto(this ModuleEndpoint endpoint) => new()
-    {
-        Id = endpoint.Id,
-        HttpMethod = endpoint.HttpMethod,
-        EndpointPath = endpoint.EndpointPath,
-        Status = endpoint.Status,
-        CreatedAtUtc = endpoint.CreatedAtUtc
+        Endpoints = module.SubEndpoints.Select(e => e.ToSubEndpointDto()).ToList(),
+        Versions = module.Versions.Select(v => v.ToVersionDto()).ToList()
     };
 
     /// <summary>
@@ -84,7 +56,8 @@ public static class ModuleMapper
     public static Module ToModuleEntity(this CreateModuleDto moduleDto) => new()
     {
         ModuleName = moduleDto.ModuleName.Trim(),
-        Description = moduleDto.Description?.Trim() ?? string.Empty
+        Description = moduleDto.Description?.Trim() ?? string.Empty,
+        CurrentVersion = moduleDto.Version.Trim()
     };
 
     /// <summary>

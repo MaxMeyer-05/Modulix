@@ -73,16 +73,21 @@ public class ModuleDetailDto : ModuleDto
     public string? ContainerId { get; set; }
 
     /// <summary>
-    /// The host path where files are extracted.
+    /// The current version of the module.
     /// </summary>
-    /// <value>e.g., "/var/lib/modules/analytics"</value>
-    /// <example>/var/lib/modules/analytics</example>
-    public string StoragePath { get; set; } = null!;
+    /// <value>e.g., "v1.0.0"</value>
+    /// <example>v1.0.0</example>
+    public string CurrentVersion { get; set; } = null!;
 
     /// <summary>
     /// The list of registered sub-endpoints belonging to this module.
     /// </summary>
     public IEnumerable<ModuleEndpointDto> Endpoints { get; set; } = [];
+
+    /// <summary>
+    /// The list of versions associated with this module.
+    /// </summary>
+    public IEnumerable<ModuleVersionDto> Versions { get; set; } = [];
 }
 
 /// <summary>
@@ -190,6 +195,23 @@ public class CreateModuleDto
     public IFormFile ModuleFile { get; set; } = null!;
 
     /// <summary>
+    /// The initial version string of the module.
+    /// </summary>
+    /// <value>e.g., "v1.0.0"</value>
+    /// <example>v1.0.0</example>
+    [Required(ErrorMessage = "Version is required.")]
+    [MaxLength(50, ErrorMessage = "Version cannot exceed 50 characters.")]
+    public string Version { get; set; } = null!;
+
+    /// <summary>
+    /// An optional changelog for the initial version of the module.
+    /// </summary>
+    /// <value>e.g., Initial release with basic analytics features.</value>
+    /// <example>Initial release with basic analytics features.</example>
+    [MaxLength(500, ErrorMessage = "Changelog cannot exceed 500 characters.")]
+    public string? Changelog { get; set; }
+
+    /// <summary>
     /// The initial endpoints to be created for the module.
     /// </summary>
     public IEnumerable<CreateModuleEndpointDto>? InitialEndpoints { get; set; }
@@ -229,6 +251,23 @@ public class UpdateModuleFilesDto
     /// <example>module.zip</example>
     [Required(ErrorMessage = "Module file is required.")]
     public IFormFile ModuleFile { get; set; } = null!;
+
+    /// <summary>
+    /// The version string for the new module files.
+    /// </summary>
+    /// <value>e.g., "v1.1.0"</value>
+    /// <example>v1.1.0</example>
+    [Required(ErrorMessage = "Version is required.")]
+    [MaxLength(50, ErrorMessage = "Version cannot exceed 50 characters.")]
+    public string Version { get; set; } = null!;
+
+    /// <summary>
+    /// An optional changelog for the new module version.
+    /// </summary>
+    /// <value>e.g., Bug fixes and performance improvements.</value>
+    /// <example>Bug fixes and performance improvements.</example>
+    [MaxLength(500, ErrorMessage = "Changelog cannot exceed 500 characters.")]
+    public string? Changelog { get; set; }
 }
 
 /// <summary>

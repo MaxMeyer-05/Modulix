@@ -209,11 +209,14 @@ public class ModuleEndpointExtension
         {
             try
             {
+                var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
+                    ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
+
                 module.Status = ModuleStatus.Starting;
                 var containerId = await _dockerService.BuildContainerAsync(
                     module.Id,
-                    module.StoragePath,
-                    module.ModuleEntryAssemblyFileName,
+                    currentVersion.StoragePath,
+                    currentVersion.ModuleEntryAssemblyFileName,
                     module.ContainerPort,
                     ct);
                 module.ContainerId = containerId;

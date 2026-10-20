@@ -56,10 +56,16 @@ public class ScannerService : IScannerService
     /// <inheritdoc/>
     public async Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default)
     {
-        var module = await _context.Modules.Include(m => m.SubEndpoints).FirstOrDefaultAsync(m => m.Id == moduleId, ct);
+        var module = await _context.Modules
+            .Include(m => m.SubEndpoints)
+            .Include(m => m.Versions)
+            .FirstOrDefaultAsync(m => m.Id == moduleId, ct);
         if (module == null || module.Status != ModuleStatus.QueuedForScan) return;
 
-        module.ModuleEntryAssemblyFileName = result.EntryAssemblyFileName;
+        var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
+            ?? throw new InvalidOperationException($"Version '{module.CurrentVersion}' for module '{module.Id}' was not found.");
+
+        currentVersion.ModuleEntryAssemblyFileName = result.EntryAssemblyFileName;
         module.Status = ModuleStatus.Created;
         await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, result.DiscoveredEndpoints, ct);
 

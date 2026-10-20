@@ -20,6 +20,11 @@ public class ServerContext : DbContext
     public DbSet<ModuleEndpoint> ModuleEndpoints { get; set; } = null!;
 
     /// <summary>
+    /// Represents the collection of module versions in the database.
+    /// </summary>
+    public DbSet<ModuleVersion> ModuleVersions { get; set; } = null!;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ServerContext"/> class with the specified options.
     /// </summary>
     public ServerContext(DbContextOptions<ServerContext> options) 
@@ -43,6 +48,11 @@ public class ServerContext : DbContext
             entity.HasMany(m => m.SubEndpoints)
                 .WithOne(e => e.Module)
                 .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(m => m.Versions)
+                .WithOne(v => v.Module)
+                .HasForeignKey(v => v.ModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

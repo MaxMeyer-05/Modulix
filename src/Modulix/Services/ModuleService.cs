@@ -98,6 +98,7 @@ public class ModuleService : IModuleService
     {
         var module = await _context.Modules
             .Include(m => m.SubEndpoints)
+            .Include(m => m.Versions)
             .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
 
         if (module is null)
@@ -127,10 +128,13 @@ public class ModuleService : IModuleService
 
             if (string.IsNullOrWhiteSpace(module.ContainerId))
             {
+                var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
+                    ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
+
                 builtContainerId = await _dockerService.BuildContainerAsync(
                     module.Id,
-                    module.StoragePath,
-                    module.ModuleEntryAssemblyFileName,
+                    currentVersion.StoragePath,
+                    currentVersion.ModuleEntryAssemblyFileName,
                     module.ContainerPort,
                     ct);
                 module.ContainerId = builtContainerId;
@@ -170,6 +174,7 @@ public class ModuleService : IModuleService
     {
         var module = await _context.Modules
             .Include(m => m.SubEndpoints)
+            .Include(m => m.Versions)
             .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
 
         if (module is null)
@@ -201,6 +206,10 @@ public class ModuleService : IModuleService
         if (string.IsNullOrWhiteSpace(dto.BaseUrlPath))
             throw new ArgumentException("Base endpoint path cannot be empty.");
         var normalizedBasePath = dto.BaseUrlPath.Trim().TrimEnd('/').TrimStart('/');
+
+        if (string.IsNullOrWhiteSpace(dto.Version))
+            throw new ArgumentException("Module version cannot be empty.");
+        var normalizedVersion = dto.Version.Trim();
         
         // Ensure the used container ports are not conflicting
         var usedPorts = await _context.Modules.Select(m => m.ContainerPort).ToListAsync(ct);
@@ -214,12 +223,20 @@ public class ModuleService : IModuleService
         var module = dto.ToModuleEntity();
         module.BaseUrlPath = normalizedBasePath;
         module.ContainerPort = availablePort;
+        module.CurrentVersion = normalizedVersion;
 
         // Prepare the target path for extracting the module file
-        var targetPath = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, dto.ModuleFile, ct);
+        var targetPath = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
 
-        // Set the storage path for the module
-        module.StoragePath = targetPath;
+        // Create the initial version entry for the module
+        var initialVersion = new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = normalizedVersion,
+            Changelog = dto.Changelog?.Trim(),
+            StoragePath = targetPath
+        };
+        module.Versions.Add(initialVersion);
 
         // Add initial sub-endpoints for the module
         var manualRoutes = dto.InitialEndpoints?.ToList() ?? [];
@@ -238,14 +255,14 @@ public class ModuleService : IModuleService
         ScanEnqueueResponse scanResponse;
         try
         {
-            scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, module.StoragePath, ScanPriority.Create, ct);
-            module.ModuleEntryAssemblyFileName = scanResponse.WasQueued
+            scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, initialVersion.StoragePath, ScanPriority.Create, ct);
+            initialVersion.ModuleEntryAssemblyFileName = scanResponse.WasQueued
                 ? string.Empty
                 : (scanResponse.Result ?? throw new InvalidOperationException("The scanner did not return a scan result.")).EntryAssemblyFileName;
         }
         catch
         {
-            _directoryExtension.DeleteModuleDirectory(module.StoragePath, module.Id);
+            _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
             throw;
         }
 
@@ -271,10 +288,15 @@ public class ModuleService : IModuleService
             if (string.IsNullOrWhiteSpace(module.ContainerId) ||
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
-                _directoryExtension.DeleteModuleDirectory(module.StoragePath, module.Id);
+                _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
             }
 
             _context.Entry(module).State = EntityState.Detached;
+            foreach (var version in _context.ChangeTracker.Entries<ModuleVersion>()
+                .Where(entry => entry.Entity.ModuleId == module.Id).ToList())
+            {
+                version.State = EntityState.Detached;
+            }
             foreach (var endpoint in _context.ChangeTracker.Entries<ModuleEndpoint>()
                 .Where(entry => entry.Entity.ModuleId == module.Id).ToList())
             {
@@ -284,7 +306,7 @@ public class ModuleService : IModuleService
             throw;
         }
 
-        _logger.LogInformation("Created module with ID '{ModuleId}' and stored its files at '{StoragePath}'.", module.Id, module.StoragePath);
+        _logger.LogInformation("Created module with ID '{ModuleId}' (Version: '{Version}') and stored its files at '{StoragePath}'.", module.Id, initialVersion.Version, initialVersion.StoragePath);
 
         return new ModuleCreationResultDto
         {
@@ -305,7 +327,10 @@ public class ModuleService : IModuleService
     /// <inheritdoc/>
     public async Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default)
     {
-        var module = await _context.Modules.FindAsync([moduleId], ct);
+        var module = await _context.Modules
+            .Include(m => m.Versions)
+            .Include(m => m.SubEndpoints)
+            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
         if (module is null)
             return;
 
@@ -319,26 +344,21 @@ public class ModuleService : IModuleService
             await _dockerService.RemoveContainerAsync(module.ContainerId, module.Id, ct);
         }
 
-        if (Directory.Exists(module.StoragePath))
+        foreach (var version in module.Versions)
         {
-            try
-            {
-                Directory.Delete(module.StoragePath, true);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to delete storage path for module with ID '{ModuleId}'.", moduleId);
-            }
+            _directoryExtension.DeleteModuleDirectory(version.StoragePath, moduleId);
         }
 
-        var subEndpoints = _context.ModuleEndpoints.Where(se => se.ModuleId == moduleId).ToList();
+        var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, moduleId.ToString());
+        _directoryExtension.DeleteModuleDirectory(moduleBaseDirectory, moduleId);
 
         _context.Modules.Remove(module);
-        _context.ModuleEndpoints.RemoveRange(subEndpoints);
+        _context.ModuleEndpoints.RemoveRange(module.SubEndpoints);
+        _context.ModuleVersions.RemoveRange(module.Versions);
         await _context.SaveChangesAsync(ct);
 
         _reverseProxyService.RemoveModule(moduleId);
-        _logger.LogInformation("Deleted module with ID '{ModuleId}' and its associated sub-endpoints.", moduleId);
+        _logger.LogInformation("Deleted module with ID '{ModuleId}', its versions, and its associated sub-endpoints.", moduleId);
     }
 
     /// <inheritdoc/>
@@ -357,6 +377,7 @@ public class ModuleService : IModuleService
     {
         var module = await _context.Modules
             .Include(m => m.SubEndpoints)
+            .Include(m => m.Versions)
             .AsNoTracking()
             .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
         if (module is null)
@@ -390,10 +411,18 @@ public class ModuleService : IModuleService
     {
         var module = await _context.Modules
             .Include(module => module.SubEndpoints)
+            .Include(module => module.Versions)
             .SingleOrDefaultAsync(module => module.Id == moduleId, ct);
 
         if (module is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
+
+        if (string.IsNullOrWhiteSpace(file.Version))
+            throw new ArgumentException("Module version cannot be empty.");
+
+        var normalizedVersion = file.Version.Trim();
+        if (module.Versions.Any(v => v.Version.Equals(normalizedVersion, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Version '{normalizedVersion}' already exists for module '{moduleId}'.");
 
         if (!file.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The module file must be a ZIP archive.");
@@ -404,31 +433,29 @@ public class ModuleService : IModuleService
             throw new InvalidOperationException("Module endpoints must be confirmed before updating module files.");
         }
 
-        var previousVersion = (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status);
-        var versionDirectory = Path.Combine(_options.StorageBasePath, $"{module.Id:N}.{Guid.NewGuid():N}");
-        var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
+        var previousState = (module.ContainerId, module.CurrentVersion, module.Status);
+        var versionDirectory = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, normalizedVersion, file.ModuleFile, ct);
+        var newVersion = new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = normalizedVersion,
+            Changelog = file.Changelog?.Trim(),
+            StoragePath = versionDirectory
+        };
         EndpointDiscrepancyReportDto? report = null;
-
-        _logger.LogDebug("Temporary ZIP path for module with ID '{ModuleId}': {TmpZipPath}", moduleId, tmpZipPath);
 
         try
         {
-            await using (var stream = new FileStream(tmpZipPath, FileMode.CreateNew))
-            {
-                await file.ModuleFile.CopyToAsync(stream, ct);
-            }
-
-            _directoryExtension.ValidateModuleArchive(tmpZipPath);
-            Directory.CreateDirectory(versionDirectory);
-            _directoryExtension.ExtractModuleArchive(tmpZipPath, versionDirectory);
             ct.ThrowIfCancellationRequested();
 
             var scanResponse = await _endpointScanner.ScanOrEnqueueAsync(module.Id, versionDirectory, ScanPriority.Patch, ct);
-            module.StoragePath = versionDirectory;
+            module.CurrentVersion = normalizedVersion;
+            module.Versions.Add(newVersion);
 
             // Check if the scan was queued before proceeding with updating the module's entry assembly file name and creating the endpoint discrepancy report.
             if (scanResponse.WasQueued)
             {
+                newVersion.ModuleEntryAssemblyFileName = string.Empty;
                 _logger.LogInformation("Module scan for module with ID '{ModuleId}' was queued.", moduleId);
                 module.Status = ModuleStatus.QueuedForScan;
                 await _context.SaveChangesAsync(ct);
@@ -442,39 +469,35 @@ public class ModuleService : IModuleService
             }
 
             // Set the new entry assembly file name before creating the endpoint discrepancy report, as it may trigger container creation.
-            module.ModuleEntryAssemblyFileName = scanResponse.Result!.EntryAssemblyFileName;
+            newVersion.ModuleEntryAssemblyFileName = scanResponse.Result!.EntryAssemblyFileName;
             report = await _moduleEndpointExtension.CreateEndpointDiscrepancyReportAsync(module, scanResponse.Result.DiscoveredEndpoints, ct);
         }
         catch (Exception ex)
         {
-            if (module.ContainerId != previousVersion.ContainerId && !string.IsNullOrWhiteSpace(module.ContainerId))
+            if (module.ContainerId != previousState.ContainerId && !string.IsNullOrWhiteSpace(module.ContainerId))
             {
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id);
             }
 
-            (module.ContainerId, module.StoragePath, module.ModuleEntryAssemblyFileName, module.Status) = previousVersion;
+            (module.ContainerId, module.CurrentVersion, module.Status) = previousState;
+            module.Versions.Remove(newVersion);
+            _context.Entry(newVersion).State = EntityState.Detached;
             _context.Entry(module).State = EntityState.Unchanged;
             _directoryExtension.DeleteModuleDirectory(versionDirectory, module.Id);
 
             _logger.LogError(ex, "An error occurred while updating module files for module with ID '{ModuleId}'.", moduleId);
             throw;
         }
-        finally
+
+        // Remove old container when the new version is running; keep previous version directory for rollbacks
+        if (module.Status == ModuleStatus.Running &&
+            !string.IsNullOrWhiteSpace(previousState.ContainerId) &&
+            previousState.ContainerId != module.ContainerId)
         {
-            _directoryExtension.DeleteTemporaryFile(tmpZipPath, moduleId);
+            await _dockerService.TryRemoveModuleContainerAsync(previousState.ContainerId, module.Id);
         }
 
-        // Old container and directory cleanup logic
-        if (module.Status == ModuleStatus.Running)
-        {
-            if (string.IsNullOrWhiteSpace(previousVersion.ContainerId) ||
-                await _dockerService.TryRemoveModuleContainerAsync(previousVersion.ContainerId, module.Id))
-            {
-                _directoryExtension.DeleteModuleDirectory(previousVersion.StoragePath, module.Id);
-            }
-        }
-
-        _logger.LogInformation("Updated module files for module '{ModuleId}' (Status: {Status}).", moduleId, module.Status);
+        _logger.LogInformation("Updated module files for module '{ModuleId}' to version '{Version}' (Status: {Status}).", moduleId, normalizedVersion, module.Status);
         return new ModuleCreationResultDto
         {
             Module = module.ToModuleDetailDto(),

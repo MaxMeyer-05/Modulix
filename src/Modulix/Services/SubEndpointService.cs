@@ -59,6 +59,7 @@ public class SubEndpointService : ISubEndpointService
     {
         var module = await _context.Modules
             .Include(m => m.SubEndpoints)
+            .Include(m => m.Versions)
             .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
 
         if (module is null)
@@ -113,11 +114,14 @@ public class SubEndpointService : ISubEndpointService
                 module.ContainerId = null;
             }
 
+            var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
+                ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
+
             module.Status = ModuleStatus.Starting;
             candidateId = await _dockerService.BuildContainerAsync(
                 module.Id,
-                module.StoragePath,
-                module.ModuleEntryAssemblyFileName,
+                currentVersion.StoragePath,
+                currentVersion.ModuleEntryAssemblyFileName,
                 module.ContainerPort,
                 ct);
             module.ContainerId = candidateId;
@@ -167,7 +171,7 @@ public class SubEndpointService : ISubEndpointService
             .AsNoTracking()
             .ToListAsync(ct);
 
-        var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleEndpointsDetailDto()).ToList();
+        var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleSubEndpointsDetailDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
 
@@ -186,7 +190,7 @@ public class SubEndpointService : ISubEndpointService
             .Where(e => e.ModuleId == moduleId)
             .ToListAsync(ct);
 
-        var subEndpointDtos = subEndpoints.Select(se => se.ToEndpointDto()).ToList();
+        var subEndpointDtos = subEndpoints.Select(se => se.ToSubEndpointDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} sub-endpoints for module with ID '{ModuleId}'.", subEndpoints.Count, moduleId);
         return subEndpointDtos;
