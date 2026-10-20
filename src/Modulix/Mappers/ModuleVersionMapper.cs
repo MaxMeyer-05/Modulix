@@ -12,8 +12,8 @@ public static class ModuleVersionMapper
     /// <summary>
     /// Converts a <see cref="ModuleVersion"/> entity to a <see cref="ModuleVersionDto"/>.
     /// </summary>
-    /// <param name="entity">The ModuleVersion entity to convert.</param>
-    /// <returns>A ModuleVersionDto representing the entity.</returns>
+    /// <param name="entity">The <see cref="ModuleVersion"/> entity to convert.</param>
+    /// <returns>A <see cref="ModuleVersionDto"/> representing the entity.</returns>
     public static ModuleVersionDto ToVersionDto(this ModuleVersion entity)
     {
         return new ModuleVersionDto
@@ -24,5 +24,30 @@ public static class ModuleVersionMapper
             StoragePath = entity.StoragePath,
             ReleasedAtUtc = entity.ReleasedAtUtc
         };
+    }
+
+    /// <summary>
+    /// Converts a <see cref="ModuleVersionCreateDto"/> to a <see cref="ModuleVersion"/> entity.
+    /// </summary>
+    /// <param name="dto">The <see cref="ModuleVersionCreateDto"/> to convert.</param>
+    /// <returns>A <see cref="ModuleVersion"/> entity representing the DTO.</returns>
+    public static ModuleVersion ToVersionEntity(this ModuleVersionCreateDto dto)
+    {
+        return new ModuleVersion
+        {
+            Version = dto.Version,
+            Changelog = dto.Changelog
+        };
+    }
+
+    /// <summary>
+    /// Updates an existing <see cref="ModuleVersion"/> entity with values from a <see cref="ModuleVersionUpdateDto"/>.
+    /// </summary>
+    /// <param name="entity">The <see cref="ModuleVersion"/> entity to update.</param>
+    /// <param name="dto">The <see cref="ModuleVersionUpdateDto"/> containing the updated values.</param>
+    public static void UpdateVersionEntity(this ModuleVersion entity, ModuleVersionUpdateDto dto)
+    {
+        entity.Version = dto.Version ?? entity.Version;
+        entity.Changelog = dto.Changelog ?? entity.Changelog;
     }
 }
