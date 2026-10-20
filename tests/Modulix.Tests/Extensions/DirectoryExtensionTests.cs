@@ -67,16 +67,16 @@ public class DirectoryExtensionTests : IDisposable
     public async Task CreateModuleTargetPathAsync_ValidArchive_ExtractsContentsAndReplacesOnlyTargetModule()
     {
         var moduleId = Guid.NewGuid();
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString());
+        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(targetPath);
         await File.WriteAllTextAsync(Path.Combine(targetPath, "obsolete.dll"), "old");
-        var otherModulePath = Path.Combine(_options.StorageBasePath, Guid.NewGuid().ToString());
+        var otherModulePath = Path.Combine(_options.StorageBasePath, Guid.NewGuid().ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(otherModulePath);
         var otherModuleFile = Path.Combine(otherModulePath, "keep.dll");
         await File.WriteAllTextAsync(otherModuleFile, "keep");
         using var contents = CreateArchive(("module.dll", "assembly"), ("config/settings.json", "configuration"));
 
-        var result = await _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents, "MODULE.ZIP"));
+        var result = await _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents, "MODULE.ZIP"));
 
         Assert.Equal(targetPath, result);
         Assert.Equal("assembly", await File.ReadAllTextAsync(Path.Combine(result, "module.dll")));
@@ -91,14 +91,14 @@ public class DirectoryExtensionTests : IDisposable
     public async Task CreateModuleTargetPathAsync_InvalidUpload_PreservesExistingDirectory(string fileName, string payload)
     {
         var moduleId = Guid.NewGuid();
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString());
+        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(targetPath);
         var existingFile = Path.Combine(targetPath, "keep.dll");
         await File.WriteAllTextAsync(existingFile, "keep");
         using var contents = new MemoryStream(Encoding.UTF8.GetBytes(payload));
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents, fileName)));
+            _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents, fileName)));
 
         Assert.Equal("keep", await File.ReadAllTextAsync(existingFile));
     }
@@ -111,7 +111,7 @@ public class DirectoryExtensionTests : IDisposable
         using var contents = CreateArchive(("module.dll", "assembly"));
 
         await Assert.ThrowsAnyAsync<IOException>(() =>
-            _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents)));
+            _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
         Assert.Equal("existing file", await File.ReadAllTextAsync(_options.StorageBasePath));
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
@@ -124,7 +124,7 @@ public class DirectoryExtensionTests : IDisposable
         using var contents = new MemoryStream(Encoding.UTF8.GetBytes("not a zip"));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents)));
+            _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
     }
@@ -137,7 +137,7 @@ public class DirectoryExtensionTests : IDisposable
         using var contents = CreateArchive(("module.dll", "four"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents)));
+            _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
     }
@@ -150,7 +150,7 @@ public class DirectoryExtensionTests : IDisposable
             ("runtimes\\linux-x64\\", ""),
             ("runtimes\\linux-x64\\native\\libe_sqlite3.so", "native-binary"));
 
-        var result = await _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents));
+        var result = await _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents));
 
         var expectedFilePath = Path.Combine(result, "runtimes", "linux-x64", "native", "libe_sqlite3.so");
         Assert.True(File.Exists(expectedFilePath));
@@ -168,7 +168,7 @@ public class DirectoryExtensionTests : IDisposable
         using var contents = CreateArchive(("valid.dll", "valid"), (entryName, "malicious"));
 
         await Assert.ThrowsAsync<IOException>(() =>
-            _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents)));
+            _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
         Assert.False(File.Exists(Path.Combine(_options.StorageBasePath, "escaped.dll")));
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
@@ -182,7 +182,7 @@ public class DirectoryExtensionTests : IDisposable
         var cancellationToken = new CancellationToken(canceled: true);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            _sut.CreateModuleTargetPathAsync(moduleId, CreateFormFile(contents), cancellationToken));
+            _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents), cancellationToken));
 
         Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
     }
