@@ -73,7 +73,7 @@ public class ScannerServiceTests : IDisposable
         await _sut.ProcessQueuedScanResultAsync(Guid.NewGuid(), new ModuleScanResultDto
         {
             EntryAssemblyFileName = "scanned.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
         });
 
         Assert.Empty(await _context.Modules.ToListAsync());
@@ -94,13 +94,13 @@ public class ScannerServiceTests : IDisposable
         await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "stale.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/stale" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/stale" }]
         });
 
-        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).Include(item => item.Versions).SingleAsync();
         Assert.Equal(ModuleStatus.Running, persisted.Status);
         Assert.Equal("active-container", persisted.ContainerId);
-        Assert.Equal("module.dll", persisted.ModuleEntryAssemblyFileName);
+        Assert.Equal("module.dll", persisted.Versions.Single().ModuleEntryAssemblyFileName);
         Assert.Empty(persisted.SubEndpoints);
         Assert.Empty(_dockerService.Calls);
     }
@@ -113,11 +113,12 @@ public class ScannerServiceTests : IDisposable
     {
         var module = CreateTestModuleEntity("Queued module", "api/queued", 8080);
         module.Status = ModuleStatus.QueuedForScan;
-        module.ModuleEntryAssemblyFileName = "placeholder.dll";
+        module.Versions.Single().ModuleEntryAssemblyFileName = "placeholder.dll";
         if (hasManualEndpoint)
             module.SubEndpoints.Add(new ModuleEndpoint
             {
                 ModuleId = module.Id,
+                ModuleVersion = module.Versions.Single(),
                 HttpMethod = "GET",
                 EndpointPath = "/health",
                 Status = ModuleEndpointsStatus.PendingConfirmation
@@ -128,11 +129,11 @@ public class ScannerServiceTests : IDisposable
         await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "scanned.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
         });
 
-        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);
-        Assert.Equal("scanned.dll", persisted.ModuleEntryAssemblyFileName);
+        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).Include(item => item.Versions).SingleAsync(item => item.Id == module.Id);
+        Assert.Equal("scanned.dll", persisted.Versions.Single().ModuleEntryAssemblyFileName);
         Assert.Equal(ModuleStatus.Running, persisted.Status);
         Assert.Equal("replacement-container", persisted.ContainerId);
         Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(persisted.SubEndpoints).Status);
@@ -149,6 +150,7 @@ public class ScannerServiceTests : IDisposable
         module.SubEndpoints.Add(new ModuleEndpoint
         {
             ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/expected",
             Status = ModuleEndpointsStatus.PendingConfirmation
@@ -159,7 +161,7 @@ public class ScannerServiceTests : IDisposable
         await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "module.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/discovered" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/discovered" }]
         });
 
         var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);
@@ -224,18 +226,28 @@ public class ScannerServiceTests : IDisposable
 
     #region Test Fakes & Helpers
 
-    private static Module CreateTestModuleEntity(string name, string basePath, int port) => new()
+    private static Module CreateTestModuleEntity(string name, string basePath, int port)
     {
-        Id = Guid.NewGuid(),
-        ModuleName = name,
-        Description = "Description for " + name,
-        BaseUrlPath = basePath.TrimStart('/'),
-        ContainerPort = port,
-        StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
-        ModuleEntryAssemblyFileName = "module.dll",
-        Status = ModuleStatus.Created,
-        CreatedAtUtc = DateTime.UtcNow
-    };
+        var module = new Module
+        {
+            Id = Guid.NewGuid(),
+            ModuleName = name,
+            Description = "Description for " + name,
+            BaseUrlPath = basePath.TrimStart('/'),
+            ContainerPort = port,
+            CurrentVersion = "v1.0.0",
+            Status = ModuleStatus.Created,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        module.Versions.Add(new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = "v1.0.0",
+            StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
+            ModuleEntryAssemblyFileName = "module.dll"
+        });
+        return module;
+    }
 
     private sealed class FakeModuleEndpointScanner : IModuleEndpointScanner
     {

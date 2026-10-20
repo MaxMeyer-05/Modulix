@@ -191,10 +191,19 @@ public class ModuleVersionService : IModuleVersionService
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id);
             }
 
-            (module.ContainerId, module.CurrentVersion, module.Status) = previousState;
-            module.Versions.Remove(newVersion);
-            _context.Entry(newVersion).State = EntityState.Detached;
-            _context.Entry(module).State = EntityState.Unchanged;
+            var autoDetectChanges = _context.ChangeTracker.AutoDetectChangesEnabled;
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                (module.ContainerId, module.CurrentVersion, module.Status) = previousState;
+                module.Versions.Remove(newVersion);
+                _context.Entry(newVersion).State = EntityState.Detached;
+                _context.Entry(module).State = EntityState.Unchanged;
+            }
+            finally
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
+            }
             _directoryExtension.DeleteModuleDirectory(versionDirectory, module.Id);
 
             _logger.LogError(ex, "An error occurred while creating version '{Version}' for module with ID '{ModuleId}'.", normalizedVersion, moduleId);
