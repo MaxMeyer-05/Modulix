@@ -12,7 +12,6 @@ namespace Modulix.Database.Entities;
 /// </summary>
 [Table("modules")]
 [Index(nameof(BaseUrlPath), IsUnique = true)]
-[Index(nameof(StoragePath), IsUnique = true)]
 [Index(nameof(ContainerPort), IsUnique = true)]
 public class Module
 {
@@ -55,18 +54,12 @@ public class Module
     public int ContainerPort { get; set; }
 
     /// <summary>
-    /// The storage path of the module.
+    /// The current version of the module.
     /// </summary>
     [Required]
-    [MaxLength(500)]
+    [MaxLength(50)]
     [ConcurrencyCheck]
-    public string StoragePath { get; set; } = null!;
-
-    /// <summary>
-    /// The entry assembly file name of the module.
-    /// </summary>
-    [Required]
-    public string ModuleEntryAssemblyFileName { get; set; } = null!;
+    public string CurrentVersion { get; set; } = null!;
 
     /// <summary>
     /// The status of the module.
@@ -84,4 +77,9 @@ public class Module
     /// The sub-endpoints of the module.
     /// </summary>
     public ICollection<ModuleEndpoint> SubEndpoints { get; set; } = [];
+
+    /// <summary>
+    /// The versions of the module.
+    /// </summary>
+    public ICollection<ModuleVersion> Versions { get; set; } = [];
 }

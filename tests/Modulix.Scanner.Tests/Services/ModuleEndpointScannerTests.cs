@@ -279,6 +279,22 @@ public class ModuleEndpointScannerTests : IDisposable
         Assert.Equal(includeHealthyController, reflectionException.Types.Any(type => type?.Name == "HealthyController"));
     }
 
+    [Theory]
+    [InlineData("Microsoft.AspNetCore.CustomFeature")]
+    [InlineData("Microsoft.Extensions.CustomFeature")]
+    [Trait("Feature", "AssemblyLoading")]
+    public async Task ScanDirectoryAsync_MicrosoftPrefixedLocalDependency_LoadsFromModuleDirectory(string dependencyAssemblyName)
+    {
+        CreateModuleWithLocalDependency(dependencyAssemblyName);
+
+        var result = await _sut.ScanDirectoryAsync(_testRootDirectory);
+
+        Assert.Equal("ScannerModule.dll", result.EntryAssemblyFileName);
+        var endpoint = Assert.Single(result.DiscoveredEndpoints);
+        Assert.Equal("GET", endpoint.HttpMethod);
+        Assert.Equal("/healthy", endpoint.EndpointPath);
+    }
+
     #endregion
 
     #region Helper Methods
@@ -288,6 +304,30 @@ public class ModuleEndpointScannerTests : IDisposable
         File.Copy(assemblyPath, Path.Combine(_testRootDirectory, "ScannerModule.dll"));
         var runtimeConfigPath = Path.ChangeExtension(typeof(ModuleEndpointScannerTests).Assembly.Location, ".runtimeconfig.json");
         File.Copy(runtimeConfigPath, Path.Combine(_testRootDirectory, "ScannerModule.runtimeconfig.json"));
+    }
+
+    private void CreateModuleWithLocalDependency(string dependencyName)
+    {
+        var dependencyAssembly = new PersistedAssemblyBuilder(new AssemblyName(dependencyName), typeof(object).Assembly);
+        var dependencyModule = dependencyAssembly.DefineDynamicModule(dependencyName);
+        var dependencyType = dependencyModule.DefineType("CustomFeatureDependency", TypeAttributes.Public).CreateType()!;
+        dependencyAssembly.Save(Path.Combine(_testRootDirectory, $"{dependencyName}.dll"));
+
+        var moduleAssembly = new PersistedAssemblyBuilder(new AssemblyName("ScannerModule"), typeof(object).Assembly);
+        var module = moduleAssembly.DefineDynamicModule("ScannerModule");
+        module.DefineType("FeatureConsumer", TypeAttributes.Public, dependencyType).CreateType();
+
+        var controller = module.DefineType("HealthyController", TypeAttributes.Public, typeof(ControllerBase));
+        controller.SetCustomAttribute(new CustomAttributeBuilder(
+            typeof(RouteAttribute).GetConstructor([typeof(string)])!, ["healthy"]));
+
+        var action = controller.DefineMethod("Get", MethodAttributes.Public, typeof(void), Type.EmptyTypes);
+        action.SetCustomAttribute(new CustomAttributeBuilder(typeof(HttpGetAttribute).GetConstructor(Type.EmptyTypes)!, []));
+        action.GetILGenerator().Emit(OpCodes.Ret);
+        controller.CreateType();
+
+        moduleAssembly.Save(Path.Combine(_testRootDirectory, "ScannerModule.dll"));
+        File.WriteAllText(Path.Combine(_testRootDirectory, "ScannerModule.runtimeconfig.json"), "{}");
     }
 
     private void CreateModuleWithMissingDependency(bool includeHealthyController)

@@ -1,7 +1,7 @@
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-namespace Modulix.Services.Interfaces;
+namespace Modulix.Scanner.Interfaces;
 
 /// <summary>
 /// Provides functionality for discovering runnable entry points and HTTP endpoints 

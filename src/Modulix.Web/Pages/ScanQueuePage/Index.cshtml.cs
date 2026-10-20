@@ -1,4 +1,4 @@
-using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -124,47 +124,44 @@ public class IndexModel : PageModel
         try
         {
             _logger.LogInformation("Cancelling scan for module {ModuleId}.", moduleId);
-            await _modulixApiClient.ModuleManagement.CancelModuleScanAsync(
+            using var response = await _modulixApiClient.ScannerManagement.CancelModuleScanAsync(
                 moduleId,
                 ct: HttpContext.RequestAborted);
 
-            var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName : moduleId.ToString();
-            _userActivityService.Record(
-                User,
-                "Cancelled scan for",
-                targetName,
-                "x-circle",
-                UserActivityTone.Warning,
-                Url.Page("/ScanQueuePage/Index"));
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    error.StatusCode,
+                    error.Title,
+                    error.Detail,
+                    IsSuccess: false));
+            }
+            else
+            {
+                var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName : moduleId.ToString();
+                _userActivityService.Record(
+                    User,
+                    "Cancelled scan for",
+                    targetName,
+                    "x-circle",
+                    UserActivityTone.Warning,
+                    Url.Page("/ScanQueuePage/Index"));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                204,
-                "Scan cancelled",
-                $"Cancelled the queued scan for module {targetName}.",
-                IsSuccess: true));
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    (int)response.StatusCode,
+                    "Scan cancelled",
+                    $"Cancelled the queued scan for module {targetName}.",
+                    IsSuccess: true));
+            }
         }
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "Error cancelling scan for module {ModuleId}.", moduleId);
-            var statusCode = (int?)exception.StatusCode ?? 503;
-            var description = ReasonPhrases.GetReasonPhrase(statusCode);
-            if (exception.StatusCode.HasValue)
-            {
-                try
-                {
-                    var problem = JsonSerializer.Deserialize<ProblemDetails>(exception.Message, JsonSerializerOptions.Web);
-                    if (!string.IsNullOrWhiteSpace(problem?.Detail))
-                        description = problem.Detail;
-                }
-                catch (JsonException)
-                {
-                }
-            }
-
             TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                statusCode,
-                ReasonPhrases.GetReasonPhrase(statusCode),
-                description,
+                503,
+                ReasonPhrases.GetReasonPhrase(503),
+                "The API could not be reached. Please try again later.",
                 IsSuccess: false));
         }
 
@@ -179,8 +176,18 @@ public class IndexModel : PageModel
 
         try
         {
-            var items = await _modulixApiClient.ModuleManagement.GetScanQueueAsync(
+            using var response = await _modulixApiClient.ScannerManagement.GetScanQueueAsync(
                 ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ModelState.AddModelError(string.Empty, error.DisplayMessage);
+                return;
+            }
+
+            var items = await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(
+                cancellationToken: HttpContext.RequestAborted) ?? [];
 
             _logger.LogDebug("Successfully loaded {QueueCount} scan queue entries.", items.Count);
 
@@ -203,19 +210,7 @@ public class IndexModel : PageModel
         catch (HttpRequestException exception)
         {
             _logger.LogError(exception, "ERROR loading scan queue.");
-            var message = exception.StatusCode switch
-            {
-                HttpStatusCode.Unauthorized =>
-                    "401 Unauthorized: The API rejected your access token. Please sign in again.",
-                HttpStatusCode.InternalServerError =>
-                    "500 Internal Server Error: The API could not load the scan queue. Please try again later.",
-                HttpStatusCode statusCode when (int)statusCode >= 500 =>
-                    $"API server error (HTTP {(int)statusCode}). Please try again later.",
-                HttpStatusCode statusCode =>
-                    $"Failed to load scan queue (HTTP {(int)statusCode}).",
-                _ => "The API could not be reached. Please try again later."
-            };
-            ModelState.AddModelError(string.Empty, message);
+            ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
     }
 

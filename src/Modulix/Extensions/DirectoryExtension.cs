@@ -55,6 +55,51 @@ public class DirectoryExtension
     }
 
     /// <summary>
+    /// Extracts the contents of a module ZIP archive to the specified destination directory,
+    /// normalizing both Windows ('\') and Unix ('/') entry path separators across platforms.
+    /// </summary>
+    /// <param name="archivePath">The path to the module ZIP archive.</param>
+    /// <param name="destinationDirectoryPath">The directory to extract the archive contents into.</param>
+    /// <exception cref="IOException">Thrown if an archive entry attempts path traversal outside the destination directory.</exception>
+    public void ExtractModuleArchive(string archivePath, string destinationDirectoryPath)
+    {
+        var fullDestinationDirPath = Path.GetFullPath(destinationDirectoryPath);
+        if (!Path.EndsInDirectorySeparator(fullDestinationDirPath))
+            fullDestinationDirPath += Path.DirectorySeparatorChar;
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        using var archive = ZipFile.OpenRead(archivePath);
+        foreach (var entry in archive.Entries)
+        {
+            var normalizedEntryName = entry.FullName
+                .Replace('\\', Path.DirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar);
+
+            var fileDestinationPath = Path.GetFullPath(Path.Combine(fullDestinationDirPath, normalizedEntryName));
+            if (!fileDestinationPath.StartsWith(fullDestinationDirPath, comparison))
+                throw new IOException("Extracting Zip entry would have resulted in a file outside the specified destination directory.");
+
+            if (Path.GetFileName(fileDestinationPath).Length == 0)
+            {
+                if (entry.Length != 0)
+                    throw new IOException("Zip entry name ends in directory separator character but contains data.");
+
+                Directory.CreateDirectory(fileDestinationPath);
+            }
+            else
+            {
+                if (Path.GetDirectoryName(fileDestinationPath) is { Length: > 0 } parentDirectory)
+                    Directory.CreateDirectory(parentDirectory);
+
+                entry.ExtractToFile(fileDestinationPath, overwrite: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Deletes a temporary file used during module update.
     /// </summary>
     /// <param name="filePath">The path to the temporary file to delete.</param>
@@ -83,6 +128,30 @@ public class DirectoryExtension
         {
             if (Directory.Exists(directoryPath))
                 Directory.Delete(directoryPath, true);
+
+            var storageBaseFullPath = Path.GetFullPath(_options.StorageBasePath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var parentDir = Path.GetDirectoryName(Path.GetFullPath(directoryPath));
+
+            while (!string.IsNullOrEmpty(parentDir))
+            {
+                var normalizedParent = parentDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (string.Equals(normalizedParent, storageBaseFullPath, StringComparison.OrdinalIgnoreCase) ||
+                    !normalizedParent.StartsWith(storageBaseFullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (Directory.Exists(normalizedParent) && !Directory.EnumerateFileSystemEntries(normalizedParent).Any())
+                {
+                    Directory.Delete(normalizedParent, false);
+                    parentDir = Path.GetDirectoryName(normalizedParent);
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -90,16 +159,29 @@ public class DirectoryExtension
         }
     }
 
-        /// <summary>
-    /// Creates the target path for a module by extracting its files from the provided .zip archive.
+    /// <summary>
+    /// Creates the target path for a module version by extracting its files from the provided .zip archive.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="version">The version string of the module.</param>
     /// <param name="file">The .zip archive containing the module files.</param>
     /// <param name="ct">A cancellation token.</param>
     /// <returns>The path to the extracted module files.</returns>
-    public async Task<string> CreateModuleTargetPathAsync(Guid moduleId, IFormFile file, CancellationToken ct = default)
+    public async Task<string> CreateModuleTargetPathAsync(Guid moduleId, string version, IFormFile file, CancellationToken ct = default)
     {
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString());
+        if (string.IsNullOrWhiteSpace(version))
+            throw new ArgumentException("Module version cannot be empty.");
+
+        var normalizedVersion = version.Trim();
+        if (normalizedVersion is "." or ".." ||
+            normalizedVersion.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            normalizedVersion.Contains('/') ||
+            normalizedVersion.Contains('\\'))
+        {
+            throw new ArgumentException("Module version contains invalid path characters.");
+        }
+
+        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", normalizedVersion);
         if (file.Length == 0)
             throw new ArgumentException("Module file cannot be empty.");
         if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
@@ -127,7 +209,7 @@ public class DirectoryExtension
             }
 
             ValidateModuleArchive(tmpZipPath);
-            ZipFile.ExtractToDirectory(tmpZipPath, targetPath, true);
+            ExtractModuleArchive(tmpZipPath, targetPath);
             _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
         }
         catch

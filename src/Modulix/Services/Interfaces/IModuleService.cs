@@ -17,15 +17,22 @@ public interface IModuleService
     Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default);
 
     /// <summary>
-    /// Confirms the final list of endpoints for a module in PendingConfirmation state.
+    /// Starts a module with the specified details.
     /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="dto">The confirmed endpoints for the module.</param>
+    /// <param name="moduleId">The unique identifier of the module to start.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>The updated details of the module.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the module is not in PendingConfirmation state.</exception>
+    /// <returns>The updated details of the module after starting.</returns>
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default);
+    Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stops a module with the specified ID.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module to stop.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The updated details of the module after stopping.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
+    Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves all modules.
@@ -33,20 +40,6 @@ public interface IModuleService
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all module details.</returns>
     Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Retrieves detailed information about all registered sub-endpoints across all modules.
-    /// </summary>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>A collection of detailed sub-endpoint information.</returns>
-    Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Retrieves all modules currently in the scan queue along with their scan priority.
-    /// </summary>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>A collection of queued module scan entries.</returns>
-    Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
@@ -58,15 +51,6 @@ public interface IModuleService
     Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
-    /// Retrieves all registered sub-endpoints for a specific module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>A collection of all registered sub-endpoints for the specified module.</returns> 
-    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default);
-
-    /// <summary>
     /// Updates metadata for an existing module.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module to update.</param>
@@ -74,24 +58,6 @@ public interface IModuleService
     /// <param name="ct">The cancellation token.</param>
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
     Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default);
-
-    /// <summary>
-    /// Replaces the binary files of an existing module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module to update.</param>
-    /// <param name="file">The new binary file for the module.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if the module is not in a state that allows file updates.</exception>
-    Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default);
-
-    /// <summary>
-    /// Processes the result of a previously queued module scan.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module whose scan result is being processed.</param>
-    /// <param name="result">The result of the module scan.</param>
-    /// <param name="ct">The cancellation token.</param>
-    Task ProcessQueuedScanResultAsync(Guid moduleId, ModuleScanResultDto result, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes a module, cleans up its storage files, and removes all associated records.
