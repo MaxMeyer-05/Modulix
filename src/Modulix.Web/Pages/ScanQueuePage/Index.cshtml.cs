@@ -124,7 +124,7 @@ public class IndexModel : PageModel
         try
         {
             _logger.LogInformation("Cancelling scan for module {ModuleId}.", moduleId);
-            using var response = await _modulixApiClient.ModuleManagement.CancelModuleScanAsync(
+            using var response = await _modulixApiClient.ScannerManagement.CancelModuleScanAsync(
                 moduleId,
                 ct: HttpContext.RequestAborted);
 
@@ -176,7 +176,7 @@ public class IndexModel : PageModel
 
         try
         {
-            using var response = await _modulixApiClient.ModuleManagement.GetScanQueueAsync(
+            using var response = await _modulixApiClient.ScannerManagement.GetScanQueueAsync(
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)

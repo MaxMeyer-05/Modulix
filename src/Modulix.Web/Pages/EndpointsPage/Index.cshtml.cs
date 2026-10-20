@@ -112,7 +112,7 @@ public class IndexModel : PageModel
 
         try
         {
-            using var response = await _modulixApiClient.ModuleManagement.GetAllEndpointsDetailAsync(
+            using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)

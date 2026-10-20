@@ -5,30 +5,6 @@ using Modulix.Client.Models.Enums;
 namespace Modulix.Client.Models.Dtos;
 
 /// <summary>
-/// Represents a discovered HTTP route from a scanned module assembly.
-/// </summary>
-public class DiscoveredEndpointDto
-{
-    /// <summary>
-    /// The HTTP method.
-    /// </summary>
-    /// <value>e.g., GET, POST, PUT, DELETE</value>
-    /// <example>GET</example>
-    [Required]
-    [MaxLength(10)]
-    public string HttpMethod { get; set; } = null!;
-
-    /// <summary>
-    /// The relative endpoint route path.
-    /// </summary>
-    /// <value>e.g., /health, /items/{id}</value>
-    /// <example>/health</example>
-    [Required]
-    [MaxLength(200)]
-    public string EndpointPath { get; set; } = null!;
-}
-
-/// <summary>
 /// Represents the result of scanning a module's extracted binaries.
 /// </summary>
 public class ModuleScanResultDto
@@ -44,7 +20,7 @@ public class ModuleScanResultDto
     /// <summary>
     /// The list of discovered controller endpoints.
     /// </summary>
-    public List<DiscoveredEndpointDto> DiscoveredEndpoints { get; set; } = [];
+    public List<DiscoveredSubEndpointDto> DiscoveredEndpoints { get; set; } = [];
 }
 
 /// <summary>

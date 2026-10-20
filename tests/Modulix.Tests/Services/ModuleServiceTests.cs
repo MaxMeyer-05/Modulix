@@ -26,6 +26,7 @@ using Modulix.Models.Options;
 
 using Modulix.Docker.Services;
 using Modulix.ReverseProxy.Services;
+using Modulix.Scanner.Interfaces;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
@@ -47,6 +48,8 @@ public class ModuleServiceTests : IDisposable
     private readonly FakeDockerService _dockerService;
     private readonly ReverseProxyService _reverseProxyService;
     private readonly FailingSaveInterceptor _saveInterceptor = new();
+    private readonly SubEndpointService _subEndpointService;
+    private readonly ScannerService _scannerService;
     private readonly ModuleService _sut;
 
     #region Setup & Teardown
@@ -74,6 +77,22 @@ public class ModuleServiceTests : IDisposable
         _endpointScanner = new FakeModuleEndpointScanner();
         _dockerService = new FakeDockerService();
         _reverseProxyService = new ReverseProxyService(NullLogger<ReverseProxyService>.Instance);
+        var moduleEndpointExtension = new ModuleEndpointExtension(
+            _context,
+            NullLogger<ModuleEndpointExtension>.Instance,
+            _dockerService,
+            _reverseProxyService);
+
+        _subEndpointService = new SubEndpointService(
+            _context,
+            NullLogger<SubEndpointService>.Instance,
+            _dockerService,
+            moduleEndpointExtension);
+        _scannerService = new ScannerService(
+            _context,
+            NullLogger<ScannerService>.Instance,
+            _endpointScanner,
+            moduleEndpointExtension);
 
         _sut = new ModuleService(
             _context,
@@ -82,7 +101,7 @@ public class ModuleServiceTests : IDisposable
             _dockerService,
             _endpointScanner,
             new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, moduleOptions),
-            new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService, _reverseProxyService),
+            moduleEndpointExtension,
             _reverseProxyService);
     }
 
@@ -616,324 +635,6 @@ public class ModuleServiceTests : IDisposable
 
     #endregion
 
-    #region ConfirmEndpoints Tests
-
-    [Fact]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_ModuleNotFound_ThrowsKeyNotFoundException()
-    {
-        // Arrange
-        var nonExistentId = Guid.NewGuid();
-        var dto = new ConfirmEndpointsDto();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _sut.ConfirmEndpointsAsync(nonExistentId, dto));
-
-        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_ModuleNotInPendingConfirmationStatus_ThrowsInvalidOperationException()
-    {
-        // Arrange
-        var module = CreateTestModuleEntity("Active Module", "api/v1/active", 8080);
-        module.Status = ModuleStatus.Created;
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var dto = new ConfirmEndpointsDto();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.ConfirmEndpointsAsync(module.Id, dto));
-
-        Assert.Equal($"Module '{module.Id}' is not in PendingConfirmation status.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_ValidDiscrepancies_ActivatesMissingAndRemovesExtraEndpoints()
-    {
-        // Arrange
-        var module = CreateTestModuleEntity("Pending Module", "api/v1/pending", 8080);
-        module.Status = ModuleStatus.PendingConfirmation;
-
-        var missingEndpoint = new ModuleEndpoint
-        {
-            Id = Guid.NewGuid(),
-            ModuleId = module.Id,
-            HttpMethod = "GET",
-            EndpointPath = "/health",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        };
-
-        var extraEndpoint = new ModuleEndpoint
-        {
-            Id = Guid.NewGuid(),
-            ModuleId = module.Id,
-            HttpMethod = "POST",
-            EndpointPath = "/legacy",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        };
-
-        module.SubEndpoints.Add(missingEndpoint);
-        module.SubEndpoints.Add(extraEndpoint);
-
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var confirmDto = new ConfirmEndpointsDto
-        {
-            ConfirmedEndpoints =
-            [
-                new EndpointDiscrepancyReportDto
-                {
-                    ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = missingEndpoint.HttpMethod, EndpointPath = missingEndpoint.EndpointPath }],
-                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = extraEndpoint.HttpMethod, EndpointPath = extraEndpoint.EndpointPath }]
-                }
-            ]
-        };
-
-        // Act
-        var result = await _sut.ConfirmEndpointsAsync(module.Id, confirmDto);
-
-        // Assert - Return DTO
-        Assert.Equal(ModuleStatus.Running, result.Status);
-
-        // Assert - Database state
-        var updatedExtra = await _context.ModuleEndpoints.FindAsync(extraEndpoint.Id);
-        Assert.NotNull(updatedExtra);
-        Assert.Equal(ModuleEndpointsStatus.Active, updatedExtra.Status);
-
-        var removedMissing = await _context.ModuleEndpoints.FindAsync(missingEndpoint.Id);
-        Assert.Null(removedMissing);
-    }
-
-    [Fact]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_SamePathWithDifferentHttpMethod_DoesNotConfirmEndpoint()
-    {
-        // Arrange
-        var module = CreateTestModuleEntity("Pending Module", "api/v1/pending-method", 8082);
-        module.Status = ModuleStatus.PendingConfirmation;
-
-        var pendingEndpoint = new ModuleEndpoint
-        {
-            Id = Guid.NewGuid(),
-            ModuleId = module.Id,
-            HttpMethod = "GET",
-            EndpointPath = "/health",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        };
-
-        module.SubEndpoints.Add(pendingEndpoint);
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var confirmDto = new ConfirmEndpointsDto
-        {
-            ConfirmedEndpoints =
-            [
-                new EndpointDiscrepancyReportDto
-                {
-                    ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/health" }]
-                }
-            ]
-        };
-
-        // Act
-        var result = await _sut.ConfirmEndpointsAsync(module.Id, confirmDto);
-
-        // Assert
-        var updatedEndpoint = await _context.ModuleEndpoints.FindAsync(pendingEndpoint.Id);
-        Assert.NotNull(updatedEndpoint);
-        Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, updatedEndpoint.Status);
-        Assert.Equal(ModuleStatus.PendingConfirmation, result.Status);
-        Assert.Empty(_dockerService.Calls);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_IncompleteConfirmation_StartsOnlyAfterLastDecision(
-        bool confirmMissing, bool confirmExtra)
-    {
-        var module = CreateTestModuleEntity("Partial Confirmation", "api/v1/partial", 8083);
-        module.Status = ModuleStatus.PendingConfirmation;
-        module.SubEndpoints.Add(new ModuleEndpoint
-        {
-            ModuleId = module.Id,
-            HttpMethod = "GET",
-            EndpointPath = "/health",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        });
-        module.SubEndpoints.Add(new ModuleEndpoint
-        {
-            ModuleId = module.Id,
-            HttpMethod = "POST",
-            EndpointPath = "/legacy",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        });
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var missing = new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" };
-        var extra = new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" };
-        var partial = new ConfirmEndpointsDto
-        {
-            ConfirmedEndpoints = confirmMissing || confirmExtra
-                ? [new EndpointDiscrepancyReportDto
-                {
-                    ModuleId = module.Id,
-                    MissingEndpoints = confirmMissing ? [missing] : null,
-                    ExtraEndpoints = confirmExtra ? [extra] : null
-                }]
-                : []
-        };
-
-        var pendingResult = await _sut.ConfirmEndpointsAsync(module.Id, partial);
-
-        Assert.Equal(ModuleStatus.PendingConfirmation, pendingResult.Status);
-        Assert.Null(pendingResult.ContainerId);
-        Assert.Empty(_dockerService.Calls);
-        var persisted = await _context.Modules.AsNoTracking().SingleAsync(item => item.Id == module.Id);
-        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
-        var endpoints = await _context.ModuleEndpoints.AsNoTracking().Where(item => item.ModuleId == module.Id).ToListAsync();
-        Assert.Equal(confirmMissing ? 1 : 2, endpoints.Count);
-        Assert.Equal(confirmExtra ? ModuleEndpointsStatus.Active : ModuleEndpointsStatus.PendingConfirmation,
-            endpoints.Single(endpoint => endpoint.EndpointPath == "/legacy").Status);
-
-        var confirmedResult = await _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
-        {
-            ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
-            {
-                ModuleId = module.Id,
-                MissingEndpoints = [missing],
-                ExtraEndpoints = [extra]
-            }]
-        });
-
-        Assert.Equal(ModuleStatus.Running, confirmedResult.Status);
-        Assert.Equal(["build", "start", "ready"], _dockerService.Calls);
-        Assert.DoesNotContain(confirmedResult.Endpoints, endpoint => endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_ProvisioningFails_PersistsFailedStatus(bool failBuild)
-    {
-        var module = CreateTestModuleEntity("Failed Confirmation", "api/v1/failed-confirmation", 8084);
-        module.Status = ModuleStatus.PendingConfirmation;
-        module.SubEndpoints.Add(new ModuleEndpoint
-        {
-            ModuleId = module.Id,
-            HttpMethod = "GET",
-            EndpointPath = "/health",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        });
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-        var failure = new InvalidOperationException("Provisioning failed.");
-        if (failBuild)
-            _dockerService.BuildException = failure;
-        else
-            _dockerService.StartException = failure;
-
-        var result = await _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
-        {
-            ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
-            {
-                ModuleId = module.Id,
-                ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
-            }]
-        });
-
-        Assert.Equal(ModuleStatus.Failed, result.Status);
-        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(result.Endpoints).Status);
-        var persisted = await _context.Modules.AsNoTracking().SingleAsync();
-        Assert.Equal(ModuleStatus.Failed, persisted.Status);
-        Assert.Equal(failBuild ? null : "replacement-container", persisted.ContainerId);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    [Trait("Feature", "ConfirmEndpoints")]
-    public async Task ConfirmEndpointsAsync_SaveFails_CleansCandidateAndPreservesPendingModule(bool cleanupFails, bool cancelSave)
-    {
-        var module = CreateTestModuleEntity("Unsaved Confirmation", "api/v1/unsaved-confirmation", 8085);
-        module.Status = ModuleStatus.PendingConfirmation;
-        module.StoragePath = Path.Combine(_testRootDirectory, "pending-module");
-        Directory.CreateDirectory(module.StoragePath);
-        await File.WriteAllTextAsync(Path.Combine(module.StoragePath, "module.dll"), "original");
-        module.SubEndpoints.Add(new ModuleEndpoint
-        {
-            ModuleId = module.Id,
-            HttpMethod = "GET",
-            EndpointPath = "/health",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        });
-        module.SubEndpoints.Add(new ModuleEndpoint
-        {
-            ModuleId = module.Id,
-            HttpMethod = "POST",
-            EndpointPath = "/legacy",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        });
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-        using var cancellation = new CancellationTokenSource();
-        Exception failure = cancelSave
-            ? new OperationCanceledException(cancellation.Token)
-            : new InvalidOperationException("Database save failed.");
-        _saveInterceptor.ExceptionToThrow = failure;
-        if (cancelSave)
-            _saveInterceptor.BeforeSave = cancellation.Cancel;
-        if (cleanupFails)
-            _dockerService.RemoveException = new InvalidOperationException("Cleanup failed.");
-
-        var exception = await Record.ExceptionAsync(() =>
-            _sut.ConfirmEndpointsAsync(module.Id, new ConfirmEndpointsDto
-            {
-                ConfirmedEndpoints = [new EndpointDiscrepancyReportDto
-                {
-                    ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }],
-                    ExtraEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" }]
-                }]
-            }, cancellation.Token));
-
-        Assert.Same(failure, exception);
-        Assert.Equal(["build", "start", "ready", "remove:replacement-container"], _dockerService.Calls);
-        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
-        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
-        Assert.Null(persisted.ContainerId);
-        Assert.Equal(2, persisted.SubEndpoints.Count);
-        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
-        Assert.Equal("original", await File.ReadAllTextAsync(Path.Combine(module.StoragePath, "module.dll")));
-
-        _saveInterceptor.ExceptionToThrow = null;
-        _saveInterceptor.BeforeSave = null;
-        await _context.SaveChangesAsync();
-        persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
-        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
-        Assert.Null(persisted.ContainerId);
-        Assert.Equal(2, persisted.SubEndpoints.Count);
-        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
-    }
-
-    #endregion
-
     #region GetAllModules Tests
 
     [Fact]
@@ -1012,46 +713,6 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal("Metrics", result.ModuleName);
         Assert.Single(result.Endpoints);
         Assert.Equal("/prometheus", result.Endpoints.First().EndpointPath);
-    }
-
-    #endregion
-
-    #region GetModuleSubEndpoints Tests
-
-    [Fact]
-    [Trait("Feature", "GetModuleSubEndpoints")]
-    public async Task GetModuleSubEndpointsAsync_ModuleNotFound_ThrowsKeyNotFoundException()
-    {
-        // Arrange
-        var nonExistentId = Guid.NewGuid();
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _sut.GetModuleEndpointsAsync(nonExistentId));
-
-        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
-    }
-
-    [Fact]
-    [Trait("Feature", "GetModuleSubEndpoints")]
-    public async Task GetModuleSubEndpointsAsync_ModuleExists_ReturnsAllSubEndpoints()
-    {
-        // Arrange
-        var module = CreateTestModuleEntity("Gateway", "api/v1/gw", 8004);
-        var ep1 = new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = module.Id, HttpMethod = "GET", EndpointPath = "/a" };
-        var ep2 = new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = module.Id, HttpMethod = "POST", EndpointPath = "/b" };
-
-        _context.Modules.Add(module);
-        _context.ModuleEndpoints.AddRange(ep1, ep2);
-        await _context.SaveChangesAsync();
-
-        // Act
-        var result = (await _sut.GetModuleEndpointsAsync(module.Id)).ToList();
-
-        // Assert
-        Assert.Equal(2, result.Count);
-        Assert.Contains(result, e => e.EndpointPath == "/a" && e.HttpMethod == "GET");
-        Assert.Contains(result, e => e.EndpointPath == "/b" && e.HttpMethod == "POST");
     }
 
     #endregion
@@ -1497,7 +1158,7 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal("original.dll", module.ModuleEntryAssemblyFileName);
         Assert.Empty(_dockerService.Calls);
 
-        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
+        await _scannerService.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "updated.dll",
             DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
@@ -1519,113 +1180,6 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal("GET", endpoint.HttpMethod);
         Assert.Equal("/health", endpoint.EndpointPath);
         Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status);
-    }
-
-    #endregion
-
-    #region ProcessQueuedScanResult Tests
-
-    [Fact]
-    [Trait("Feature", "ProcessQueuedScanResult")]
-    public async Task ProcessQueuedScanResultAsync_DeletedModule_DoesNotRecreateModuleOrBuildContainer()
-    {
-        await _sut.ProcessQueuedScanResultAsync(Guid.NewGuid(), new ModuleScanResultDto
-        {
-            EntryAssemblyFileName = "scanned.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
-        });
-
-        Assert.Empty(await _context.Modules.ToListAsync());
-        Assert.Empty(await _context.ModuleEndpoints.ToListAsync());
-        Assert.Empty(_dockerService.Calls);
-    }
-
-    [Fact]
-    [Trait("Feature", "ProcessQueuedScanResult")]
-    public async Task ProcessQueuedScanResultAsync_ModuleAlreadyRunning_DoesNotOverwriteActiveVersion()
-    {
-        var module = CreateTestModuleEntity("Running module", "api/running", 8080);
-        module.Status = ModuleStatus.Running;
-        module.ContainerId = "active-container";
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
-        {
-            EntryAssemblyFileName = "stale.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/stale" }]
-        });
-
-        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync();
-        Assert.Equal(ModuleStatus.Running, persisted.Status);
-        Assert.Equal("active-container", persisted.ContainerId);
-        Assert.Equal("module.dll", persisted.ModuleEntryAssemblyFileName);
-        Assert.Empty(persisted.SubEndpoints);
-        Assert.Empty(_dockerService.Calls);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Feature", "ProcessQueuedScanResult")]
-    public async Task ProcessQueuedScanResultAsync_DiscoveredEntryAssembly_PersistsActualAssemblyBeforeProvisioning(bool hasManualEndpoint)
-    {
-        var module = CreateTestModuleEntity("Queued module", "api/queued", 8080);
-        module.Status = ModuleStatus.QueuedForScan;
-        module.ModuleEntryAssemblyFileName = "placeholder.dll";
-        if (hasManualEndpoint)
-            module.SubEndpoints.Add(new ModuleEndpoint
-            {
-                ModuleId = module.Id,
-                HttpMethod = "GET",
-                EndpointPath = "/health",
-                Status = ModuleEndpointsStatus.PendingConfirmation
-            });
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
-        {
-            EntryAssemblyFileName = "scanned.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
-        });
-
-        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);
-        Assert.Equal("scanned.dll", persisted.ModuleEntryAssemblyFileName);
-        Assert.Equal(ModuleStatus.Running, persisted.Status);
-        Assert.Equal("replacement-container", persisted.ContainerId);
-        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(persisted.SubEndpoints).Status);
-        Assert.Equal("scanned.dll", _dockerService.BuiltEntryAssembly);
-        Assert.Equal(new[] { "build", "start", "ready" }, _dockerService.Calls);
-    }
-
-    [Fact]
-    [Trait("Feature", "ProcessQueuedScanResult")]
-    public async Task ProcessQueuedScanResultAsync_EndpointDiscrepancy_PersistsPendingRoutesWithoutStartingContainer()
-    {
-        var module = CreateTestModuleEntity("Queued module", "api/queued", 8080);
-        module.Status = ModuleStatus.QueuedForScan;
-        module.SubEndpoints.Add(new ModuleEndpoint
-        {
-            ModuleId = module.Id,
-            HttpMethod = "GET",
-            EndpointPath = "/expected",
-            Status = ModuleEndpointsStatus.PendingConfirmation
-        });
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
-        {
-            EntryAssemblyFileName = "module.dll",
-            DiscoveredEndpoints = [new DiscoveredEndpointDto { HttpMethod = "POST", EndpointPath = "/discovered" }]
-        });
-
-        var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);
-        Assert.Equal(ModuleStatus.PendingConfirmation, persisted.Status);
-        Assert.Equal(new[] { "/discovered", "/expected" }, persisted.SubEndpoints.Select(endpoint => endpoint.EndpointPath).Order());
-        Assert.All(persisted.SubEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.PendingConfirmation, endpoint.Status));
-        Assert.Empty(_dockerService.Calls);
     }
 
     #endregion
@@ -1897,7 +1451,7 @@ public class ModuleServiceTests : IDisposable
         Assert.Empty(_reverseProxyService.GetConfig().Routes);
 
         // 2. Confirm extra endpoint -> Running (cluster and active routes registered)
-        var confirmResult = await _sut.ConfirmEndpointsAsync(moduleId, new ConfirmEndpointsDto
+        var confirmResult = await _subEndpointService.ConfirmSubEndpointsAsync(moduleId, new ConfirmEndpointsDto
         {
             ConfirmedEndpoints =
             [
@@ -1930,7 +1484,7 @@ public class ModuleServiceTests : IDisposable
         Assert.Empty(_reverseProxyService.GetConfig().Routes);
 
         // 4. Process queued scan result with matching endpoints -> Running (re-registered in proxy)
-        await _sut.ProcessQueuedScanResultAsync(moduleId, new ModuleScanResultDto
+        await _scannerService.ProcessQueuedScanResultAsync(moduleId, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "module.dll",
             DiscoveredEndpoints =
@@ -1947,57 +1501,6 @@ public class ModuleServiceTests : IDisposable
         await _sut.DeleteModuleAsync(moduleId);
         Assert.Empty(_reverseProxyService.GetConfig().Clusters);
         Assert.Empty(_reverseProxyService.GetConfig().Routes);
-    }
-
-    #endregion
-
-    #region GetScanQueue Tests
-
-    [Fact]
-    [Trait("Feature", "GetScanQueue")]
-    public async Task GetScanQueueAsync_EmptyQueue_ReturnsEmptyCollection()
-    {
-        var result = await _sut.GetScanQueueAsync();
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    [Trait("Feature", "GetScanQueue")]
-    public async Task GetScanQueueAsync_QueuedItems_ResolvesModuleNamesAndPreservesOrderAndPriority()
-    {
-        var patchModule = CreateTestModuleEntity("PatchModule", "api/patch", 8081);
-        patchModule.Status = ModuleStatus.QueuedForScan;
-        var createModule = CreateTestModuleEntity("CreateModule", "api/create", 8082);
-        createModule.Status = ModuleStatus.QueuedForScan;
-        _context.Modules.AddRange(patchModule, createModule);
-        await _context.SaveChangesAsync();
-
-        var unknownModuleId = Guid.NewGuid();
-        _endpointScanner.QueuedScans =
-        [
-            new ModuleScanQueueItemDto { ModuleId = patchModule.Id, Priority = ScanPriority.Patch, IsRunning = true },
-            new ModuleScanQueueItemDto { ModuleId = createModule.Id, Priority = ScanPriority.Create, IsRunning = false },
-            new ModuleScanQueueItemDto { ModuleId = unknownModuleId, Priority = ScanPriority.Create, IsRunning = false }
-        ];
-
-        var result = (await _sut.GetScanQueueAsync()).ToList();
-
-        Assert.Equal(3, result.Count);
-        Assert.Equal(patchModule.Id, result[0].ModuleId);
-        Assert.Equal("PatchModule", result[0].ModuleName);
-        Assert.Equal(ScanPriority.Patch, result[0].Priority);
-        Assert.True(result[0].IsRunning);
-
-        Assert.Equal(createModule.Id, result[1].ModuleId);
-        Assert.Equal("CreateModule", result[1].ModuleName);
-        Assert.Equal(ScanPriority.Create, result[1].Priority);
-        Assert.False(result[1].IsRunning);
-
-        Assert.Equal(unknownModuleId, result[2].ModuleId);
-        Assert.Equal(string.Empty, result[2].ModuleName);
-        Assert.Equal(ScanPriority.Create, result[2].Priority);
-        Assert.False(result[2].IsRunning);
     }
 
     #endregion
@@ -2194,6 +1697,20 @@ public class ModuleServiceTests : IDisposable
                 await BeforeRemove(containerId);
             if (RemoveException is not null)
                 throw RemoveException;
+        }
+
+        public async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
+        {
+            using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 

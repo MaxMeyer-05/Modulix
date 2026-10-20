@@ -11,7 +11,7 @@ using Modulix.Database.DbContexts;
 namespace Modulix.Database.Migrations
 {
     [DbContext(typeof(ServerContext))]
-    [Migration("20261012165639_InitialCreate")]
+    [Migration("20261020081021_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -41,12 +41,14 @@ namespace Modulix.Database.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
+                    b.Property<string>("CurrentVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ModuleEntryAssemblyFileName")
-                        .IsRequired()
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ModuleName")
@@ -58,21 +60,12 @@ namespace Modulix.Database.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("StoragePath")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
                     b.HasIndex("BaseUrlPath")
                         .IsUnique();
 
                     b.HasIndex("ContainerPort")
-                        .IsUnique();
-
-                    b.HasIndex("StoragePath")
                         .IsUnique();
 
                     b.ToTable("modules");
@@ -100,16 +93,65 @@ namespace Modulix.Database.Migrations
                     b.Property<Guid>("ModuleId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ModuleVersionId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ModuleVersionId");
+
                     b.HasIndex("ModuleId", "HttpMethod", "EndpointPath")
                         .IsUnique();
 
                     b.ToTable("module_endpoints");
+                });
+
+            modelBuilder.Entity("Modulix.Database.Entities.ModuleVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Changelog")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModuleEntryAssemblyFileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ModuleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReleasedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoragePath")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModuleId");
+
+                    b.HasIndex("StoragePath")
+                        .IsUnique();
+
+                    b.HasIndex("Version", "ModuleId")
+                        .IsUnique();
+
+                    b.ToTable("module_versions");
                 });
 
             modelBuilder.Entity("Modulix.Database.Entities.ModuleEndpoint", b =>
@@ -120,12 +162,38 @@ namespace Modulix.Database.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Modulix.Database.Entities.ModuleVersion", "ModuleVersion")
+                        .WithMany("DiscoveredEndpoints")
+                        .HasForeignKey("ModuleVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Module");
+
+                    b.Navigation("ModuleVersion");
+                });
+
+            modelBuilder.Entity("Modulix.Database.Entities.ModuleVersion", b =>
+                {
+                    b.HasOne("Modulix.Database.Entities.Module", "Module")
+                        .WithMany("Versions")
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Module");
                 });
 
             modelBuilder.Entity("Modulix.Database.Entities.Module", b =>
                 {
                     b.Navigation("SubEndpoints");
+
+                    b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("Modulix.Database.Entities.ModuleVersion", b =>
+                {
+                    b.Navigation("DiscoveredEndpoints");
                 });
 #pragma warning restore 612, 618
         }

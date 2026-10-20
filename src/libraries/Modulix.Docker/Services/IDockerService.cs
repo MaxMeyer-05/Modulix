@@ -45,4 +45,12 @@ public interface IDockerService
     /// <param name="moduleId">The module identifier used to delete tagged images.</param>
     /// <param name="ct">The cancellation token.</param>
     Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Attempts to remove a Docker container associated with a module.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to remove.</param>
+    /// <param name="moduleId">The ID of the module associated with the container.</param>
+    /// <returns>True if the container was successfully removed; otherwise, false.</returns>
+    Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId);
 }

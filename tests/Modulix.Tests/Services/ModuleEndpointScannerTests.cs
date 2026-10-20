@@ -23,6 +23,8 @@ using Modulix.Client.Models.Enums;
 
 using Modulix.Docker.Options;
 
+using Modulix.Scanner;
+using Modulix.Scanner.Interfaces;
 using Modulix.Services;
 using Modulix.Services.Interfaces;
 
@@ -56,7 +58,7 @@ public class ModuleEndpointScannerTests : IDisposable
         _context.Database.EnsureCreated();
         _serviceProvider = new ServiceCollection()
             .AddSingleton(_context)
-            .AddSingleton<IModuleService>(_moduleService)
+            .AddSingleton<IScannerService>(_moduleService)
             .BuildServiceProvider();
         _responder = RespondAsync;
         _client = new DockerClientConfiguration(new Uri("http://docker.test"),
@@ -580,7 +582,7 @@ public class ModuleEndpointScannerTests : IDisposable
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(stream.ToArray()) };
     }
 
-    private sealed class RecordingModuleService : IModuleService
+    private sealed class RecordingModuleService : IScannerService
     {
         public Channel<(Guid ModuleId, ModuleScanResultDto Result)> Results { get; } =
             Channel.CreateUnbounded<(Guid, ModuleScanResultDto)>();
@@ -592,18 +594,7 @@ public class ModuleEndpointScannerTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public Task<ModuleCreationResultDto> CreateModuleAsync(CreateModuleDto dto, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<ModuleDetailDto> StartModuleAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<ModuleDetailDto> StopModuleAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<ModuleDetailDto> ConfirmEndpointsAsync(Guid moduleId, ConfirmEndpointsDto dto, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<IEnumerable<ModuleEndpointsDetailDto>> GetAllEndpointsDetailAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<IEnumerable<ModuleEndpointDto>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<ModuleCreationResultDto> UpdateModuleFilesAsync(Guid moduleId, UpdateModuleFilesDto file, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task DeleteModuleAsync(Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeDockerHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder) : HttpMessageHandler

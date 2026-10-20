@@ -128,6 +128,30 @@ public class DirectoryExtension
         {
             if (Directory.Exists(directoryPath))
                 Directory.Delete(directoryPath, true);
+
+            var storageBaseFullPath = Path.GetFullPath(_options.StorageBasePath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var parentDir = Path.GetDirectoryName(Path.GetFullPath(directoryPath));
+
+            while (!string.IsNullOrEmpty(parentDir))
+            {
+                var normalizedParent = parentDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (string.Equals(normalizedParent, storageBaseFullPath, StringComparison.OrdinalIgnoreCase) ||
+                    !normalizedParent.StartsWith(storageBaseFullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (Directory.Exists(normalizedParent) && !Directory.EnumerateFileSystemEntries(normalizedParent).Any())
+                {
+                    Directory.Delete(normalizedParent, false);
+                    parentDir = Path.GetDirectoryName(normalizedParent);
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -135,16 +159,29 @@ public class DirectoryExtension
         }
     }
 
-        /// <summary>
-    /// Creates the target path for a module by extracting its files from the provided .zip archive.
+    /// <summary>
+    /// Creates the target path for a module version by extracting its files from the provided .zip archive.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="version">The version string of the module.</param>
     /// <param name="file">The .zip archive containing the module files.</param>
     /// <param name="ct">A cancellation token.</param>
     /// <returns>The path to the extracted module files.</returns>
-    public async Task<string> CreateModuleTargetPathAsync(Guid moduleId, IFormFile file, CancellationToken ct = default)
+    public async Task<string> CreateModuleTargetPathAsync(Guid moduleId, string version, IFormFile file, CancellationToken ct = default)
     {
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString());
+        if (string.IsNullOrWhiteSpace(version))
+            throw new ArgumentException("Module version cannot be empty.");
+
+        var normalizedVersion = version.Trim();
+        if (normalizedVersion is "." or ".." ||
+            normalizedVersion.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            normalizedVersion.Contains('/') ||
+            normalizedVersion.Contains('\\'))
+        {
+            throw new ArgumentException("Module version contains invalid path characters.");
+        }
+
+        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", normalizedVersion);
         if (file.Length == 0)
             throw new ArgumentException("Module file cannot be empty.");
         if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
