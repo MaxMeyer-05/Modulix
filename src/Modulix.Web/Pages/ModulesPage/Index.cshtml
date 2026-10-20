@@ -5,12 +5,6 @@
     ViewData["Title"] = "Modules";
     var modules = Model.Modules;
     var reopen = Model.CreationError is not null;
-    var statuses = new (string Value, string Label)[]
-    {
-        ("", "All statuses"), ("Running", "Running"), ("Starting", "Starting"),
-        ("PendingConfirmation", "Pending confirmation"), ("QueuedForScan", "Queued for scan"),
-        ("Created", "Created"), ("Stopped", "Stopped"), ("Failed", "Failed")
-    };
     var sorts = new (string Value, string Label)[]
     {
         ("newest", "Newest first"), ("name", "Name A-Z"), ("name-desc", "Name Z-A")
@@ -109,18 +103,14 @@
     </section>
 
     <form class="modules-toolbar" method="get" action="@closeUrl">
+        @if (!string.IsNullOrEmpty(Model.StatusFilter))
+        {
+            <input type="hidden" name="status" value="@Model.StatusFilter" />
+        }
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="module-search" name="q" type="search" value="@Model.Query" placeholder="Search modules..." aria-label="Search modules" autocomplete="off" />
         </div>
-        <label class="module-select-label"><span>Status</span>
-            <select id="module-status-filter" name="status">
-                @foreach (var (value, label) in statuses)
-                {
-                    <option value="@value" selected="@(Model.StatusFilter == value)">@label</option>
-                }
-            </select>
-        </label>
         <label class="module-select-label"><span>Sort by</span>
             <select id="module-sort" name="sort">
                 @foreach (var (value, label) in sorts)

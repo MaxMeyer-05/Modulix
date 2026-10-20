@@ -14,13 +14,6 @@
         ("PATCH", "PATCH"),
         ("DELETE", "DELETE")
     };
-    var statuses = new (string Value, string Label)[]
-    {
-        ("", "All statuses"),
-        (nameof(ModuleEndpointsStatus.Active), "Active"),
-        (nameof(ModuleEndpointsStatus.PendingConfirmation), "Pending confirmation"),
-        (nameof(ModuleEndpointsStatus.Inactive), "Inactive")
-    };
     var sorts = new (string Value, string Label)[]
     {
         ("newest", "Newest first"),
@@ -61,37 +54,49 @@
     }
 
     <section class="queue-metrics" aria-label="API endpoints overview">
-        <article class="queue-metric">
+        <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
+           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = "", module = Model.ModuleFilter, sort = Model.SortBy })">
             <div class="queue-metric-heading">
                 <h2>Total endpoints</h2>
                 <span class="queue-metric-icon"><i data-lucide="link" aria-hidden="true"></i></span>
             </div>
             <p class="queue-metric-value">@Model.TotalEndpoints</p>
-        </article>
-        <article class="queue-metric queue-metric-active">
+            <span class="queue-metric-sub">Across @Model.AvailableModules.Count @(Model.AvailableModules.Count == 1 ? "module" : "modules")</span>
+        </a>
+        <a class="queue-metric queue-metric-active queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.Active), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
+           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = nameof(ModuleEndpointsStatus.Active), module = Model.ModuleFilter, sort = Model.SortBy })">
             <div class="queue-metric-heading">
                 <h2>Active</h2>
                 <span class="queue-metric-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span>
             </div>
             <p class="queue-metric-value">@Model.ActiveCount</p>
-        </article>
-        <article class="queue-metric queue-metric-priority">
+            <span class="queue-metric-sub">Routing traffic via proxy</span>
+        </a>
+        <a class="queue-metric queue-metric-priority queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.PendingConfirmation), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
+           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = nameof(ModuleEndpointsStatus.PendingConfirmation), module = Model.ModuleFilter, sort = Model.SortBy })">
             <div class="queue-metric-heading">
                 <h2>Pending confirmation</h2>
                 <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
             </div>
             <p class="queue-metric-value">@Model.PendingCount</p>
-        </article>
-        <article class="queue-metric queue-metric-inactive">
+            <span class="queue-metric-sub">Awaiting review</span>
+        </a>
+        <a class="queue-metric queue-metric-inactive queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.Inactive), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
+           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = nameof(ModuleEndpointsStatus.Inactive), module = Model.ModuleFilter, sort = Model.SortBy })">
             <div class="queue-metric-heading">
                 <h2>Inactive</h2>
                 <span class="queue-metric-icon"><i data-lucide="pause-circle" aria-hidden="true"></i></span>
             </div>
             <p class="queue-metric-value">@Model.InactiveCount</p>
-        </article>
+            <span class="queue-metric-sub">Not currently routed</span>
+        </a>
     </section>
 
     <form class="modules-toolbar" method="get" action="@resetUrl">
+        @if (!string.IsNullOrEmpty(Model.StatusFilter))
+        {
+            <input type="hidden" name="status" value="@Model.StatusFilter" />
+        }
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="endpoint-search" name="q" type="search" value="@Model.Query" placeholder="Search by path, module, method or ID..." aria-label="Search endpoints" autocomplete="off" />
@@ -101,14 +106,6 @@
                 @foreach (var (value, label) in methods)
                 {
                     <option value="@value" selected="@(Model.MethodFilter == value)">@label</option>
-                }
-            </select>
-        </label>
-        <label class="module-select-label"><span>Status</span>
-            <select id="endpoint-status-filter" name="status">
-                @foreach (var (value, label) in statuses)
-                {
-                    <option value="@value" selected="@(Model.StatusFilter == value)">@label</option>
                 }
             </select>
         </label>

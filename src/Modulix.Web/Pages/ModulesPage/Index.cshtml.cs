@@ -313,7 +313,9 @@ public class IndexModel : PageModel
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
                     .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (StatusFilter.Length == 0 || module.Status.ToString() == StatusFilter));
+                && (StatusFilter.Length == 0
+                    || module.Status.ToString() == StatusFilter
+                    || (StatusFilter == nameof(ModuleStatus.PendingConfirmation) && module.Status == ModuleStatus.QueuedForScan)));
 
             Modules = (SortBy switch
             {
