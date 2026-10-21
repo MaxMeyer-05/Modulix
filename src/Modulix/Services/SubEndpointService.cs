@@ -164,14 +164,23 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
+        pagination ??= new PaginationQueryDto();
+        var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
+        var pageSize = pagination.PageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
+
+        var totalCount = await _context.ModuleEndpoints.CountAsync(ct);
         var subEndpointsDetail = await _context.ModuleEndpoints
+            .AsNoTracking()
             .Include(se => se.Module)
             .Include(se => se.ModuleVersion)
-            .Skip((pagination.Page - 1) * pagination.PageSize)
-            .Take(pagination.PageSize)
-            .AsNoTracking()
+            .OrderByDescending(se => se.CreatedAtUtc)
+            .ThenBy(se => se.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleSubEndpointsDetailDto()).ToList();
@@ -181,25 +190,36 @@ public class SubEndpointService : ISubEndpointService
         return new PagedResultDto<ModuleSubEndpointsDetailDto>
         {
             Items = subEndpointsDetailDtos,
-            Page = pagination.Page,
-            PageSize = pagination.PageSize,
-            TotalCount = await _context.ModuleEndpoints.CountAsync(ct)
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
         };
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         var exists = await _context.Modules.FindAsync([moduleId], ct);
         if (exists is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
-        var subEndpoints = await _context.ModuleEndpoints
-            .Include(se => se.ModuleVersion)
-            .Skip((pagination.Page - 1) * pagination.PageSize)
-            .Take(pagination.PageSize)
+        pagination ??= new PaginationQueryDto();
+        var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
+        var pageSize = pagination.PageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
+
+        var query = _context.ModuleEndpoints
             .AsNoTracking()
-            .Where(e => e.ModuleId == moduleId)
+            .Where(e => e.ModuleId == moduleId);
+
+        var totalCount = await query.CountAsync(ct);
+        var subEndpoints = await query
+            .Include(se => se.ModuleVersion)
+            .OrderByDescending(e => e.CreatedAtUtc)
+            .ThenBy(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         var subEndpointDtos = subEndpoints.Select(se => se.ToSubEndpointDto()).ToList();
@@ -208,9 +228,9 @@ public class SubEndpointService : ISubEndpointService
         return new PagedResultDto<ModuleSubEndpointDto>
         {
             Items = subEndpointDtos,
-            Page = pagination.Page,
-            PageSize = pagination.PageSize,
-            TotalCount = await _context.ModuleEndpoints.CountAsync(e => e.ModuleId == moduleId, ct)
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
         };
     }
 }

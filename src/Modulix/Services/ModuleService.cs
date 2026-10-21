@@ -363,11 +363,21 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
+        pagination ??= new PaginationQueryDto();
+        var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
+        var pageSize = pagination.PageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
+
+        var totalCount = await _context.Modules.CountAsync(ct);
         var modules = await _context.Modules
-            .Skip((pagination.Page - 1) * pagination.PageSize)
-            .Take(pagination.PageSize)
+            .AsNoTracking()
+            .OrderByDescending(m => m.CreatedAtUtc)
+            .ThenBy(m => m.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
         var moduleDtos = modules.Select(module => module.ToModuleDto()).ToList();
 
@@ -376,9 +386,9 @@ public class ModuleService : IModuleService
         return new PagedResultDto<ModuleDto>
         {
             Items = moduleDtos,
-            Page = pagination.Page,
-            PageSize = pagination.PageSize,
-            TotalCount = await _context.Modules.CountAsync(ct)
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
         };
     }
 

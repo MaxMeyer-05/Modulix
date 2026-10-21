@@ -40,7 +40,7 @@ public interface IModuleService
     /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all module details, paged according to the provided pagination parameters.</returns>
-    Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto pagination, CancellationToken ct = default);
+    Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
