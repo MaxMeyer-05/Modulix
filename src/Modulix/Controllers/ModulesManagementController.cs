@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Scanner.Interfaces;
 using Modulix.Services.Interfaces;
 
 namespace Modulix.Controllers;
@@ -25,21 +24,13 @@ public class ModulesManagementController : ControllerBase
     private readonly IModuleService _moduleService;
 
     /// <summary>
-    /// The module endpoint scanner used by the controller.
-    /// </summary>
-    private readonly IModuleEndpointScanner _endpointScanner;
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="ModulesManagementController"/> class.
     /// </summary>
     /// <param name="moduleService">The module service.</param>
-    /// <param name="endpointScanner">The module endpoint scanner.</param>
     public ModulesManagementController(
-        IModuleService moduleService, 
-        IModuleEndpointScanner endpointScanner)
+        IModuleService moduleService)
     {
         _moduleService = moduleService;
-        _endpointScanner = endpointScanner;
     }
 
     /// <summary>

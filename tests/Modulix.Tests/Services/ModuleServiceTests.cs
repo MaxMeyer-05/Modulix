@@ -5,13 +5,11 @@ using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Database.Entities;
@@ -1641,16 +1639,6 @@ public class ModuleServiceTests : IDisposable
 
         Assert.True(Directory.Exists(modulesStorageDirectory));
         Assert.Empty(Directory.EnumerateDirectories(modulesStorageDirectory));
-    }
-
-    private sealed class FakeHostEnvironment(string rootPath) : IWebHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = "Development";
-        public string ApplicationName { get; set; } = "Modulix.Tests";
-        public string ContentRootPath { get; set; } = rootPath;
-        public IFileProvider ContentRootFileProvider { get; set; } = null!;
-        public string WebRootPath { get; set; } = rootPath;
-        public IFileProvider WebRootFileProvider { get; set; } = null!;
     }
 
     private sealed class FakeModuleEndpointScanner : IModuleEndpointScanner
