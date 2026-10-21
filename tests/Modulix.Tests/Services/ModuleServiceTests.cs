@@ -1643,16 +1643,6 @@ public class ModuleServiceTests : IDisposable
         Assert.Empty(Directory.EnumerateDirectories(modulesStorageDirectory));
     }
 
-    private sealed class FakeHostEnvironment(string rootPath) : IWebHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = "Development";
-        public string ApplicationName { get; set; } = "Modulix.Tests";
-        public string ContentRootPath { get; set; } = rootPath;
-        public IFileProvider ContentRootFileProvider { get; set; } = null!;
-        public string WebRootPath { get; set; } = rootPath;
-        public IFileProvider WebRootFileProvider { get; set; } = null!;
-    }
-
     private sealed class FakeModuleEndpointScanner : IModuleEndpointScanner
     {
         public List<DiscoveredSubEndpointDto> DiscoveredEndpoints { get; set; } = [];

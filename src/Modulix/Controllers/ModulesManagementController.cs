@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Scanner.Interfaces;
 using Modulix.Services.Interfaces;
 
 namespace Modulix.Controllers;
