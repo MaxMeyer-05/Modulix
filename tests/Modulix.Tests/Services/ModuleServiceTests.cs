@@ -671,7 +671,11 @@ public class ModuleServiceTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        Assert.Empty(result);
+        Assert.Empty(result.Items);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Equal(0, result.TotalPages);
+        Assert.False(result.HasPreviousPage);
+        Assert.False(result.HasNextPage);
     }
 
     [Fact]
@@ -685,12 +689,49 @@ public class ModuleServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Act
-        var result = (await _sut.GetAllModulesAsync()).ToList();
+        var pagedResult = await _sut.GetAllModulesAsync();
+        var result = pagedResult.Items.ToList();
 
         // Assert
+        Assert.Equal(2, pagedResult.TotalCount);
         Assert.Equal(2, result.Count);
         Assert.Contains(result, m => m.Id == module1.Id && m.ModuleName == "Module 1");
         Assert.Contains(result, m => m.Id == module2.Id && m.ModuleName == "Module 2");
+    }
+
+    [Fact]
+    [Trait("Feature", "GetAllModules")]
+    public async Task GetAllModulesAsync_CustomPagination_ReturnsRequestedPageAndMetadata()
+    {
+        // Arrange
+        var baseTime = DateTime.UtcNow;
+        var module1 = CreateTestModuleEntity("Module 1", "api/v1/m1", 8001);
+        module1.CreatedAtUtc = baseTime.AddMinutes(-3);
+        var module2 = CreateTestModuleEntity("Module 2", "api/v1/m2", 8002);
+        module2.CreatedAtUtc = baseTime.AddMinutes(-2);
+        var module3 = CreateTestModuleEntity("Module 3", "api/v1/m3", 8003);
+        module3.CreatedAtUtc = baseTime.AddMinutes(-1);
+        _context.Modules.AddRange(module1, module2, module3);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var page1 = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 1, PageSize = 2 });
+        var page2 = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 2, PageSize = 2 });
+        var outOfRangePage = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 5, PageSize = 2 });
+
+        // Assert
+        Assert.Equal(3, page1.TotalCount);
+        Assert.Equal(2, page1.TotalPages);
+        Assert.Equal(2, page1.Items.Count);
+        Assert.False(page1.HasPreviousPage);
+        Assert.True(page1.HasNextPage);
+
+        Assert.Single(page2.Items);
+        Assert.True(page2.HasPreviousPage);
+        Assert.False(page2.HasNextPage);
+
+        Assert.Empty(outOfRangePage.Items);
+        Assert.Equal(3, outOfRangePage.TotalCount);
     }
 
     #endregion

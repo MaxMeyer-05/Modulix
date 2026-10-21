@@ -72,17 +72,34 @@ public class ModuleVersionService : IModuleVersionService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleVersionDto>> GetAllModuleVersionsAsync(CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleVersionDto>> GetAllModuleVersionsAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
+        pagination ??= new PaginationQueryDto();
+        var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
+        var pageSize = pagination.PageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
+
+        var totalCount = await _context.ModuleVersions.CountAsync(ct);
         var versions = await _context.ModuleVersions
             .AsNoTracking()
+            .OrderByDescending(v => v.ReleasedAtUtc)
+            .ThenByDescending(v => v.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         var versionDtos = versions.Select(v => v.ToVersionDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} module versions from the database.", versionDtos.Count);
 
-        return versionDtos;
+        return new PagedResultDto<ModuleVersionDto>
+        {
+            Items = versionDtos,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     /// <inheritdoc/>

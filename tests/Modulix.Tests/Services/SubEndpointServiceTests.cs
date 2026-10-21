@@ -438,12 +438,43 @@ public class SubEndpointServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Act
-        var result = (await _sut.GetModuleSubEndpointsAsync(module.Id)).ToList();
+        var pagedResult = await _sut.GetModuleSubEndpointsAsync(module.Id);
+        var result = pagedResult.Items.ToList();
 
         // Assert
+        Assert.Equal(2, pagedResult.TotalCount);
         Assert.Equal(2, result.Count);
         Assert.Contains(result, e => e.EndpointPath == "/a" && e.HttpMethod == "GET");
         Assert.Contains(result, e => e.EndpointPath == "/b" && e.HttpMethod == "POST");
+    }
+
+    [Fact]
+    [Trait("Feature", "GetModuleSubEndpoints")]
+    public async Task GetModuleSubEndpointsAsync_FiltersBeforePaging_ReturnsOnlyTargetModuleEndpoints()
+    {
+        // Arrange
+        var otherModule = CreateTestModuleEntity("Other", "api/v1/other", 8005);
+        var targetModule = CreateTestModuleEntity("Target", "api/v1/target", 8006);
+        _context.Modules.AddRange(otherModule, targetModule);
+        _context.ModuleEndpoints.AddRange(
+            new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = otherModule.Id, ModuleVersion = otherModule.Versions.Single(), HttpMethod = "GET", EndpointPath = "/other-1" },
+            new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = otherModule.Id, ModuleVersion = otherModule.Versions.Single(), HttpMethod = "GET", EndpointPath = "/other-2" },
+            new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = targetModule.Id, ModuleVersion = targetModule.Versions.Single(), HttpMethod = "GET", EndpointPath = "/target-1" },
+            new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = targetModule.Id, ModuleVersion = targetModule.Versions.Single(), HttpMethod = "POST", EndpointPath = "/target-2" });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var page1 = await _sut.GetModuleSubEndpointsAsync(targetModule.Id, new PaginationQueryDto { Page = 1, PageSize = 1 });
+        var page2 = await _sut.GetModuleSubEndpointsAsync(targetModule.Id, new PaginationQueryDto { Page = 2, PageSize = 1 });
+
+        // Assert
+        Assert.Equal(2, page1.TotalCount);
+        Assert.Equal(2, page1.TotalPages);
+        Assert.Single(page1.Items);
+        Assert.True(page1.HasNextPage);
+        Assert.Single(page2.Items);
+        Assert.True(page2.HasPreviousPage);
+        Assert.NotEqual(page1.Items[0].EndpointPath, page2.Items[0].EndpointPath);
     }
 
     #endregion
