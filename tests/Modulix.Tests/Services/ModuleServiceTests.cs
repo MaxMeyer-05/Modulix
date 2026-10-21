@@ -5,13 +5,11 @@ using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Database.Entities;
