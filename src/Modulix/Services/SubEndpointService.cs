@@ -183,7 +183,7 @@ public class SubEndpointService : ISubEndpointService
             Items = subEndpointsDetailDtos,
             Page = pagination.Page,
             PageSize = pagination.PageSize,
-            TotalCount = subEndpointsDetailDtos.Count
+            TotalCount = await _context.ModuleEndpoints.CountAsync(ct)
         };
     }
 
@@ -210,7 +210,7 @@ public class SubEndpointService : ISubEndpointService
             Items = subEndpointDtos,
             Page = pagination.Page,
             PageSize = pagination.PageSize,
-            TotalCount = subEndpointDtos.Count
+            TotalCount = await _context.ModuleEndpoints.CountAsync(e => e.ModuleId == moduleId, ct)
         };
     }
 }
