@@ -164,11 +164,13 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(PaginationQueryDto pagination, CancellationToken ct = default)
     {
         var subEndpointsDetail = await _context.ModuleEndpoints
             .Include(se => se.Module)
             .Include(se => se.ModuleVersion)
+            .Skip((pagination.Page - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -176,11 +178,17 @@ public class SubEndpointService : ISubEndpointService
 
         _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
 
-        return subEndpointsDetailDtos;
+        return new PagedResultDto<ModuleSubEndpointsDetailDto>
+        {
+            Items = subEndpointsDetailDtos,
+            Page = pagination.Page,
+            PageSize = pagination.PageSize,
+            TotalCount = subEndpointsDetailDtos.Count
+        };
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, PaginationQueryDto pagination, CancellationToken ct = default)
     {
         var exists = await _context.Modules.FindAsync([moduleId], ct);
         if (exists is null)
@@ -188,6 +196,8 @@ public class SubEndpointService : ISubEndpointService
 
         var subEndpoints = await _context.ModuleEndpoints
             .Include(se => se.ModuleVersion)
+            .Skip((pagination.Page - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
             .AsNoTracking()
             .Where(e => e.ModuleId == moduleId)
             .ToListAsync(ct);
@@ -195,6 +205,12 @@ public class SubEndpointService : ISubEndpointService
         var subEndpointDtos = subEndpoints.Select(se => se.ToSubEndpointDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} sub-endpoints for module with ID '{ModuleId}'.", subEndpoints.Count, moduleId);
-        return subEndpointDtos;
+        return new PagedResultDto<ModuleSubEndpointDto>
+        {
+            Items = subEndpointDtos,
+            Page = pagination.Page,
+            PageSize = pagination.PageSize,
+            TotalCount = subEndpointDtos.Count
+        };
     }
 }

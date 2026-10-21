@@ -21,16 +21,18 @@ public interface ISubEndpointService
     /// <summary>
     /// Retrieves detailed information about all registered sub-endpoints across all modules.
     /// </summary>
+    /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>A collection of detailed sub-endpoint information.</returns>
-    Task<IEnumerable<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default);
+    /// <returns>A paged result of detailed sub-endpoint information.</returns>
+    Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(PaginationQueryDto pagination, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves all registered sub-endpoints for a specific module.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>A collection of all registered sub-endpoints for the specified module.</returns> 
+    /// <returns>A paged result of all registered sub-endpoints for the specified module.</returns> 
     /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
-    Task<IEnumerable<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default);
+    Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, PaginationQueryDto pagination, CancellationToken ct = default);
 }
