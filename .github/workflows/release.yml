@@ -1,0 +1,58 @@
+name: Release Modulix Server & Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish & Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Extract version from Modulix.csproj
+        id: app_version
+        run: |
+          VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Modulix/Modulix.csproj | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore dependencies
+        run: dotnet restore Modulix.slnx
+
+      - name: Publish Modulix Server
+        run: dotnet publish src/Modulix/Modulix.csproj -c Release --no-restore -o ./publish/server
+
+      - name: Publish Modulix Web
+        run: dotnet publish src/Modulix.Web/Modulix.Web.csproj -c Release --no-restore -o ./publish/web
+
+      - name: Package Server & Web as ZIP archives
+        run: |
+          mkdir -p ./artifacts
+          (cd ./publish/server && zip -r "../../artifacts/Modulix-Server-${{ steps.app_version.outputs.tag }}.zip" .)
+          (cd ./publish/web && zip -r "../../artifacts/Modulix-Web-${{ steps.app_version.outputs.tag }}.zip" .)
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.app_version.outputs.tag }}
+          name: Modulix ${{ steps.app_version.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          files: |
+            ./artifacts/Modulix-Server-${{ steps.app_version.outputs.tag }}.zip
+            ./artifacts/Modulix-Web-${{ steps.app_version.outputs.tag }}.zip
