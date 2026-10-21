@@ -106,9 +106,39 @@ public class IndexModel : PageModel
     public string StatusFilter { get; private set; } = "";
 
     /// <summary>
+    /// Allowed page size options for the modules list.
+    /// </summary>
+    public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
+
+    /// <summary>
     /// The current sort order.
     /// </summary>
     public string SortBy { get; private set; } = "newest";
+
+    /// <summary>
+    /// The current 1-based page number.
+    /// </summary>
+    public int CurrentPage { get; private set; } = PaginationQueryDto.DefaultPage;
+
+    /// <summary>
+    /// The number of modules displayed per page.
+    /// </summary>
+    public int PageSize { get; private set; } = PaginationQueryDto.DefaultPageSize;
+
+    /// <summary>
+    /// The total number of pages available.
+    /// </summary>
+    public int TotalPages { get; private set; } = 1;
+
+    /// <summary>
+    /// Indicates whether there is a previous page.
+    /// </summary>
+    public bool HasPreviousPage { get; private set; }
+
+    /// <summary>
+    /// Indicates whether there is a next page.
+    /// </summary>
+    public bool HasNextPage { get; private set; }
 
     /// <summary>
     /// The submitted form values when the creation failed, so the form can be shown again.
@@ -136,8 +166,15 @@ public class IndexModel : PageModel
     /// <param name="q">The search text.</param>
     /// <param name="status">The status to filter by.</param>
     /// <param name="sort">The sort order.</param>
+    /// <param name="pageNumber">The 1-based page number.</param>
+    /// <param name="pageSize">The number of items per page.</param>
     /// <returns>An <see cref="IActionResult"/> representing the result of the request.</returns>
-    public async Task<IActionResult> OnGetAsync(string? q, string? status, string? sort)
+    public async Task<IActionResult> OnGetAsync(
+        string? q,
+        string? status,
+        string? sort,
+        [FromQuery(Name = "page")] int pageNumber = PaginationQueryDto.DefaultPage,
+        [FromQuery(Name = "pageSize")] int pageSize = PaginationQueryDto.DefaultPageSize)
     {
         if (TempData[ResultKey] is string json)
             CreationSuccess = JsonSerializer.Deserialize<CreationResult>(json);
@@ -145,16 +182,37 @@ public class IndexModel : PageModel
         if (TempData[DetailModel.FeedbackKey] is string feedbackJson)
             Feedback = JsonSerializer.Deserialize<DetailModel.ActionFeedback>(feedbackJson);
 
-        await LoadModulesAsync(q, status, sort);
+        await LoadModulesAsync(q, status, sort, pageNumber, pageSize);
         return Page();
+    }
+
+    /// <summary>
+    /// Builds a URL for the modules page preserving current filter, sort, and pagination parameters.
+    /// </summary>
+    public string GetPageUrl(int targetPage, string? statusOverride = null)
+    {
+        var baseUrl = Url.Page("/ModulesPage/Index") ?? "/modules";
+        var effectiveStatus = statusOverride ?? StatusFilter;
+        var queryParams = new Dictionary<string, string?>();
+
+        if (!string.IsNullOrWhiteSpace(Query))
+            queryParams["q"] = Query;
+        if (!string.IsNullOrWhiteSpace(effectiveStatus))
+            queryParams["status"] = effectiveStatus;
+        if (!string.IsNullOrWhiteSpace(SortBy) && SortBy != "newest")
+            queryParams["sort"] = SortBy;
+        if (targetPage > 1)
+            queryParams["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
+        if (PageSize != PaginationQueryDto.DefaultPageSize)
+            queryParams["pageSize"] = PageSize.ToString(CultureInfo.InvariantCulture);
+
+        return QueryHelpers.AddQueryString(baseUrl, queryParams);
     }
 
     /// <summary>
     /// Loads the modules based on the current search and filter criteria.
     /// </summary>
-    /// <param name="q">The search text.</param>
-    /// <param name="status">The status to filter by.</param>
-    /// <param name="sort">The sort order.</param>
+    /// <param name="input">The input data for the new module.</param>
     public async Task<IActionResult> OnPostAsync([FromForm] CreateModuleDto input)
     {
         var result = await CreateAsync(input);
@@ -166,7 +224,7 @@ public class IndexModel : PageModel
 
         Input = input;
         CreationError = result;
-        await LoadModulesAsync(null, null, null);
+        await LoadModulesAsync(null, null, null, PaginationQueryDto.DefaultPage, PaginationQueryDto.DefaultPageSize);
         return Page();
     }
 
@@ -275,20 +333,27 @@ public class IndexModel : PageModel
         new(statusCode, ReasonPhrases.GetReasonPhrase(statusCode), description, null);
 
     /// <summary>
-    /// Loads the modules based on the current search and filter criteria.
+    /// Loads the modules based on the current search, filter, and pagination criteria.
     /// </summary>
     /// <param name="q">The search text.</param>
     /// <param name="status">The status to filter by.</param>
     /// <param name="sort">The sort order.</param>
-    private async Task LoadModulesAsync(string? q, string? status, string? sort)
+    /// <param name="pageNumber">The 1-based page number.</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    private async Task LoadModulesAsync(string? q, string? status, string? sort, int pageNumber, int pageSize)
     {
         Query = q?.Trim() ?? "";
         StatusFilter = status ?? "";
         SortBy = sort is "name" or "name-desc" ? sort : "newest";
+        CurrentPage = pageNumber < 1 ? PaginationQueryDto.DefaultPage : pageNumber;
+        PageSize = pageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pageSize, PaginationQueryDto.MaxPageSize);
 
         try
         {
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+                new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)
@@ -298,11 +363,23 @@ public class IndexModel : PageModel
                 return;
             }
 
-            var modules = await response.Content.ReadFromJsonAsync<List<ModuleDto>>(
-                cancellationToken: HttpContext.RequestAborted) ?? [];
-            _logger.LogDebug("Successfully loaded {ModuleCount} modules.", modules.Count);
+            var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleDto>>(
+                cancellationToken: HttpContext.RequestAborted) ?? new PagedResultDto<ModuleDto>
+            {
+                Page = CurrentPage,
+                PageSize = PageSize
+            };
 
-            TotalModules = modules.Count;
+            var modules = pagedResult.Items;
+            _logger.LogDebug("Successfully loaded {ModuleCount} of {TotalCount} modules (page {Page}).", modules.Count, pagedResult.TotalCount, pagedResult.Page);
+
+            TotalModules = pagedResult.TotalCount;
+            CurrentPage = pagedResult.Page > 0 ? pagedResult.Page : CurrentPage;
+            PageSize = pagedResult.PageSize > 0 ? pagedResult.PageSize : PageSize;
+            TotalPages = Math.Max(1, pagedResult.TotalPages);
+            HasPreviousPage = pagedResult.HasPreviousPage;
+            HasNextPage = pagedResult.HasNextPage;
+
             RunningCount = modules.Count(m => m.Status == ModuleStatus.Running);
             StoppedCount = modules.Count(m => m.Status == ModuleStatus.Stopped);
             PendingConfirmationCount = modules.Count(m => m.Status == ModuleStatus.PendingConfirmation);

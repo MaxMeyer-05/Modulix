@@ -211,7 +211,9 @@ public class IndexModel : PageModel
         {
             _logger.LogDebug("Loading all modules for dashboard.");
 
-            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(ct: ct);
+            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+                new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
+                ct: ct);
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(ct);
@@ -219,7 +221,8 @@ public class IndexModel : PageModel
                 return;
             }
 
-            Modules = await response.Content.ReadFromJsonAsync<List<ModuleDto>>(cancellationToken: ct) ?? [];
+            var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleDto>>(cancellationToken: ct);
+            Modules = pagedResult?.Items.ToList() ?? [];
 
             _logger.LogDebug("Successfully loaded {ModuleCount} modules.", Modules.Count);
         }
@@ -250,10 +253,13 @@ public class IndexModel : PageModel
     {
         try
         {
-            using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(ct: ct);
+            using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
+                new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
+                ct: ct);
             if (response.IsSuccessStatusCode)
             {
-                Endpoints = await response.Content.ReadFromJsonAsync<List<ModuleSubEndpointsDetailDto>>(cancellationToken: ct) ?? [];
+                var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleSubEndpointsDetailDto>>(cancellationToken: ct);
+                Endpoints = pagedResult?.Items.ToList() ?? [];
             }
         }
         catch (HttpRequestException exception)

@@ -15,6 +15,15 @@ document.querySelectorAll("[data-copy]").forEach(button => {
     });
 });
 
+document.querySelectorAll("[data-page-size-select]").forEach(select => {
+    select.addEventListener("change", () => {
+        const form = select.closest("form");
+        if (form) {
+            form.submit();
+        }
+    });
+});
+
 (() => {
     const container = document.querySelector("[data-auto-refresh]");
     if (!container) {
