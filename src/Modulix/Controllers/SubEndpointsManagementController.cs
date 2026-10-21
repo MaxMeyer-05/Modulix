@@ -56,6 +56,7 @@ public class SubEndpointsManagementController : ControllerBase
     /// Retrieves the sub-endpoints of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of sub-endpoints for the specified module.
@@ -63,25 +64,26 @@ public class SubEndpointsManagementController : ControllerBase
     /// </returns>
     [HttpGet("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(IEnumerable<ModuleSubEndpointDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleSubEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default)
+    [ProducesResponseType(typeof(PagedResultDto<ModuleSubEndpointDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResultDto<ModuleSubEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var result = await _subEndpointService.GetModuleSubEndpointsAsync(moduleId, ct);
+        var result = await _subEndpointService.GetModuleSubEndpointsAsync(moduleId, pagination, ct);
         return Ok(result);
     }
 
     /// <summary>
     /// Retrieves detailed information about all registered sub-endpoints across all modules.
     /// </summary>
+    /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of detailed sub-endpoints.
     /// </returns>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<ModuleSubEndpointsDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleSubEndpointsDetailDto>>> GetAllEndpointsDetailAsync(CancellationToken ct = default)
+    [ProducesResponseType(typeof(PagedResultDto<ModuleSubEndpointsDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResultDto<ModuleSubEndpointsDetailDto>>> GetAllEndpointsDetailAsync([FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var result = await _subEndpointService.GetAllSubEndpointsDetailAsync(ct);
+        var result = await _subEndpointService.GetAllSubEndpointsDetailAsync(pagination, ct);
         return Ok(result);
     }
 }

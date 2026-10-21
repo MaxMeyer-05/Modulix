@@ -164,37 +164,73 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
+        pagination ??= new PaginationQueryDto();
+        var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
+        var pageSize = pagination.PageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
+
+        var totalCount = await _context.ModuleEndpoints.CountAsync(ct);
         var subEndpointsDetail = await _context.ModuleEndpoints
+            .AsNoTracking()
             .Include(se => se.Module)
             .Include(se => se.ModuleVersion)
-            .AsNoTracking()
+            .OrderByDescending(se => se.CreatedAtUtc)
+            .ThenBy(se => se.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         var subEndpointsDetailDtos = subEndpointsDetail.Select(se => se.ToModuleSubEndpointsDetailDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} detailed sub-endpoints from the database.", subEndpointsDetailDtos.Count);
 
-        return subEndpointsDetailDtos;
+        return new PagedResultDto<ModuleSubEndpointsDetailDto>
+        {
+            Items = subEndpointsDetailDtos,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         var exists = await _context.Modules.FindAsync([moduleId], ct);
         if (exists is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
-        var subEndpoints = await _context.ModuleEndpoints
-            .Include(se => se.ModuleVersion)
+        pagination ??= new PaginationQueryDto();
+        var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
+        var pageSize = pagination.PageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
+
+        var query = _context.ModuleEndpoints
             .AsNoTracking()
-            .Where(e => e.ModuleId == moduleId)
+            .Where(e => e.ModuleId == moduleId);
+
+        var totalCount = await query.CountAsync(ct);
+        var subEndpoints = await query
+            .Include(se => se.ModuleVersion)
+            .OrderByDescending(e => e.CreatedAtUtc)
+            .ThenBy(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         var subEndpointDtos = subEndpoints.Select(se => se.ToSubEndpointDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} sub-endpoints for module with ID '{ModuleId}'.", subEndpoints.Count, moduleId);
-        return subEndpointDtos;
+        return new PagedResultDto<ModuleSubEndpointDto>
+        {
+            Items = subEndpointDtos,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 }

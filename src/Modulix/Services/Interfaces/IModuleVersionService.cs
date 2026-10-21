@@ -10,9 +10,10 @@ public interface IModuleVersionService
     /// <summary>
     /// Retrieves all module versions across all modules.
     /// </summary>
+    /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all module versions.</returns>
-    Task<IEnumerable<ModuleVersionDto>> GetAllModuleVersionsAsync(CancellationToken ct = default);
+    Task<PagedResultDto<ModuleVersionDto>> GetAllModuleVersionsAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves all versions belonging to a specific module.

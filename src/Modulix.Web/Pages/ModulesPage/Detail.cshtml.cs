@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -22,6 +23,16 @@ public class DetailModel : PageModel
     /// TempData key used for module action feedback across redirects.
     /// </summary>
     public const string FeedbackKey = "ModuleActionFeedback";
+
+    /// <summary>
+    /// Default page size for the module endpoints list on the detail page.
+    /// </summary>
+    public const int DefaultEndpointsPageSize = 10;
+
+    /// <summary>
+    /// Allowed page size options for the module endpoints list.
+    /// </summary>
+    public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
 
     /// <summary>
     /// The Modulix API client.
@@ -58,6 +69,41 @@ public class DetailModel : PageModel
     /// Gets the module detail.
     /// </summary>
     public ModuleDetailDto? Module { get; private set; }
+
+    /// <summary>
+    /// Gets the paged sub-endpoints for the current page of the module detail view.
+    /// </summary>
+    public IReadOnlyList<ModuleSubEndpointDto> Endpoints { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the total number of sub-endpoints registered for the module.
+    /// </summary>
+    public int TotalEndpoints { get; private set; }
+
+    /// <summary>
+    /// Gets the current 1-based page number for the module endpoints list.
+    /// </summary>
+    public int CurrentPage { get; private set; } = PaginationQueryDto.DefaultPage;
+
+    /// <summary>
+    /// Gets the number of endpoints displayed per page.
+    /// </summary>
+    public int PageSize { get; private set; } = DefaultEndpointsPageSize;
+
+    /// <summary>
+    /// Gets the total number of endpoint pages available.
+    /// </summary>
+    public int TotalPages { get; private set; } = 1;
+
+    /// <summary>
+    /// Indicates whether there is a previous page of endpoints.
+    /// </summary>
+    public bool HasPreviousPage { get; private set; }
+
+    /// <summary>
+    /// Indicates whether there is a next page of endpoints.
+    /// </summary>
+    public bool HasNextPage { get; private set; }
 
     /// <summary>
     /// Gets the submitted edit form values when an update failed.
@@ -105,15 +151,36 @@ public class DetailModel : PageModel
     public ActionFeedback? Feedback { get; private set; }
 
     /// <summary>
+    /// Builds a URL for the module detail page preserving pagination parameters.
+    /// </summary>
+    public string GetPageUrl(Guid id, int targetPage)
+    {
+        var baseUrl = Url.Page("/ModulesPage/Detail", new { id }) ?? $"/modules/{id}";
+        var queryParams = new Dictionary<string, string?>();
+
+        if (targetPage > 1)
+            queryParams["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
+        if (PageSize != DefaultEndpointsPageSize)
+            queryParams["pageSize"] = PageSize.ToString(CultureInfo.InvariantCulture);
+
+        return QueryHelpers.AddQueryString(baseUrl, queryParams);
+    }
+
+    /// <summary>
     /// Loads the module detail for the specified module ID.
     /// </summary>
     /// <param name="id">The ID of the module to load.</param>
-    public async Task<IActionResult> OnGetAsync(Guid id)
+    /// <param name="pageNumber">The 1-based page number for the module's endpoints.</param>
+    /// <param name="pageSize">The number of endpoints per page.</param>
+    public async Task<IActionResult> OnGetAsync(
+        Guid id,
+        [FromQuery(Name = "page")] int pageNumber = PaginationQueryDto.DefaultPage,
+        [FromQuery(Name = "pageSize")] int pageSize = DefaultEndpointsPageSize)
     {
         if (TempData[FeedbackKey] is string json)
             Feedback = JsonSerializer.Deserialize<ActionFeedback>(json);
 
-        await LoadModuleAsync(id);
+        await LoadModuleAsync(id, pageNumber, pageSize);
         return Page();
     }
 
@@ -741,8 +808,16 @@ public class DetailModel : PageModel
         return Page();
     }
 
-    private async Task LoadModuleAsync(Guid id)
+    private async Task LoadModuleAsync(
+        Guid id,
+        int pageNumber = PaginationQueryDto.DefaultPage,
+        int pageSize = DefaultEndpointsPageSize)
     {
+        CurrentPage = pageNumber < 1 ? PaginationQueryDto.DefaultPage : pageNumber;
+        PageSize = pageSize < 1
+            ? DefaultEndpointsPageSize
+            : Math.Min(pageSize, PaginationQueryDto.MaxPageSize);
+
         try
         {
             _logger.LogDebug("Loading module detail for ID {ModuleId}", id);
@@ -760,6 +835,42 @@ public class DetailModel : PageModel
 
             Module = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
                 cancellationToken: HttpContext.RequestAborted);
+
+            if (Module is null)
+                return;
+
+            using var endpointsResponse = await _modulixApiClient.SubEndpointManagement.GetModuleEndpointsAsync(
+                moduleId: id,
+                pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
+                ct: HttpContext.RequestAborted);
+
+            if (endpointsResponse.IsSuccessStatusCode)
+            {
+                var pagedEndpoints = await endpointsResponse.Content.ReadFromJsonAsync<PagedResultDto<ModuleSubEndpointDto>>(
+                    cancellationToken: HttpContext.RequestAborted);
+
+                if (pagedEndpoints is not null)
+                {
+                    Endpoints = pagedEndpoints.Items;
+                    TotalEndpoints = pagedEndpoints.TotalCount;
+                    CurrentPage = pagedEndpoints.Page > 0 ? pagedEndpoints.Page : CurrentPage;
+                    PageSize = pagedEndpoints.PageSize > 0 ? pagedEndpoints.PageSize : PageSize;
+                    TotalPages = Math.Max(1, pagedEndpoints.TotalPages);
+                    HasPreviousPage = pagedEndpoints.HasPreviousPage;
+                    HasNextPage = pagedEndpoints.HasNextPage;
+                    return;
+                }
+            }
+
+            var fallbackEndpoints = Module.Endpoints.ToList();
+            TotalEndpoints = fallbackEndpoints.Count;
+            TotalPages = Math.Max(1, (int)Math.Ceiling((double)TotalEndpoints / PageSize));
+            HasPreviousPage = CurrentPage > 1;
+            HasNextPage = CurrentPage < TotalPages;
+            Endpoints = fallbackEndpoints
+                .Skip((CurrentPage - 1) * PageSize)
+                .Take(PageSize)
+                .ToList();
         }
         catch (HttpRequestException exception)
         {

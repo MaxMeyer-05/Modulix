@@ -23,7 +23,7 @@
                 <span class="auto-refresh-dot" aria-hidden="true"></span>
                 <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
             </span>
-            <a class="module-button" data-auto-refresh-link href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = Model.StatusFilter, sort = Model.SortBy })">
+            <a class="module-button" data-auto-refresh-link href="@Model.GetPageUrl(Model.CurrentPage)">
                 <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
             </a>
             <button class="module-button module-button-primary" type="button" popovertarget="add-module-dialog">
@@ -56,7 +56,7 @@
 
     <section class="module-metrics" aria-label="Module status overview">
         <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
-           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "", sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, "")">
             <div class="queue-metric-heading">
                 <h2>Total modules</h2>
                 <span class="queue-metric-icon"><i data-lucide="layers" aria-hidden="true"></i></span>
@@ -65,7 +65,7 @@
             <span class="queue-metric-sub">@Model.StartingCount starting / created</span>
         </a>
         <a class="queue-metric queue-metric-active queue-metric-link @(Model.StatusFilter == "Running" ? "is-selected" : "")"
-           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "Running", sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, "Running")">
             <div class="queue-metric-heading">
                 <h2>Active (Running)</h2>
                 <span class="queue-metric-icon"><i data-lucide="activity" aria-hidden="true"></i></span>
@@ -74,7 +74,7 @@
             <span class="queue-metric-sub">Routing traffic via proxy</span>
         </a>
         <a class="queue-metric queue-metric-priority queue-metric-link @(Model.StatusFilter == "PendingConfirmation" ? "is-selected" : "")"
-           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "PendingConfirmation", sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, "PendingConfirmation")">
             <div class="queue-metric-heading">
                 <h2>Pending &amp; queued</h2>
                 <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
@@ -83,7 +83,7 @@
             <span class="queue-metric-sub">@Model.PendingConfirmationCount pending · @Model.QueuedForScanCount queued</span>
         </a>
         <a class="queue-metric queue-metric-inactive queue-metric-link @(Model.StatusFilter == "Stopped" ? "is-selected" : "")"
-           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "Stopped", sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, "Stopped")">
             <div class="queue-metric-heading">
                 <h2>Stopped</h2>
                 <span class="queue-metric-icon"><i data-lucide="square" aria-hidden="true"></i></span>
@@ -92,7 +92,7 @@
             <span class="queue-metric-sub">Container not running</span>
         </a>
         <a class="queue-metric queue-metric-failed queue-metric-link @(Model.StatusFilter == "Failed" ? "is-selected" : "")"
-           href="@Url.Page("/ModulesPage/Index", new { q = Model.Query, status = "Failed", sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, "Failed")">
             <div class="queue-metric-heading">
                 <h2>Failed</h2>
                 <span class="queue-metric-icon"><i data-lucide="triangle-alert" aria-hidden="true"></i></span>
@@ -107,6 +107,7 @@
         {
             <input type="hidden" name="status" value="@Model.StatusFilter" />
         }
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="module-search" name="q" type="search" value="@Model.Query" placeholder="Search modules..." aria-label="Search modules" autocomplete="off" />
@@ -121,7 +122,7 @@
         </label>
         <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
     </form>
-    <p class="module-result-count" id="module-result-count" role="status">@(modules.Count == Model.TotalModules ? $"{modules.Count} modules" : $"{modules.Count} of {Model.TotalModules} modules")</p>
+    <p class="module-result-count" id="module-result-count" role="status">@(modules.Count == Model.TotalModules ? $"{modules.Count} modules" : $"{modules.Count} of {Model.TotalModules} modules (page {Model.CurrentPage} of {Model.TotalPages})")</p>
     <div class="module-card-grid" id="module-card-grid">
         @foreach (var module in modules)
         {
@@ -149,6 +150,76 @@
             <h2>No modules found</h2><p>No modules match your search and filters.</p>
             <a class="module-button" href="@closeUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
         </div>
+    }
+    @if (Model.TotalModules > 0)
+    {
+        var startPage = Math.Max(1, Model.CurrentPage - 2);
+        var endPage = Math.Min(Model.TotalPages, startPage + 4);
+        startPage = Math.Max(1, endPage - 4);
+        <footer class="module-pagination-bar" aria-label="Modules pagination">
+            <form class="module-pagination-size" method="get" action="@closeUrl">
+                @if (!string.IsNullOrWhiteSpace(Model.Query))
+                {
+                    <input type="hidden" name="q" value="@Model.Query" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.StatusFilter))
+                {
+                    <input type="hidden" name="status" value="@Model.StatusFilter" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.SortBy) && Model.SortBy != "newest")
+                {
+                    <input type="hidden" name="sort" value="@Model.SortBy" />
+                }
+                <input type="hidden" name="page" value="1" />
+                <label class="module-pagination-size-label" for="modules-page-size">
+                    <span>Rows per page</span>
+                    <select id="modules-page-size" name="pageSize" data-page-size-select>
+                        @foreach (var size in IndexModel.AllowedPageSizes)
+                        {
+                            <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                        }
+                    </select>
+                </label>
+                <span class="module-pagination-summary">Page @Model.CurrentPage of @Model.TotalPages (@Model.TotalModules total)</span>
+            </form>
+            <nav class="module-pagination-controls" aria-label="Modules page navigation">
+                @if (Model.HasPreviousPage)
+                {
+                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(Model.CurrentPage - 1)" aria-label="Previous page">
+                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
+                    </a>
+                }
+                else
+                {
+                    <button class="module-button module-button-compact" type="button" disabled aria-label="Previous page">
+                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
+                    </button>
+                }
+                @for (var p = startPage; p <= endPage; p++)
+                {
+                    if (p == Model.CurrentPage)
+                    {
+                        <span class="module-button module-button-compact module-button-primary" aria-current="page">@p</span>
+                    }
+                    else
+                    {
+                        <a class="module-button module-button-compact" href="@Model.GetPageUrl(p)" aria-label="Page @p">@p</a>
+                    }
+                }
+                @if (Model.HasNextPage)
+                {
+                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(Model.CurrentPage + 1)" aria-label="Next page">
+                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+                else
+                {
+                    <button class="module-button module-button-compact" type="button" disabled aria-label="Next page">
+                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </button>
+                }
+            </nav>
+        </footer>
     }
 
     <div class="module-dialog @(reopen ? "module-dialog-open" : "")" id="add-module-dialog" popover="@(reopen ? null : "auto")" role="dialog" aria-labelledby="add-module-heading">

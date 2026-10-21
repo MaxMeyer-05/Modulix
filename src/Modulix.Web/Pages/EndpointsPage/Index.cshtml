@@ -36,7 +36,7 @@
                 <span class="auto-refresh-dot" aria-hidden="true"></span>
                 <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
             </span>
-            <a class="module-button" data-auto-refresh-link href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = Model.StatusFilter, module = Model.ModuleFilter, sort = Model.SortBy })">
+            <a class="module-button" data-auto-refresh-link href="@Model.GetPageUrl(Model.CurrentPage)">
                 <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
             </a>
         </div>
@@ -55,7 +55,7 @@
 
     <section class="queue-metrics" aria-label="API endpoints overview">
         <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
-           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = "", module = Model.ModuleFilter, sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, "")">
             <div class="queue-metric-heading">
                 <h2>Total endpoints</h2>
                 <span class="queue-metric-icon"><i data-lucide="link" aria-hidden="true"></i></span>
@@ -64,7 +64,7 @@
             <span class="queue-metric-sub">Across @Model.AvailableModules.Count @(Model.AvailableModules.Count == 1 ? "module" : "modules")</span>
         </a>
         <a class="queue-metric queue-metric-active queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.Active), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
-           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = nameof(ModuleEndpointsStatus.Active), module = Model.ModuleFilter, sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, nameof(ModuleEndpointsStatus.Active))">
             <div class="queue-metric-heading">
                 <h2>Active</h2>
                 <span class="queue-metric-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span>
@@ -73,7 +73,7 @@
             <span class="queue-metric-sub">Routing traffic via proxy</span>
         </a>
         <a class="queue-metric queue-metric-priority queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.PendingConfirmation), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
-           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = nameof(ModuleEndpointsStatus.PendingConfirmation), module = Model.ModuleFilter, sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, nameof(ModuleEndpointsStatus.PendingConfirmation))">
             <div class="queue-metric-heading">
                 <h2>Pending confirmation</h2>
                 <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
@@ -82,7 +82,7 @@
             <span class="queue-metric-sub">Awaiting review</span>
         </a>
         <a class="queue-metric queue-metric-inactive queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.Inactive), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
-           href="@Url.Page("/EndpointsPage/Index", new { q = Model.Query, method = Model.MethodFilter, status = nameof(ModuleEndpointsStatus.Inactive), module = Model.ModuleFilter, sort = Model.SortBy })">
+           href="@Model.GetPageUrl(1, nameof(ModuleEndpointsStatus.Inactive))">
             <div class="queue-metric-heading">
                 <h2>Inactive</h2>
                 <span class="queue-metric-icon"><i data-lucide="pause-circle" aria-hidden="true"></i></span>
@@ -97,6 +97,7 @@
         {
             <input type="hidden" name="status" value="@Model.StatusFilter" />
         }
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="endpoint-search" name="q" type="search" value="@Model.Query" placeholder="Search by path, module, method or ID..." aria-label="Search endpoints" autocomplete="off" />
@@ -130,7 +131,7 @@
     </form>
 
     <p class="module-result-count" id="endpoint-result-count" role="status">
-        @(endpoints.Count == Model.TotalEndpoints ? $"{endpoints.Count} endpoints" : $"{endpoints.Count} of {Model.TotalEndpoints} endpoints")
+        @(endpoints.Count == Model.TotalEndpoints ? $"{endpoints.Count} endpoints" : $"{endpoints.Count} of {Model.TotalEndpoints} endpoints (page {Model.CurrentPage} of {Model.TotalPages})")
     </p>
 
     @if (endpoints.Count > 0)
@@ -219,6 +220,84 @@
                 <a class="module-button" href="@resetUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
             }
         </div>
+    }
+    @if (Model.TotalEndpoints > 0)
+    {
+        var startPage = Math.Max(1, Model.CurrentPage - 2);
+        var endPage = Math.Min(Model.TotalPages, startPage + 4);
+        startPage = Math.Max(1, endPage - 4);
+        <footer class="module-pagination-bar" aria-label="Endpoints pagination">
+            <form class="module-pagination-size" method="get" action="@resetUrl">
+                @if (!string.IsNullOrWhiteSpace(Model.Query))
+                {
+                    <input type="hidden" name="q" value="@Model.Query" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.MethodFilter))
+                {
+                    <input type="hidden" name="method" value="@Model.MethodFilter" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.StatusFilter))
+                {
+                    <input type="hidden" name="status" value="@Model.StatusFilter" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.ModuleFilter))
+                {
+                    <input type="hidden" name="module" value="@Model.ModuleFilter" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.SortBy) && Model.SortBy != "newest")
+                {
+                    <input type="hidden" name="sort" value="@Model.SortBy" />
+                }
+                <input type="hidden" name="page" value="1" />
+                <label class="module-pagination-size-label" for="endpoints-page-size">
+                    <span>Rows per page</span>
+                    <select id="endpoints-page-size" name="pageSize" data-page-size-select>
+                        @foreach (var size in Modulix.Web.Pages.EndpointsPage.IndexModel.AllowedPageSizes)
+                        {
+                            <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                        }
+                    </select>
+                </label>
+                <span class="module-pagination-summary">Page @Model.CurrentPage of @Model.TotalPages (@Model.TotalEndpoints total)</span>
+            </form>
+            <nav class="module-pagination-controls" aria-label="Endpoints page navigation">
+                @if (Model.HasPreviousPage)
+                {
+                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(Model.CurrentPage - 1)" aria-label="Previous page">
+                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
+                    </a>
+                }
+                else
+                {
+                    <button class="module-button module-button-compact" type="button" disabled aria-label="Previous page">
+                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
+                    </button>
+                }
+                @for (var p = startPage; p <= endPage; p++)
+                {
+                    if (p == Model.CurrentPage)
+                    {
+                        <span class="module-button module-button-compact module-button-primary" aria-current="page">@p</span>
+                    }
+                    else
+                    {
+                        <a class="module-button module-button-compact" href="@Model.GetPageUrl(p)" aria-label="Page @p">@p</a>
+                    }
+                }
+                @if (Model.HasNextPage)
+                {
+                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(Model.CurrentPage + 1)" aria-label="Next page">
+                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+                else
+                {
+                    <button class="module-button module-button-compact" type="button" disabled aria-label="Next page">
+                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </button>
+                }
+            </nav>
+        </footer>
     }
     <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
 </div>

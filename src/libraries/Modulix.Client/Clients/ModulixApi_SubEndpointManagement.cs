@@ -19,16 +19,38 @@ internal partial class ModulixApi : ISubEndpointManagementClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetAllEndpointsDetailAsync(CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllEndpointsDetailAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{SubEndpointManagementEndpoint}";
+        if (pagination != null)
+        {
+            var query = new List<string>
+            {
+                $"page={pagination.Page}",
+                $"pageSize={pagination.PageSize}"
+            };
+            if (query.Count > 0)
+                requestUri += "?" + string.Join("&", query);
+        }
+
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
+        if (pagination != null)
+        {
+            var query = new List<string>
+            {
+                $"page={pagination.Page}",
+                $"pageSize={pagination.PageSize}"
+            };
+            if (query.Count > 0)
+                requestUri += "?" + string.Join("&", query);
+        }
+
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 }

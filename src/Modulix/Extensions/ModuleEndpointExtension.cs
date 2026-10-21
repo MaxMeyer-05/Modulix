@@ -21,6 +21,9 @@ public class ModuleEndpointExtension
     private static readonly string[] ReservedBasePaths =
     [
         "api/modules-management",
+        "api/version-management",
+        "api/endpoint-management",
+        "api/scanner-management",
         "swagger",
         "openapi"
     ];

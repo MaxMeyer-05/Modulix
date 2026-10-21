@@ -35,15 +35,16 @@ public class ModuleVersionsManagementController : ControllerBase
     /// <summary>
     /// Retrieves all module versions across all modules.
     /// </summary>
+    /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with a list of all module versions.
     /// </returns>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<ModuleVersionDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<ModuleVersionDto>>> GetAllModuleVersionsAsync(CancellationToken ct = default)
+    [ProducesResponseType(typeof(PagedResultDto<ModuleVersionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResultDto<ModuleVersionDto>>> GetAllModuleVersionsAsync([FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var result = await _moduleVersionService.GetAllModuleVersionsAsync(ct);
+        var result = await _moduleVersionService.GetAllModuleVersionsAsync(pagination, ct);
         return Ok(result);
     }
 

@@ -61,7 +61,11 @@ builder.Services.AddDockerServices();
 builder.Services.AddReverseProxyServices();
 
 builder.Services.AddDbContext<ServerContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("ServerDatabase")));
+    options.UseSqlite
+    (
+        builder.Configuration.GetConnectionString("ServerDatabase"),
+        x => x.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)
+    ));
 
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
