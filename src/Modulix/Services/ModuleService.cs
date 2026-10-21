@@ -363,14 +363,23 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ModuleDto>> GetAllModulesAsync(CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var modules = await _context.Modules.ToListAsync(ct);
+        var modules = await _context.Modules
+            .Skip((pagination.Page - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .ToListAsync(ct);
         var moduleDtos = modules.Select(module => module.ToModuleDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} modules from the database.", moduleDtos.Count);
 
-        return moduleDtos;
+        return new PagedResultDto<ModuleDto>
+        {
+            Items = moduleDtos,
+            Page = pagination.Page,
+            PageSize = pagination.PageSize,
+            TotalCount = await _context.Modules.CountAsync(ct)
+        };
     }
 
     /// <inheritdoc/>
