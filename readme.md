@@ -156,7 +156,7 @@ Modules support:
 
 - Only modules with status `Running` and sub-endpoints with status `Active` are exposed through the proxy.
 - Incoming requests to `/{BaseUrlPath}/{EndpointPath}` matching the configured HTTP method have their `/{BaseUrlPath}` prefix stripped and are forwarded to `http://127.0.0.1:{ContainerPort}/{EndpointPath}`.
-- Reserved system prefixes (`api/modules-management`, `api`, `swagger`, `openapi`) are blocked from being registered by modules.
+- Reserved system prefixes (`api/modules-management`, `api/version-management`, `api/endpoint-management`, `api/scanner-management`, `api`, `swagger`, `openapi`) are blocked from being registered by modules.
 - Active routes are restored from SQLite on server startup and hot-reloaded without downtime whenever modules are created, confirmed, started, stopped, rolled back, updated, or deleted.
 
 ### Web Management Portal (`Modulix.Web`)
@@ -164,8 +164,8 @@ Modules support:
 `Modulix.Web` provides an interactive administrative UI built with ASP.NET Core Razor Pages. Users authenticate via OpenID Connect (Authorization Code flow with PKCE), while backend requests to `Modulix` use `Modulix.Client` with automated OAuth 2.0 Client Credentials token management (`Duende.AccessTokenManagement`). The portal offers:
 
 - **Dashboard:** High-level system metrics and module status overview.
-- **Modules:** Uploading new ZIP artifacts with initial sub-endpoints, starting/stopping modules, deploying new versions, rolling back to previous versions, resolving endpoint discrepancies, editing metadata, and deleting modules.
-- **Endpoints:** Searching, filtering, and inspecting all active, pending, and inactive sub-endpoints across modules (including `DiscoveredInVersion`).
+- **Modules:** Uploading new ZIP artifacts with initial sub-endpoints, browsing modules with pagination and page-size controls, starting/stopping modules, deploying new versions, rolling back to previous versions, resolving endpoint discrepancies, editing metadata, and deleting modules.
+- **Endpoints:** Searching, filtering, paginating, and inspecting all active, pending, and inactive sub-endpoints across modules (including `DiscoveredInVersion`).
 - **Scan Queue:** Monitoring queued scans and priorities or cancelling pending scans.
 - **Logs:** Browsing and filtering structured Serilog log files.
 
@@ -177,7 +177,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | List all registered modules. |
+| `GET` | `/` | List registered modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleDto>`). |
 | `GET` | `/{moduleId}` | Retrieve module details, sub-endpoints, versions, and lifecycle status. |
 | `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
 | `POST` | `/{moduleId}/start` | Start a stopped or created module container. |
@@ -189,7 +189,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Retrieve all module versions across all modules. |
+| `GET` | `/` | Retrieve module versions across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleVersionDto>`). |
 | `GET` | `/{moduleId}` | Retrieve all versions for a specific module. |
 | `GET` | `/{moduleId}/version/{version}` | Retrieve details of a specific module version. |
 | `POST` | `/{moduleId}/version` | Upload and deploy a new version for a module (`multipart/form-data`). |
@@ -201,8 +201,8 @@ All management endpoints require a valid JWT bearer token and are organized by c
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Retrieve detailed sub-endpoints across all modules. |
-| `GET` | `/{moduleId}` | Retrieve sub-endpoints for a specific module. |
+| `GET` | `/` | Retrieve detailed sub-endpoints across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointsDetailDto>`). |
+| `GET` | `/{moduleId}` | Retrieve sub-endpoints for a specific module (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointDto>`). |
 | `POST` | `/{moduleId}/confirm` | Confirm or reject pending endpoint discrepancies. |
 
 #### Scanner (`ScannerManagementController` — `/api/scanner-management/scanner`)

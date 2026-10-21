@@ -11,7 +11,7 @@
     <Product>Modulix</Product>
     <Description>Web frontend for the Modulix framework.</Description>
     <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
