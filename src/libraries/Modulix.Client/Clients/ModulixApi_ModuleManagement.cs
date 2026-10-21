@@ -64,9 +64,20 @@ internal partial class ModulixApi : IModuleManagementClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetAllModulesAsync(CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}";
+        if (pagination != null)
+        {
+            var query = new List<string>
+            {
+                $"page={pagination.Page}",
+                $"pageSize={pagination.PageSize}"
+            };
+            if (query.Count > 0)
+                requestUri += "?" + string.Join("&", query);
+        }
+        
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 

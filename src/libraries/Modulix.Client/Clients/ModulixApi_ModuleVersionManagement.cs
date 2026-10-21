@@ -40,9 +40,20 @@ internal partial class ModulixApi : IModuleVersionClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetAllModuleVersionsAsync(CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllModuleVersionsAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleVersionEndpoint}";
+        if (pagination != null)
+        {
+            var query = new List<string>
+            {
+                $"page={pagination.Page}",
+                $"pageSize={pagination.PageSize}"
+            };
+            if (query.Count > 0)
+                requestUri += "?" + string.Join("&", query);
+        }
+
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
