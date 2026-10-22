@@ -59,6 +59,56 @@ public partial class DockerServiceTests
         Assert.Equal(1, requests);
     }
 
+    [Theory]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, true, false, false)]
+    public async Task StopContainerAsync_StopThrowsDockerApiException_SucceedsOnlyWhenContainerStoppedOrRemoved(
+        bool stillRunning, bool restarting, bool inspectNotFound, bool expectedSuccess)
+    {
+        var requests = new List<string>();
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            requests.Add(request.Method + " " + path);
+
+            if (path.EndsWith("/stop", StringComparison.Ordinal))
+            {
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(
+                    new { cause = "permission denied", message = "rootless netns: kill network process: permission denied" },
+                    HttpStatusCode.InternalServerError));
+            }
+
+            if (inspectNotFound)
+            {
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(
+                    new { message = "No such container." },
+                    HttpStatusCode.NotFound));
+            }
+
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(new
+            {
+                State = new { Running = stillRunning, Restarting = restarting }
+            }));
+        });
+
+        if (expectedSuccess)
+        {
+            await service.StopContainerAsync("podman-container");
+        }
+        else
+        {
+            var ex = await Assert.ThrowsAsync<DockerApiException>(() =>
+                service.StopContainerAsync("podman-container"));
+            Assert.Contains("rootless netns", ex.Message);
+        }
+
+        Assert.Equal(2, requests.Count);
+        Assert.EndsWith("/containers/podman-container/stop", requests[0]);
+        Assert.EndsWith("/containers/podman-container/json", requests[1]);
+    }
+
     [Fact]
     public async Task RemoveContainerAsync_VersionedContainer_DeletesOnlyItsImageWithForce()
     {
@@ -143,7 +193,7 @@ public partial class DockerServiceTests
 
     [Theory]
     [InlineData("inspect", 1)]
-    [InlineData("stop", 2)]
+    [InlineData("stop", 3)]
     [InlineData("container", 3)]
     public async Task RemoveContainerAsync_DockerFailure_StopsCleanupAtFailedOperation(string failingOperation, int expectedRequests)
     {
@@ -158,7 +208,7 @@ public partial class DockerServiceTests
             if (operation == failingOperation)
                 return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "Failure during " + operation }, HttpStatusCode.InternalServerError));
             return Task.FromResult(operation == "inspect"
-                ? DockerHttpTestHelper.JsonResponse(new { Config = new { Image = "module-image:old" } })
+                ? DockerHttpTestHelper.JsonResponse(new { Config = new { Image = "module-image:old" }, State = new { Running = true, Restarting = false } })
                 : DockerHttpTestHelper.JsonResponse(Array.Empty<object>()));
         });
 
