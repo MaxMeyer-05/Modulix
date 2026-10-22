@@ -22,7 +22,7 @@ public class ModuleSubEndpointDto
     /// </summary>
     /// <value>e.g., GET, POST</value>
     /// <example>GET</example>
-    public string HttpMethod { get; set; } = null!;
+    public HttpMethod HttpMethod { get; set; } = null!;
 
     /// <summary>
     /// The relative endpoint route.
@@ -78,7 +78,7 @@ public class CreateModuleSubEndpointDto
     /// <example>GET</example>
     [Required(ErrorMessage = "HTTP method is required.")]
     [MaxLength(10, ErrorMessage = "HTTP method cannot exceed 10 characters.")]
-    public string HttpMethod { get; set; } = null!;
+    public HttpMethod HttpMethod { get; set; } = null!;
 
     /// <summary>
     /// The base endpoint path for the new module.
@@ -138,7 +138,7 @@ public class DiscoveredSubEndpointDto
     /// <example>GET</example>
     [Required]
     [MaxLength(10)]
-    public string HttpMethod { get; set; } = null!;
+    public HttpMethod HttpMethod { get; set; } = null!;
 
     /// <summary>
     /// The relative endpoint route path.

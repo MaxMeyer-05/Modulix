@@ -38,7 +38,7 @@ public class ModuleEndpoint
     /// </summary>
     [Required]
     [MaxLength(10)]
-    public string HttpMethod { get; set; } = null!;
+    public HttpMethod HttpMethod { get; set; } = null!;
 
     /// <summary>
     /// The path of the endpoint within the module.
