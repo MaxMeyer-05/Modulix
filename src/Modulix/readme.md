@@ -12,6 +12,11 @@ dotnet run --project src/Modulix --launch-profile http
 
 ## changelog
 
+### 1.1.2
+- Added `GET /api/modules-management/modules/{moduleId}/logs` endpoint (with optional `tail` parameter) to retrieve module container logs.
+- Added runtime container state reconciliation to detect crashed `Running` containers, transition them to `Failed`, and remove stale YARP routes.
+- Added `Docker:SocketUri` configuration support to `appsettings.Template.json`.
+
 ### 1.1.1
 - Added pagination support (`page`, `pageSize`) to module, module version, and sub-endpoint listing endpoints.
 - Explicitly reserved all management API base paths (`api/modules-management`, `api/version-management`, `api/endpoint-management`, `api/scanner-management`) against module route conflicts.

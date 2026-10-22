@@ -1,18 +1,11 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
-
-using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
-
-using Modulix.Docker.Services;
-using Modulix.Extensions;
-using Modulix.ReverseProxy.Services;
-using Modulix.Scanner.Interfaces;
 using Modulix.Services;
+using Modulix.Tests.TestData;
 
 namespace Modulix.Tests.Services;
 
@@ -21,48 +14,18 @@ namespace Modulix.Tests.Services;
 /// </summary>
 [Trait("Category", "Services")]
 [Trait("SubCategory", "ScannerService")]
-public class ScannerServiceTests : IDisposable
+public class ScannerServiceTests : ServiceTestBase
 {
-    private readonly SqliteConnection _connection;
-    private readonly ServerContext _context;
-    private readonly FakeModuleEndpointScanner _endpointScanner;
-    private readonly FakeDockerService _dockerService;
-    private readonly ReverseProxyService _reverseProxyService;
     private readonly ScannerService _sut;
-
-    #region Setup & Teardown
 
     public ScannerServiceTests()
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
-
-        var options = new DbContextOptionsBuilder<ServerContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _context = new ServerContext(options);
-        _context.Database.EnsureCreated();
-
-        _endpointScanner = new FakeModuleEndpointScanner();
-        _dockerService = new FakeDockerService();
-        _reverseProxyService = new ReverseProxyService(NullLogger<ReverseProxyService>.Instance);
-
         _sut = new ScannerService(
             _context,
             NullLogger<ScannerService>.Instance,
             _endpointScanner,
-            new ModuleEndpointExtension(_context, NullLogger<ModuleEndpointExtension>.Instance, _dockerService, _reverseProxyService));
+            _moduleEndpointExtension);
     }
-
-    public void Dispose()
-    {
-        _context.Dispose();
-        _connection.Dispose();
-        GC.SuppressFinalize(this);
-    }
-
-    #endregion
 
     #region ProcessQueuedScanResult Tests
 
@@ -220,78 +183,6 @@ public class ScannerServiceTests : IDisposable
         Assert.Equal(string.Empty, result[2].ModuleName);
         Assert.Equal(ScanPriority.Create, result[2].Priority);
         Assert.False(result[2].IsRunning);
-    }
-
-    #endregion
-
-    #region Test Fakes & Helpers
-
-    private static Module CreateTestModuleEntity(string name, string basePath, int port)
-    {
-        var module = new Module
-        {
-            Id = Guid.NewGuid(),
-            ModuleName = name,
-            Description = "Description for " + name,
-            BaseUrlPath = basePath.TrimStart('/'),
-            ContainerPort = port,
-            CurrentVersion = "v1.0.0",
-            Status = ModuleStatus.Created,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        module.Versions.Add(new ModuleVersion
-        {
-            ModuleId = module.Id,
-            Version = "v1.0.0",
-            StoragePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()),
-            ModuleEntryAssemblyFileName = "module.dll"
-        });
-        return module;
-    }
-
-    private sealed class FakeModuleEndpointScanner : IModuleEndpointScanner
-    {
-        public List<ModuleScanQueueItemDto> QueuedScans { get; set; } = [];
-
-        public bool CancelScan(Guid moduleId) => false;
-
-        public IReadOnlyList<ModuleScanQueueItemDto> GetQueuedScans() => QueuedScans;
-
-        public Task<ScanEnqueueResponse> ScanOrEnqueueAsync(
-            Guid moduleId, string moduleDirectoryPath, ScanPriority priority = ScanPriority.Create, CancellationToken ct = default)
-            => throw new NotSupportedException();
-    }
-
-    private sealed class FakeDockerService : IDockerService
-    {
-        public List<string> Calls { get; } = [];
-        public string? BuiltEntryAssembly { get; private set; }
-
-        public Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            Calls.Add("build");
-            BuiltEntryAssembly = entryDllName;
-            return Task.FromResult("replacement-container");
-        }
-
-        public Task RunContainerAsync(string containerId, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            Calls.Add("start");
-            return Task.CompletedTask;
-        }
-
-        public Task WaitUntilReadyAsync(string containerId, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            Calls.Add("ready");
-            return Task.CompletedTask;
-        }
-
-        public Task StopContainerAsync(string containerId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId) => throw new NotSupportedException();
     }
 
     #endregion

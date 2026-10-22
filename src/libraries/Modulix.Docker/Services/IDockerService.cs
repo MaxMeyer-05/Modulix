@@ -53,4 +53,22 @@ public interface IDockerService
     /// <param name="moduleId">The ID of the module associated with the container.</param>
     /// <returns>True if the container was successfully removed; otherwise, false.</returns>
     Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId);
+
+    /// <summary>
+    /// Checks whether the specified Docker container is currently running and healthy.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to inspect.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>True if the container exists, is running, is not restarting, and has not exited with an error; otherwise, false.</returns>
+    Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves the logs of a Docker container.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to get logs from.</param>
+    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The container logs as a plain-text string.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the specified container could not be found.</exception>
+    Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default);
 }

@@ -448,6 +448,98 @@
   text-decoration: none;
 }
 
+.module-failed-banner {
+  align-items: center;
+}
+.module-failed-banner p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.module-failed-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.module-failed-banner-content a.module-button {
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.module-logs-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.module-logs-line-count {
+  color: var(--module-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.module-logs-tail-form {
+  margin: 0;
+}
+.module-logs-wrap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--module-muted);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.module-logs-wrap-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--module-accent);
+  cursor: pointer;
+}
+.module-section-heading-actions a.module-button {
+  text-decoration: none;
+}
+.module-logs-error {
+  margin: 18px 0 0;
+}
+.module-logs-Error p,
+.module-logs-error p {
+  margin: 4px 0 0;
+}
+.module-logs-viewer {
+  margin-top: 18px;
+  border: 1px solid var(--module-border);
+  border-radius: 6px;
+  background: #0e141d;
+  overflow: hidden;
+}
+.module-logs-empty {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--module-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.module-logs-output {
+  margin: 0;
+  padding: 14px 16px;
+  max-height: 440px;
+  overflow: auto;
+  color: #d6e0ec;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: #384453 #0e141d;
+}
+.module-logs-section:has(#module-logs-wrap:not(:checked)) .module-logs-output {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
 @media (max-width: 1100px) {
   .queue-metrics, .module-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .module-detail-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }

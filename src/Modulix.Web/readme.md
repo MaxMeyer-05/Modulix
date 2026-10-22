@@ -12,6 +12,11 @@ dotnet run --project src/Modulix.Web
 
 ## changelog
 
+### 1.1.2
+- Added container logs viewer section on the module detail page (`/modules/{id}`) with tail line selection, line wrapping, refresh, and `.log` file download.
+- Added a prominent failure alert banner on `/modules/{id}` when a module container is in `Failed` status.
+- Split `DetailModel` and `Detail.cshtml` into focused partial classes and Razor partial views.
+
 ### 1.1.1
 - Added pagination controls and page-size selection to the Modules, API Endpoints, and Module Detail pages.
 - Updated dashboard and management views to consume paged API responses (`PagedResultDto<T>`).

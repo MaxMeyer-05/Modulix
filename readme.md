@@ -13,7 +13,7 @@ In addition to the core management service and API gateway, the repository provi
 - A reachable OpenID Connect / OAuth 2.0 identity provider (such as Keycloak) for JWT bearer authentication (`Modulix`) and interactive + client-credentials authentication (`Modulix.Web`).
 - Write access to the SQLite database, module storage, and log directories.
 
-The server connects to the local Docker daemon via `/var/run/docker.sock` on Linux or the Windows named pipe. The Docker daemon must have access to the configured module storage directory because scanner containers mount extracted module directories as read-only volumes.
+The server connects to the local Docker/Podman daemon via `/var/run/docker.sock` on Linux or the Windows named pipe (`npipe://./pipe/docker_engine`) by default, or via a custom endpoint configured through `Docker:SocketUri` (for example `unix:///run/user/1000/podman/podman.sock` for rootless Podman). The container daemon must have access to the configured module storage directory because scanner containers mount extracted module directories as read-only volumes.
 
 ### Configuration
 
@@ -29,6 +29,7 @@ Use [./src/Modulix/appsettings.Template.json](./src/Modulix/appsettings.Template
 | `Modulix:StorageBasePath` | `storage/modules` | Directory for extracted module artifacts (relative paths resolve against the content root). |
 | `Modulix:MaximumArchiveEntryCount` | `1000` | Maximum number of entries allowed in an uploaded ZIP archive. |
 | `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
+| `Docker:SocketUri` | `null` | Optional Docker/Podman daemon socket URI (e.g., `unix:///run/user/1000/podman/podman.sock` for rootless Podman). Defaults to `npipe://./pipe/docker_engine` on Windows or `unix:///var/run/docker.sock` on Linux/macOS when unset. |
 | `Docker:NetworkName` | `modulix-network` | Docker bridge network attached to module containers. |
 | `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Base runtime image used when building module container images. |
 | `Docker:ScannerImage` | `ghcr.io/maxmeyer-05/modulix-scanner:latest` | Docker image executed for assembly endpoint discovery (pulled automatically if not present locally). |
@@ -179,6 +180,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | --- | --- | --- |
 | `GET` | `/` | List registered modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleDto>`). |
 | `GET` | `/{moduleId}` | Retrieve module details, sub-endpoints, versions, and lifecycle status. |
+| `GET` | `/{moduleId}/logs` | Retrieve `stdout`/`stderr` container logs for a module (supports optional `tail` query parameter). |
 | `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
 | `POST` | `/{moduleId}/start` | Start a stopped or created module container. |
 | `POST` | `/{moduleId}/stop` | Stop a running module container. |

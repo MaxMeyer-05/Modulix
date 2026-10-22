@@ -13,7 +13,7 @@
     <Product>Modulix</Product>
     <Description>Core server and API for the Modulix framework.</Description>
     <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
   </PropertyGroup>
 
   <ItemGroup>

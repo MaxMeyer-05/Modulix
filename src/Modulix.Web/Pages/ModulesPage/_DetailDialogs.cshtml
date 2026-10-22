@@ -1,0 +1,263 @@
+@model DetailModel
+@using System.Globalization
+@{
+    var module = Model.Module!;
+    var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
+    var rollbackVersions = Model.RollbackVersions;
+    var pendingEndpoints = Model.PendingEndpoints;
+}
+<div class="module-dialog @(Model.ReopenEdit ? "module-dialog-open" : "")" id="edit-module-dialog" popover="@(Model.ReopenEdit ? null : "auto")" role="dialog" aria-labelledby="edit-module-heading">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="edit-module-heading">Edit module details</h2></div>
+        @if (Model.ReopenEdit)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="edit-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="edit-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Edit" asp-route-id="@module.Id">
+        @if (Model.EditError is { } editError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@editError.Title</strong> <span class="module-code">HTTP @editError.StatusCode</span>
+                <p>@editError.Description</p>
+            </div>
+        }
+        <fieldset class="module-form-fields" id="module-edit-fields">
+            <label>
+                <span>Module name <span class="required-mark">*</span></span>
+                <input name="ModuleName" value="@(Model.EditInput?.ModuleName ?? module.ModuleName)" required maxlength="100" placeholder="AnalyticsModule" autofocus />
+            </label>
+            <label>
+                <span>Description</span>
+                <textarea name="Description" rows="3" maxlength="500" placeholder="Optional description">@(Model.EditInput is not null ? Model.EditInput.Description : module.Description)</textarea>
+            </label>
+        </fieldset>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenEdit)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="edit-module-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenUpdateFiles ? "module-dialog-open" : "")" id="update-files-dialog" popover="@(Model.ReopenUpdateFiles ? null : "auto")" role="dialog" aria-labelledby="update-files-heading">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="update-files-heading">Update module files</h2></div>
+        @if (Model.ReopenUpdateFiles)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="update-files-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="update-files-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="UpdateFiles" asp-route-id="@module.Id" enctype="multipart/form-data">
+        @if (Model.UpdateFilesError is { } filesError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@filesError.Title</strong> <span class="module-code">HTTP @filesError.StatusCode</span>
+                <p>@filesError.Description</p>
+            </div>
+        }
+        <fieldset class="module-form-fields" id="module-update-files-fields">
+            <p class="module-dialog-description">Upload a new ZIP archive to deploy a new version of <strong>@module.ModuleName</strong> (current version: <span class="module-code">@module.CurrentVersion</span>). The archive will be scanned with high priority before replacing the active container.</p>
+            <label>
+                <span>Version <span class="required-mark">*</span></span>
+                <input name="Version" value="@Model.UpdateFilesInput?.Version" required maxlength="50" placeholder="v1.1.0" />
+            </label>
+            <label>
+                <span>Changelog</span>
+                <textarea name="Changelog" rows="2" maxlength="500" placeholder="Optional changelog for this version">@Model.UpdateFilesInput?.Changelog</textarea>
+            </label>
+            <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
+            <label class="module-upload" id="module-update-upload-area" for="module-update-archive">
+                <i data-lucide="upload" aria-hidden="true"></i>
+                <strong>Choose a ZIP archive</strong>
+                <input id="module-update-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
+            </label>
+        </fieldset>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenUpdateFiles)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="update-files-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-primary" type="submit"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenRollback ? "module-dialog-open" : "")" id="rollback-module-dialog" popover="@(Model.ReopenRollback ? null : "auto")" role="dialog" aria-labelledby="rollback-module-heading" aria-describedby="rollback-module-description">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="rollback-module-heading">Rollback module version</h2></div>
+        @if (Model.ReopenRollback)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="rollback-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="rollback-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Rollback" asp-route-id="@module.Id">
+        @if (Model.RollbackError is { } rollbackError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@rollbackError.Title</strong> <span class="module-code">HTTP @rollbackError.StatusCode</span>
+                <p>@rollbackError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <fieldset class="module-form-fields" id="module-rollback-fields">
+            <p class="module-dialog-description" id="rollback-module-description">Roll back <strong>@module.ModuleName</strong> from current version <span class="module-code">@module.CurrentVersion</span> to a previous version. This will rebuild and start the container from that version's files and restore its endpoints.</p>
+            <label>
+                <span>Target version <span class="required-mark">*</span></span>
+                <select name="version" id="rollback-version-select" required disabled="@(rollbackVersions.Count == 0)">
+                    @foreach (var ver in rollbackVersions)
+                    {
+                        var isSelected = string.Equals(Model.RollbackVersion, ver.Version, StringComparison.Ordinal);
+                        var optionLabel = string.IsNullOrWhiteSpace(ver.Changelog)
+                            ? $"{ver.Version} ({ver.ReleasedAtUtc.ToString("MMM d, yyyy HH:mm 'UTC'", CultureInfo.InvariantCulture)})"
+                            : $"{ver.Version} ({ver.ReleasedAtUtc.ToString("MMM d, yyyy HH:mm 'UTC'", CultureInfo.InvariantCulture)}) — {ver.Changelog}";
+                        <option value="@ver.Version" selected="@isSelected">@optionLabel</option>
+                    }
+                </select>
+            </label>
+        </fieldset>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenRollback)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="rollback-module-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-primary" type="submit" disabled="@(rollbackVersions.Count == 0)"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenConfirmEndpoints ? "module-dialog-open" : "")" id="confirm-endpoints-dialog" popover="@(Model.ReopenConfirmEndpoints ? null : "auto")" role="dialog" aria-labelledby="confirm-endpoints-heading" aria-describedby="confirm-endpoints-description">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="confirm-endpoints-heading">Confirm pending endpoints</h2></div>
+        @if (Model.ReopenConfirmEndpoints)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="confirm-endpoints-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="ConfirmEndpoints" asp-route-id="@module.Id">
+        @if (Model.ConfirmEndpointsError is { } confirmError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@confirmError.Title</strong> <span class="module-code">HTTP @confirmError.StatusCode</span>
+                <p>@confirmError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <fieldset class="module-form-fields" id="module-confirm-endpoints-fields">
+            <p class="module-dialog-description" id="confirm-endpoints-description">Review the pending endpoints for <strong>@module.ModuleName</strong>. Choose whether to activate each endpoint or remove it. Once all pending endpoints are resolved, the module container will be built and started automatically.</p>
+            @if (pendingEndpoints.Count == 0)
+            {
+                <p class="module-section-empty">No pending endpoints require confirmation.</p>
+            }
+            else
+            {
+                <div class="confirm-endpoints-list">
+                    @for (var i = 0; i < pendingEndpoints.Count; i++)
+                    {
+                        var pendingEp = pendingEndpoints[i];
+                        var methodUpper = pendingEp.HttpMethod.ToUpperInvariant();
+                        var methodClass = methodUpper switch
+                        {
+                            "GET" => "method-get",
+                            "POST" => "method-post",
+                            "PUT" or "PATCH" => "method-put",
+                            "DELETE" => "method-delete",
+                            _ => "method-other"
+                        };
+                        <div class="confirm-endpoint-item">
+                            <input type="hidden" name="decisions[@i].HttpMethod" value="@pendingEp.HttpMethod" />
+                            <input type="hidden" name="decisions[@i].EndpointPath" value="@pendingEp.EndpointPath" />
+                            <div class="endpoint-route">
+                                <span class="endpoint-method @methodClass">@methodUpper</span>
+                                <span class="module-code">/@module.BaseUrlPath.Trim('/')@pendingEp.EndpointPath</span>
+                            </div>
+                            <select name="decisions[@i].Action" aria-label="Action for @methodUpper @pendingEp.EndpointPath">
+                                <option value="activate" selected>Confirm (Activate)</option>
+                                <option value="remove">Remove endpoint</option>
+                            </select>
+                        </div>
+                    }
+                </div>
+            }
+        </fieldset>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenConfirmEndpoints)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-primary" type="submit" disabled="@(pendingEndpoints.Count == 0)"><i data-lucide="check" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenDelete ? "module-dialog-open" : "")" id="delete-module-dialog" popover="@(Model.ReopenDelete ? null : "auto")" role="dialog" aria-labelledby="delete-module-heading" aria-describedby="delete-module-description">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="delete-module-heading">Delete module?</h2></div>
+        @if (Model.ReopenDelete)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="delete-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Delete" asp-route-id="@module.Id">
+        @if (Model.DeleteError is { } deleteError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@deleteError.Title</strong> <span class="module-code">HTTP @deleteError.StatusCode</span>
+                <p>@deleteError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <div class="module-result-body">
+            <p id="delete-module-description">Permanently delete <strong>@module.ModuleName</strong> (<span class="module-code">@module.BaseUrlPath</span>)? This will stop and remove its container, delete its extracted files, and unregister all endpoints. This cannot be undone.</p>
+        </div>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenDelete)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
+        </div>
+    </form>
+</div>

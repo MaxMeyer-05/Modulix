@@ -1,0 +1,132 @@
+@model DetailModel
+@using System.Globalization
+@{
+    var module = Model.Module!;
+    var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
+}
+<section class="module-info-section" aria-labelledby="module-endpoints-heading">
+    <div class="module-section-heading">
+        <h2 id="module-endpoints-heading">Registered endpoints</h2>
+        <div class="module-section-heading-actions">
+            <span>@Model.TotalEndpoints endpoints</span>
+            @if (Model.CanConfirmEndpoints)
+            {
+                <button class="module-button module-button-compact module-button-primary" type="button" popovertarget="confirm-endpoints-dialog">
+                    <i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm pending (@Model.PendingEndpoints.Count)</span>
+                </button>
+            }
+        </div>
+    </div>
+    @if (Model.Endpoints.Count == 0)
+    {
+        <p class="module-section-empty">No endpoints registered.</p>
+    }
+    else
+    {
+        <ul class="module-endpoint-list">
+            @foreach (var endpoint in Model.Endpoints)
+            {
+                var methodUpper = endpoint.HttpMethod.ToUpperInvariant();
+                var methodClass = methodUpper switch
+                {
+                    "GET" => "method-get",
+                    "POST" => "method-post",
+                    "PUT" or "PATCH" => "method-put",
+                    "DELETE" => "method-delete",
+                    _ => "method-other"
+                };
+                var isPendingEndpoint = endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation;
+                <li>
+                    <div class="endpoint-route"><span class="endpoint-method @methodClass">@methodUpper</span><span class="module-code">/@module.BaseUrlPath.Trim('/')@endpoint.EndpointPath</span></div>
+                    <div class="endpoint-status-actions">
+                        <span class="endpoint-state @(isPendingEndpoint ? "endpoint-state-pending" : "")">@(isPendingEndpoint ? "Pending confirmation" : endpoint.Status.ToString())</span>
+                        @if (isPendingEndpoint && Model.CanConfirmEndpoints)
+                        {
+                            <form class="inline-action-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="ConfirmEndpoints" asp-route-id="@module.Id">
+                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                <input type="hidden" name="decisions[0].HttpMethod" value="@endpoint.HttpMethod" />
+                                <input type="hidden" name="decisions[0].EndpointPath" value="@endpoint.EndpointPath" />
+                                <button class="module-button module-button-compact module-button-primary" type="submit" name="decisions[0].Action" value="activate" title="Confirm and activate this endpoint">
+                                    <i data-lucide="check" aria-hidden="true"></i><span>Confirm</span>
+                                </button>
+                                <button class="module-button module-button-compact module-button-danger" type="submit" name="decisions[0].Action" value="remove" title="Remove this pending endpoint">
+                                    <i data-lucide="trash-2" aria-hidden="true"></i><span>Remove</span>
+                                </button>
+                            </form>
+                        }
+                    </div>
+                    <div class="endpoint-metadata">
+                        @if (!string.IsNullOrWhiteSpace(endpoint.DiscoveredInVersion))
+                        {
+                            <span>Version <span class="module-code">@endpoint.DiscoveredInVersion</span></span>
+                        }
+                        <span>Created @endpoint.CreatedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>
+                        <span class="module-code">@endpoint.Id</span>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+    @if (Model.TotalEndpoints > 0)
+    {
+        var startPage = Math.Max(1, Model.CurrentPage - 2);
+        var endPage = Math.Min(Model.TotalPages, startPage + 4);
+        startPage = Math.Max(1, endPage - 4);
+        <div class="module-pagination-bar module-pagination-bar-inline" aria-label="Module endpoints pagination">
+            <form class="module-pagination-size" method="get" action="@detailUrl">
+                <input type="hidden" name="page" value="1" />
+                @if (Model.LogsTail != DetailModel.DefaultContainerLogsTail)
+                {
+                    <input type="hidden" name="logsTail" value="@Model.LogsTail" />
+                }
+                <label class="module-pagination-size-label" for="detail-endpoints-page-size">
+                    <span>Rows per page</span>
+                    <select id="detail-endpoints-page-size" name="pageSize" data-page-size-select>
+                        @foreach (var size in DetailModel.AllowedPageSizes)
+                        {
+                            <option value="@size" selected="@(Model.PageSize == size)">@size</option>
+                        }
+                    </select>
+                </label>
+                <span class="module-pagination-summary">Page @Model.CurrentPage of @Model.TotalPages (@Model.TotalEndpoints total)</span>
+            </form>
+            <nav class="module-pagination-controls" aria-label="Module endpoints page navigation">
+                @if (Model.HasPreviousPage)
+                {
+                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, Model.CurrentPage - 1)" aria-label="Previous page">
+                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
+                    </a>
+                }
+                else
+                {
+                    <button class="module-button module-button-compact" type="button" disabled aria-label="Previous page">
+                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
+                    </button>
+                }
+                @for (var p = startPage; p <= endPage; p++)
+                {
+                    if (p == Model.CurrentPage)
+                    {
+                        <span class="module-button module-button-compact module-button-primary" aria-current="page">@p</span>
+                    }
+                    else
+                    {
+                        <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, p)" aria-label="Page @p">@p</a>
+                    }
+                }
+                @if (Model.HasNextPage)
+                {
+                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, Model.CurrentPage + 1)" aria-label="Next page">
+                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+                else
+                {
+                    <button class="module-button module-button-compact" type="button" disabled aria-label="Next page">
+                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
+                    </button>
+                }
+            </nav>
+        </div>
+    }
+</section>
