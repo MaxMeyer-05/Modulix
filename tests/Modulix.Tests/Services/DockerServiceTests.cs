@@ -1,9 +1,12 @@
 using System.Net;
 
+using Docker.DotNet;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Modulix.Docker;
 using Modulix.Docker.Options;
 using Modulix.Docker.Services;
 using Modulix.Tests.TestData;
@@ -218,6 +221,48 @@ public partial class DockerServiceTests
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             service.GetContainerLogsAsync("missing-container"));
+    }
+
+    #endregion
+
+    #region DockerRegistration Tests
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AddDockerServices_WithoutSocketUri_UsesPlatformDefaultEndpoint(string? socketUri)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        if (socketUri is not null)
+            services.Configure<DockerOptions>(options => options.SocketUri = socketUri);
+
+        services.AddDockerServices();
+
+        using var provider = services.BuildServiceProvider();
+        var client = provider.GetRequiredService<DockerClient>();
+        var expectedUri = OperatingSystem.IsWindows()
+            ? new Uri("npipe://./pipe/docker_engine")
+            : new Uri("unix:///var/run/docker.sock");
+
+        Assert.Equal(expectedUri, client.Configuration.EndpointBaseUri);
+    }
+
+    [Theory]
+    [InlineData("unix:///run/user/1000/podman/podman.sock")]
+    [InlineData("  tcp://127.0.0.1:2375  ")]
+    public void AddDockerServices_WithCustomSocketUri_UsesConfiguredEndpoint(string configuredSocketUri)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<DockerOptions>(options => options.SocketUri = configuredSocketUri);
+        services.AddDockerServices();
+
+        using var provider = services.BuildServiceProvider();
+        var client = provider.GetRequiredService<DockerClient>();
+
+        Assert.Equal(new Uri(configuredSocketUri.Trim()), client.Configuration.EndpointBaseUri);
     }
 
     #endregion

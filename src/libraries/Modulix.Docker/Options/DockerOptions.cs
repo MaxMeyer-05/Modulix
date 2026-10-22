@@ -13,6 +13,12 @@ public sealed class DockerOptions
     public const string SectionName = "Docker";
 
     /// <summary>
+    /// The optional URI of the Docker or Podman daemon socket (e.g., <c>unix:///run/user/1000/podman/podman.sock</c> or <c>npipe://./pipe/docker_engine</c>).
+    /// When not specified, the platform default socket is used.
+    /// </summary>
+    public string? SocketUri { get; set; }
+
+    /// <summary>
     /// The name of the Docker network used for module containers.
     /// </summary>
     [Required]
