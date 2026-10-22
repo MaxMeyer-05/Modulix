@@ -180,6 +180,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | --- | --- | --- |
 | `GET` | `/` | List registered modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleDto>`). |
 | `GET` | `/{moduleId}` | Retrieve module details, sub-endpoints, versions, and lifecycle status. |
+| `GET` | `/{moduleId}/logs` | Retrieve `stdout`/`stderr` container logs for a module (supports optional `tail` query parameter). |
 | `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
 | `POST` | `/{moduleId}/start` | Start a stopped or created module container. |
 | `POST` | `/{moduleId}/stop` | Stop a running module container. |
