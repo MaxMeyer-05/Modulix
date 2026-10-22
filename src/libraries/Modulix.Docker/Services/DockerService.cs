@@ -253,6 +253,23 @@ public class DockerService : IDockerService, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <inheritdoc/>
+    public async Task<T> GetContainerLogsAsync<T>(string containerId, CancellationToken ct = default)
+    {
+        var logs = await _client.Containers.GetContainerLogsAsync(containerId, false, new ContainerLogsParameters
+        {
+            ShowStdout = true,
+            ShowStderr = true,
+            Timestamps = true
+        }, ct);
+
+        var (stdout, stderr) = await logs.ReadOutputToEndAsync(ct);
+        var logContent = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+        
+        return JsonSerializer.Deserialize<T>(logContent) 
+            ?? throw new InvalidOperationException("Failed to deserialize container logs.");
+    }
+
     /// <summary>
     /// Represents the progress of a Docker build operation.
     /// </summary>

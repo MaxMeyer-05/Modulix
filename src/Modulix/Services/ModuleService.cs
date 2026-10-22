@@ -408,6 +408,21 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
+    public async Task<T> GetModuleContainerLogsAsync<T>(Guid moduleId, CancellationToken ct = default)
+    {
+        var module = await _context.Modules
+            .AsNoTracking()
+            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
+        if (module is null)
+            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
+
+        if (string.IsNullOrEmpty(module.ContainerId))
+            throw new InvalidOperationException($"Module with ID '{moduleId}' does not have an associated container.");
+
+        return await _dockerService.GetContainerLogsAsync<T>(module.ContainerId, ct);
+    }
+
+    /// <inheritdoc/>
     public async Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default)
     {
         var module = await _context.Modules

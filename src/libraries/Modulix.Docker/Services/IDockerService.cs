@@ -53,4 +53,13 @@ public interface IDockerService
     /// <param name="moduleId">The ID of the module associated with the container.</param>
     /// <returns>True if the container was successfully removed; otherwise, false.</returns>
     Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId);
+
+    /// <summary>
+    /// Retrieves the logs of a running Docker container.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to get logs from.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <typeparam name="T">The type to which the logs should be deserialized.</typeparam>
+    /// <returns>The container logs deserialized to the specified type.</returns>
+    Task<T> GetContainerLogsAsync<T>(string containerId, CancellationToken ct = default);
 }

@@ -137,6 +137,22 @@ public class ModulesManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves the container logs of a specific module by its ID.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// A 200 OK response with the container logs of the specified module.
+    /// </returns>
+    [HttpGet("{moduleId}/logs")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetModuleContainerLogsAsync(Guid moduleId, CancellationToken ct = default)
+    {
+        var logs = await _moduleService.GetModuleContainerLogsAsync<string>(moduleId, ct);
+        return Ok(logs);
+    }
+
+    /// <summary>
     /// Updates the details of a specific module by its ID.
     /// </summary>
     /// <param name="moduleId">The ID of the module.</param>
