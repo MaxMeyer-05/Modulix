@@ -149,10 +149,13 @@ public class DockerService : IDockerService, IDisposable
             {
                 await _client.Containers.RemoveContainerAsync(containerName, new ContainerRemoveParameters { Force = true }, cleanupCts.Token);
             }
+            catch (DockerContainerNotFoundException) { }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to clean up candidate container '{ContainerName}'.", containerName);
             }
+
+            await TryDeleteImageAsync(imageName, moduleId, cleanupCts.Token);
 
             throw;
         }
@@ -190,22 +193,7 @@ public class DockerService : IDockerService, IDisposable
             throw;
         }
 
-        if (string.IsNullOrWhiteSpace(container.Config?.Image))
-            return;
-
-        try
-        {
-            await _client.Images.DeleteImageAsync(container.Config.Image, new ImageDeleteParameters { Force = true }, ct);
-            _logger.LogInformation("Docker image '{ImageName}' deleted.", container.Config.Image);
-        }
-        catch (DockerImageNotFoundException ex)
-        {
-            _logger.LogWarning(ex, "Docker image '{ImageName}' was not found for module '{ModuleId}'.", container.Config.Image, moduleId);
-        }
-        catch (DockerApiException ex)
-        {
-            _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for module '{ModuleId}'.", container.Config.Image, moduleId);
-        }
+        await TryDeleteImageAsync(container.Config?.Image, moduleId, ct);
     }
 
     /// <inheritdoc/>
@@ -227,8 +215,21 @@ public class DockerService : IDockerService, IDisposable
     /// <inheritdoc/>
     public async Task RunContainerAsync(string containerId, CancellationToken ct = default)
     {
-        await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);
-        _logger.LogInformation("Container '{ContainerId}' started.", containerId);
+        try
+        {
+            await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);
+            _logger.LogInformation("Container '{ContainerId}' started.", containerId);
+        }
+        catch (DockerContainerNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Container '{ContainerId}' was not found during start.", containerId);
+            throw;
+        }
+        catch (DockerApiException ex)
+        {
+            _logger.LogWarning(ex, "Failed to start container '{ContainerId}'.", containerId);
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -307,6 +308,28 @@ public class DockerService : IDockerService, IDisposable
         {
             _logger.LogWarning("Container '{ContainerId}' was not found or already stopped.", containerId);
         }
+        catch (DockerApiException ex)
+        {
+            try
+            {
+                var container = await _client.Containers.InspectContainerAsync(containerId, ct);
+                if (container.State is not null && !container.State.Running && !container.State.Restarting)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Docker reported an error while stopping container '{ContainerId}', but the container has already exited.",
+                        containerId);
+                    return;
+                }
+            }
+            catch (DockerContainerNotFoundException)
+            {
+                _logger.LogWarning(ex, "Container '{ContainerId}' was removed while stopping.", containerId);
+                return;
+            }
+
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -340,6 +363,26 @@ public class DockerService : IDockerService, IDisposable
         catch (DockerContainerNotFoundException ex)
         {
             throw new KeyNotFoundException($"Container '{containerId}' was not found.", ex);
+        }
+    }
+
+    private async Task TryDeleteImageAsync(string? imageName, Guid moduleId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(imageName))
+            return;
+
+        try
+        {
+            await _client.Images.DeleteImageAsync(imageName, new ImageDeleteParameters { Force = true }, ct);
+            _logger.LogInformation("Docker image '{ImageName}' deleted for module '{ModuleId}'.", imageName, moduleId);
+        }
+        catch (DockerImageNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Docker image '{ImageName}' was not found for module '{ModuleId}'.", imageName, moduleId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for module '{ModuleId}'.", imageName, moduleId);
         }
     }
 
