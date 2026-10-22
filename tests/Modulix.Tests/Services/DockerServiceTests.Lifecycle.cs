@@ -60,14 +60,18 @@ public partial class DockerServiceTests
     }
 
     [Fact]
-    public async Task RemoveContainerAsync_VersionedContainer_DeletesOnlyItsImage()
+    public async Task RemoveContainerAsync_VersionedContainer_DeletesOnlyItsImageWithForce()
     {
         var requests = new List<string>();
+        string? imageDeleteQuery = null;
         const string oldImage = "modulix-module-123:old-version";
         using var service = CreateService((request, cancellationToken) =>
         {
             var path = Uri.UnescapeDataString(request.RequestUri!.AbsolutePath);
             requests.Add(request.Method + " " + path);
+            if (path.Contains("/images/", StringComparison.Ordinal))
+                imageDeleteQuery = request.RequestUri.Query;
+
             return Task.FromResult(path.EndsWith("/json", StringComparison.Ordinal)
                 ? DockerHttpTestHelper.JsonResponse(new { Config = new { Image = oldImage } })
                 : DockerHttpTestHelper.JsonResponse(Array.Empty<object>()));
@@ -80,6 +84,39 @@ public partial class DockerServiceTests
         Assert.EndsWith("/containers/old-container/stop", requests[1]);
         Assert.EndsWith("/containers/old-container", requests[2]);
         Assert.EndsWith("/images/" + oldImage, requests[3]);
+        Assert.Equal("1", QueryHelpers.ParseQuery(imageDeleteQuery)["force"].ToString());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Conflict)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task RemoveContainerAsync_ImageDeletionFailsOrConflicts_CompletesWithoutThrowing(HttpStatusCode imageDeleteStatus)
+    {
+        var requests = new List<string>();
+        const string imageName = "modulix-module-123:in-use";
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            var path = Uri.UnescapeDataString(request.RequestUri!.AbsolutePath);
+            requests.Add(request.Method + " " + path);
+            if (path.EndsWith("/json", StringComparison.Ordinal))
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { Config = new { Image = imageName } }));
+
+            if (path.Contains("/images/", StringComparison.Ordinal))
+            {
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(
+                    new { message = "Image is in use by a container." },
+                    imageDeleteStatus));
+            }
+
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(Array.Empty<object>()));
+        });
+
+        await service.RemoveContainerAsync("old-container", Guid.NewGuid());
+
+        Assert.Equal(4, requests.Count);
+        Assert.EndsWith("/containers/old-container", requests[2]);
+        Assert.EndsWith("/images/" + imageName, requests[3]);
     }
 
     [Fact]
@@ -107,7 +144,7 @@ public partial class DockerServiceTests
     [Theory]
     [InlineData("inspect", 1)]
     [InlineData("stop", 2)]
-    [InlineData("image", 4)]
+    [InlineData("container", 3)]
     public async Task RemoveContainerAsync_DockerFailure_StopsCleanupAtFailedOperation(string failingOperation, int expectedRequests)
     {
         var requests = new List<string>();

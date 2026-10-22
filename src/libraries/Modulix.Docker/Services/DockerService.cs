@@ -149,19 +149,9 @@ public class DockerService : IDockerService, IDisposable
             {
                 await _client.Containers.RemoveContainerAsync(containerName, new ContainerRemoveParameters { Force = true }, cleanupCts.Token);
             }
-            catch (DockerContainerNotFoundException) { }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to clean up candidate container '{ContainerName}'.", containerName);
-            }
-
-            try
-            {
-                await _client.Images.DeleteImageAsync(imageName, new ImageDeleteParameters(), cleanupCts.Token);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to clean up candidate image '{ImageName}'.", imageName);
             }
 
             throw;
@@ -182,11 +172,40 @@ public class DockerService : IDockerService, IDisposable
         }
 
         await StopContainerAsync(containerId, ct);
-        await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, ct);
-        _logger.LogInformation("Container '{ContainerId}' removed for module '{ModuleId}'.", containerId, moduleId);
 
-        await _client.Images.DeleteImageAsync(container.Config.Image, new ImageDeleteParameters(), ct);
-        _logger.LogInformation("Docker image '{ImageName}' deleted.", container.Config.Image);
+        _logger.LogDebug("Stopping and removing container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+
+        try
+        {
+            await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, ct);
+            _logger.LogInformation("Container '{ContainerId}' removed for module '{ModuleId}'.", containerId, moduleId);
+        }
+        catch (DockerContainerNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Container '{ContainerId}' was not found during removal for module '{ModuleId}'.", containerId, moduleId);
+        }
+        catch (DockerApiException ex)
+        {
+            _logger.LogWarning(ex, "Failed to remove container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+            throw;
+        }
+
+        if (string.IsNullOrWhiteSpace(container.Config?.Image))
+            return;
+
+        try
+        {
+            await _client.Images.DeleteImageAsync(container.Config.Image, new ImageDeleteParameters { Force = true }, ct);
+            _logger.LogInformation("Docker image '{ImageName}' deleted.", container.Config.Image);
+        }
+        catch (DockerImageNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Docker image '{ImageName}' was not found for module '{ModuleId}'.", container.Config.Image, moduleId);
+        }
+        catch (DockerApiException ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for module '{ModuleId}'.", container.Config.Image, moduleId);
+        }
     }
 
     /// <inheritdoc/>
