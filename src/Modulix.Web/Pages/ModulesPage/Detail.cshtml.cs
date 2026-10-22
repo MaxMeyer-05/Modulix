@@ -30,9 +30,19 @@ public class DetailModel : PageModel
     public const int DefaultEndpointsPageSize = 10;
 
     /// <summary>
+    /// Default number of tail lines fetched for module container logs.
+    /// </summary>
+    public const int DefaultContainerLogsTail = 500;
+
+    /// <summary>
     /// Allowed page size options for the module endpoints list.
     /// </summary>
     public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
+
+    /// <summary>
+    /// Allowed tail line count options for the module container logs viewer.
+    /// </summary>
+    public static readonly int[] AllowedLogsTailSizes = [100, 250, 500, 1000];
 
     /// <summary>
     /// The Modulix API client.
@@ -151,6 +161,26 @@ public class DetailModel : PageModel
     public ActionFeedback? Feedback { get; private set; }
 
     /// <summary>
+    /// Gets the raw container log output for the module's current container.
+    /// </summary>
+    public string? ContainerLogs { get; private set; }
+
+    /// <summary>
+    /// Gets the error message when retrieving container logs fails.
+    /// </summary>
+    public string? ContainerLogsError { get; private set; }
+
+    /// <summary>
+    /// Gets the selected tail line limit for container logs.
+    /// </summary>
+    public int LogsTail { get; private set; } = DefaultContainerLogsTail;
+
+    /// <summary>
+    /// Gets the number of non-empty log lines currently loaded.
+    /// </summary>
+    public int ContainerLogLineCount { get; private set; }
+
+    /// <summary>
     /// Builds a URL for the module detail page preserving pagination parameters.
     /// </summary>
     public string GetPageUrl(Guid id, int targetPage)
@@ -162,6 +192,8 @@ public class DetailModel : PageModel
             queryParams["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
         if (PageSize != DefaultEndpointsPageSize)
             queryParams["pageSize"] = PageSize.ToString(CultureInfo.InvariantCulture);
+        if (LogsTail != DefaultContainerLogsTail)
+            queryParams["logsTail"] = LogsTail.ToString(CultureInfo.InvariantCulture);
 
         return QueryHelpers.AddQueryString(baseUrl, queryParams);
     }
@@ -172,16 +204,107 @@ public class DetailModel : PageModel
     /// <param name="id">The ID of the module to load.</param>
     /// <param name="pageNumber">The 1-based page number for the module's endpoints.</param>
     /// <param name="pageSize">The number of endpoints per page.</param>
+    /// <param name="logsTail">The number of container log lines from the end to load.</param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         [FromQuery(Name = "page")] int pageNumber = PaginationQueryDto.DefaultPage,
-        [FromQuery(Name = "pageSize")] int pageSize = DefaultEndpointsPageSize)
+        [FromQuery(Name = "pageSize")] int pageSize = DefaultEndpointsPageSize,
+        [FromQuery(Name = "logsTail")] int logsTail = DefaultContainerLogsTail)
     {
         if (TempData[FeedbackKey] is string json)
             Feedback = JsonSerializer.Deserialize<ActionFeedback>(json);
 
-        await LoadModuleAsync(id, pageNumber, pageSize);
+        await LoadModuleAsync(id, pageNumber, pageSize, logsTail);
         return Page();
+    }
+
+    /// <summary>
+    /// Returns the latest container logs as JSON for in-place refresh in the browser.
+    /// </summary>
+    /// <param name="id">The ID of the module.</param>
+    /// <param name="tail">The number of lines from the end of the logs to return.</param>
+    public async Task<IActionResult> OnGetContainerLogsAsync(
+        Guid id,
+        [FromQuery] int tail = DefaultContainerLogsTail)
+    {
+        var normalizedTail = AllowedLogsTailSizes.Contains(tail) ? tail : DefaultContainerLogsTail;
+
+        try
+        {
+            using var response = await _modulixApiClient.ModuleManagement.GetModuleContainerLogsAsync(
+                moduleId: id,
+                tail: normalizedTail,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                return StatusCode(error.StatusCode, new { error = error.DisplayMessage });
+            }
+
+            var logs = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+            var lineCount = CountLogLines(logs);
+            return new JsonResult(new { logs, lineCount });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error refreshing container logs for module {ModuleId}.", id);
+            return StatusCode(503, new { error = "The container logs could not be retrieved from the API." });
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Refreshing container logs for module {ModuleId} timed out.", id);
+            return StatusCode(504, new { error = "Timed out while retrieving container logs." });
+        }
+    }
+
+    /// <summary>
+    /// Downloads the container logs for the specified module as a plain-text file.
+    /// </summary>
+    /// <param name="id">The ID of the module whose container logs should be downloaded.</param>
+    public async Task<IActionResult> OnGetDownloadLogsAsync(Guid id)
+    {
+        try
+        {
+            using var response = await _modulixApiClient.ModuleManagement.GetModuleContainerLogsAsync(
+                moduleId: id,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    error.StatusCode,
+                    error.Title,
+                    error.Detail,
+                    IsSuccess: false));
+                return RedirectToPage(new { id });
+            }
+
+            var logs = await response.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+            var fileName = $"module-{id:N}-container.log";
+            return File(System.Text.Encoding.UTF8.GetBytes(logs), "text/plain; charset=utf-8", fileName);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error downloading container logs for module {ModuleId}.", id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                503,
+                ReasonPhrases.GetReasonPhrase(503),
+                "The API could not be reached. Please try again later.",
+                IsSuccess: false));
+            return RedirectToPage(new { id });
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Downloading container logs for module {ModuleId} timed out.", id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                504,
+                ReasonPhrases.GetReasonPhrase(504),
+                "The API did not respond in time. Please try again.",
+                IsSuccess: false));
+            return RedirectToPage(new { id });
+        }
     }
 
     /// <summary>
@@ -811,12 +934,14 @@ public class DetailModel : PageModel
     private async Task LoadModuleAsync(
         Guid id,
         int pageNumber = PaginationQueryDto.DefaultPage,
-        int pageSize = DefaultEndpointsPageSize)
+        int pageSize = DefaultEndpointsPageSize,
+        int logsTail = DefaultContainerLogsTail)
     {
         CurrentPage = pageNumber < 1 ? PaginationQueryDto.DefaultPage : pageNumber;
         PageSize = pageSize < 1
             ? DefaultEndpointsPageSize
             : Math.Min(pageSize, PaginationQueryDto.MaxPageSize);
+        LogsTail = AllowedLogsTailSizes.Contains(logsTail) ? logsTail : DefaultContainerLogsTail;
 
         try
         {
@@ -838,6 +963,8 @@ public class DetailModel : PageModel
 
             if (Module is null)
                 return;
+
+            await LoadContainerLogsAsync(id);
 
             using var endpointsResponse = await _modulixApiClient.SubEndpointManagement.GetModuleEndpointsAsync(
                 moduleId: id,
@@ -877,6 +1004,48 @@ public class DetailModel : PageModel
             _logger.LogError(exception, "ERROR loading module detail.");
             ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
+    }
+
+    private async Task LoadContainerLogsAsync(Guid id)
+    {
+        if (Module is null || string.IsNullOrWhiteSpace(Module.ContainerId))
+            return;
+
+        try
+        {
+            using var logsResponse = await _modulixApiClient.ModuleManagement.GetModuleContainerLogsAsync(
+                moduleId: id,
+                tail: LogsTail,
+                ct: HttpContext.RequestAborted);
+
+            if (!logsResponse.IsSuccessStatusCode)
+            {
+                var error = await logsResponse.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ContainerLogsError = error.DisplayMessage;
+                return;
+            }
+
+            ContainerLogs = await logsResponse.Content.ReadAsStringAsync(HttpContext.RequestAborted);
+            ContainerLogLineCount = CountLogLines(ContainerLogs);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error loading container logs for module {ModuleId}.", id);
+            ContainerLogsError = "The container logs could not be retrieved from the API.";
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Loading container logs for module {ModuleId} timed out.", id);
+            ContainerLogsError = "Timed out while retrieving container logs.";
+        }
+    }
+
+    private static int CountLogLines(string? logs)
+    {
+        if (string.IsNullOrWhiteSpace(logs))
+            return 0;
+
+        return logs.AsSpan().TrimEnd("\r\n").Count('\n') + 1;
     }
 
     private static ActionError Failure(int statusCode, string description) =>

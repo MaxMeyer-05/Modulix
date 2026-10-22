@@ -388,6 +388,70 @@ public class DockerServiceTests
 
     #endregion
 
+    #region GetContainerLogs Tests
+
+    [Theory]
+    [InlineData("stdout line\n", "", null, "all", "stdout line\n")]
+    [InlineData("", "stderr line\n", 100, "100", "stderr line\n")]
+    [InlineData("stdout line\n", "stderr error\n", 250, "250", "stdout line\r\nstderr error\n")]
+    [InlineData("", "", null, "all", "")]
+    public async Task GetContainerLogsAsync_MultiplexedOutput_CombinesStdoutAndStderr(
+        string stdout, string stderr, int? tail, string expectedTailQuery, string expectedOutput)
+    {
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.EndsWith("/containers/log-container/logs", request.RequestUri!.AbsolutePath);
+            var query = QueryHelpers.ParseQuery(request.RequestUri.Query);
+            Assert.Equal("1", query["stdout"].ToString());
+            Assert.Equal("1", query["stderr"].ToString());
+            Assert.Equal("1", query["timestamps"].ToString());
+            Assert.Equal(expectedTailQuery, query["tail"].ToString());
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(CreateMultiplexedLogStream(stdout, stderr))
+            });
+        });
+
+        var actual = await service.GetContainerLogsAsync("log-container", tail);
+
+        Assert.Equal(expectedOutput.Replace("\r\n", Environment.NewLine), actual);
+    }
+
+    [Fact]
+    public async Task GetContainerLogsAsync_MissingContainer_ThrowsKeyNotFoundException()
+    {
+        using var service = CreateService((request, cancellationToken) =>
+            Task.FromResult(JsonResponse(new { message = "No such container." }, HttpStatusCode.NotFound)));
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            service.GetContainerLogsAsync("missing-container"));
+    }
+
+    private static byte[] CreateMultiplexedLogStream(string stdout, string stderr)
+    {
+        using var stream = new MemoryStream();
+        WriteFrame(stream, 1, stdout);
+        WriteFrame(stream, 2, stderr);
+        return stream.ToArray();
+
+        static void WriteFrame(Stream target, byte streamType, string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return;
+
+            var payload = Encoding.UTF8.GetBytes(text);
+            Span<byte> header = stackalloc byte[8];
+            header[0] = streamType;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(header[4..], (uint)payload.Length);
+            target.Write(header);
+            target.Write(payload);
+        }
+    }
+
+    #endregion
+
     #region Test Fakes & Helpers
 
     private static DockerService CreateService(

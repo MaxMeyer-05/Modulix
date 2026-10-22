@@ -570,6 +570,8 @@ public class SubEndpointServiceTests : IDisposable
                 return false;
             }
         }
+
+        public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class FailingSaveInterceptor : SaveChangesInterceptor

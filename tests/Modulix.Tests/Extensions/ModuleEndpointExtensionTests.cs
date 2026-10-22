@@ -266,6 +266,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         public Task StopContainerAsync(string containerId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId) => throw new NotSupportedException();
+        public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default) => throw new NotSupportedException();
 
         private void Record(string operation, CancellationToken ct)
         {

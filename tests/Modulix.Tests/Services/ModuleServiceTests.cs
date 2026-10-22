@@ -1506,6 +1506,74 @@ public class ModuleServiceTests : IDisposable
 
     #endregion
 
+    #region GetModuleContainerLogs Tests
+
+    [Fact]
+    [Trait("Feature", "GetModuleContainerLogs")]
+    public async Task GetModuleContainerLogsAsync_ModuleNotFound_ThrowsKeyNotFoundException()
+    {
+        var nonExistentId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _sut.GetModuleContainerLogsAsync(nonExistentId));
+
+        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [Trait("Feature", "GetModuleContainerLogs")]
+    public async Task GetModuleContainerLogsAsync_NoContainerAssigned_ThrowsInvalidOperationException(string? containerId)
+    {
+        var module = CreateTestModuleEntity("NoContainer", "api/v1/nocontainer", 8110);
+        module.ContainerId = containerId;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.GetModuleContainerLogsAsync(module.Id));
+
+        Assert.Equal($"Module with ID '{module.Id}' does not have an associated container.", exception.Message);
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-10)]
+    [Trait("Feature", "GetModuleContainerLogs")]
+    public async Task GetModuleContainerLogsAsync_InvalidTail_ThrowsArgumentException(int invalidTail)
+    {
+        var module = CreateTestModuleEntity("InvalidTail", "api/v1/invalidtail", 8111);
+        module.ContainerId = "container-123";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.GetModuleContainerLogsAsync(module.Id, invalidTail));
+
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "GetModuleContainerLogs")]
+    public async Task GetModuleContainerLogsAsync_ValidContainer_ReturnsLogsFromDockerService()
+    {
+        var module = CreateTestModuleEntity("WithLogs", "api/v1/withlogs", 8112);
+        module.ContainerId = "container-abc";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _dockerService.ContainerLogsResult = "2026-10-22T08:00:00Z info: Started";
+
+        var logs = await _sut.GetModuleContainerLogsAsync(module.Id, tail: 250);
+
+        Assert.Equal("2026-10-22T08:00:00Z info: Started", logs);
+        Assert.Equal(["logs:container-abc:250"], _dockerService.Calls);
+    }
+
+    #endregion
+
     #region ReverseProxy Synchronization Tests
 
     [Fact]
@@ -1729,10 +1797,12 @@ public class ModuleServiceTests : IDisposable
         public List<string> Calls { get; } = [];
         public string? BuiltStoragePath { get; private set; }
         public string? BuiltEntryAssembly { get; private set; }
+        public string ContainerLogsResult { get; set; } = string.Empty;
         public Exception? BuildException { get; set; }
         public Exception? StartException { get; set; }
         public Exception? ReadinessException { get; set; }
         public Exception? RemoveException { get; set; }
+        public Exception? LogsException { get; set; }
         public Func<Task>? BeforeReady { get; set; }
         public Func<string, Task>? BeforeRemove { get; set; }
 
@@ -1796,6 +1866,15 @@ public class ModuleServiceTests : IDisposable
             {
                 return false;
             }
+        }
+
+        public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Calls.Add($"logs:{containerId}:{tail?.ToString() ?? "all"}");
+            if (LogsException is not null)
+                throw LogsException;
+            return Task.FromResult(ContainerLogsResult);
         }
     }
 
