@@ -1,38 +1,28 @@
-using System.Net;
-using System.Buffers.Binary;
-using System.Threading.Channels;
 using System.Collections.Concurrent;
-
+using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 using Docker.DotNet;
-
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-
-using Modulix.Database.DbContexts;
-using Modulix.Database.Entities;
+using Microsoft.Extensions.Options;
 
 using Modulix.Client.Models.Dtos;
-using Modulix.Client.Models.Enums;
-
+using Modulix.Database.DbContexts;
 using Modulix.Docker.Options;
-
 using Modulix.Scanner;
-using Modulix.Scanner.Interfaces;
-using Modulix.Services;
 using Modulix.Services.Interfaces;
+using Modulix.Tests.TestData;
 
 namespace Modulix.Tests.Services;
 
 [Trait("Category", "Services")]
 [Trait("SubCategory", "ModuleEndpointScanner")]
-public class ModuleEndpointScannerTests : IDisposable
+public partial class ModuleEndpointScannerTests : IDisposable
 {
     private const string ValidOutput = "{\"EntryAssemblyFileName\":\"module.dll\",\"DiscoveredEndpoints\":[{\"HttpMethod\":\"GET\",\"EndpointPath\":\"/health\"}]}";
     private readonly string _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_ServerScanner_Tests_" + Guid.NewGuid().ToString("N"));
@@ -61,12 +51,11 @@ public class ModuleEndpointScannerTests : IDisposable
             .AddSingleton<IScannerService>(_moduleService)
             .BuildServiceProvider();
         _responder = RespondAsync;
-        _client = new DockerClientConfiguration(new Uri("http://docker.test"),
-            new FakeCredentials(new FakeDockerHandler((request, cancellationToken) =>
-            {
-                _requests.Enqueue(request.Method + " " + request.RequestUri!.AbsolutePath);
-                return _responder(request, cancellationToken);
-            }))).CreateClient();
+        _client = DockerHttpTestHelper.CreateDockerClient((request, cancellationToken) =>
+        {
+            _requests.Enqueue(request.Method + " " + request.RequestUri!.AbsolutePath);
+            return _responder(request, cancellationToken);
+        });
         _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance,
             _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             Options.Create(new DockerOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
@@ -116,7 +105,7 @@ public class ModuleEndpointScannerTests : IDisposable
     public async Task ScanOrEnqueueAsync_AvailableSlot_ReturnsEndpointsAndUsesIsolatedReadOnlyContainer(bool camelCase)
     {
         _responder = (request, cancellationToken) => request.RequestUri!.AbsolutePath.EndsWith("/logs", StringComparison.Ordinal)
-            ? Task.FromResult(LogResponse(camelCase
+            ? Task.FromResult(DockerHttpTestHelper.LogResponse(camelCase
                 ? "{\"entryAssemblyFileName\":\"module.dll\",\"discoveredEndpoints\":[{\"httpMethod\":\"GET\",\"endpointPath\":\"/health\"}]}"
                 : ValidOutput, "diagnostic output"))
             : RespondAsync(request, cancellationToken);
@@ -151,7 +140,7 @@ public class ModuleEndpointScannerTests : IDisposable
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path.EndsWith("/containers/create", StringComparison.Ordinal) && ++createAttempts == 1)
-                return Task.FromResult(JsonResponse(new { message = "No such image: custom-scanner:test" }, HttpStatusCode.NotFound));
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "No such image: custom-scanner:test" }, HttpStatusCode.NotFound));
             if (path.EndsWith("/images/create", StringComparison.Ordinal))
             {
                 imageQuery = request.RequestUri.Query;
@@ -180,9 +169,9 @@ public class ModuleEndpointScannerTests : IDisposable
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path.EndsWith("/wait", StringComparison.Ordinal))
-                return Task.FromResult(JsonResponse(new { StatusCode = 17 }));
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { StatusCode = 17 }));
             if (path.EndsWith("/logs", StringComparison.Ordinal))
-                return Task.FromResult(LogResponse(ValidOutput, "Dependency could not be loaded."));
+                return Task.FromResult(DockerHttpTestHelper.LogResponse(ValidOutput, "Dependency could not be loaded."));
             return RespondAsync(request, cancellationToken);
         };
 
@@ -203,7 +192,7 @@ public class ModuleEndpointScannerTests : IDisposable
     public async Task ScanOrEnqueueAsync_InvalidResult_RejectsOutputAndRemovesContainer(string output, Type exceptionType)
     {
         _responder = (request, cancellationToken) => request.RequestUri!.AbsolutePath.EndsWith("/logs", StringComparison.Ordinal)
-            ? Task.FromResult(LogResponse(output))
+            ? Task.FromResult(DockerHttpTestHelper.LogResponse(output))
             : RespondAsync(request, cancellationToken);
 
         await Assert.ThrowsAsync(exceptionType, () => _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory));
@@ -220,7 +209,7 @@ public class ModuleEndpointScannerTests : IDisposable
     public async Task ScanOrEnqueueAsync_DockerFailure_RemovesOnlyCreatedContainersAndReleasesSlot(string failingPath, bool containerCreated)
     {
         _responder = (request, cancellationToken) => request.RequestUri!.AbsolutePath.EndsWith(failingPath, StringComparison.Ordinal)
-            ? Task.FromResult(JsonResponse(new { message = "Docker unavailable." }, HttpStatusCode.InternalServerError))
+            ? Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "Docker unavailable." }, HttpStatusCode.InternalServerError))
             : RespondAsync(request, cancellationToken);
 
         var exception = await Assert.ThrowsAsync<DockerApiException>(() =>
@@ -242,9 +231,9 @@ public class ModuleEndpointScannerTests : IDisposable
         _responder = (request, cancellationToken) =>
         {
             if (request.Method == HttpMethod.Delete)
-                return Task.FromResult(JsonResponse(new { message = "Cleanup failed." }, HttpStatusCode.InternalServerError));
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "Cleanup failed." }, HttpStatusCode.InternalServerError));
             if (scanFails && request.RequestUri!.AbsolutePath.EndsWith("/wait", StringComparison.Ordinal))
-                return Task.FromResult(JsonResponse(new { message = "Original scan failure." }, HttpStatusCode.InternalServerError));
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "Original scan failure." }, HttpStatusCode.InternalServerError));
             return RespondAsync(request, cancellationToken);
         };
 
@@ -291,243 +280,6 @@ public class ModuleEndpointScannerTests : IDisposable
 
     #endregion
 
-    #region Queue Tests
-
-    [Fact]
-    public async Task ScanOrEnqueueAsync_AllSlotsBusy_QueuesWithoutStartingAnotherContainerAndAllowsCancellation()
-    {
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BlockFirstScan(started, release);
-        var runningScan = _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory);
-        var queuedModuleId = Guid.NewGuid();
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var queued = await _sut.ScanOrEnqueueAsync(queuedModuleId, _testRootDirectory);
-
-            Assert.True(queued.WasQueued);
-            Assert.Null(queued.Result);
-            Assert.Single(_createdContainers);
-            Assert.True(_sut.CancelScan(queuedModuleId));
-            Assert.False(_sut.CancelScan(queuedModuleId));
-        }
-        finally
-        {
-            _sut.CancelScan(queuedModuleId);
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-        Assert.False(_moduleService.Results.Reader.TryRead(out _));
-    }
-
-    [Fact]
-    public async Task ScanOrEnqueueAsync_CancelledCallerWithBusySlot_DoesNotQueueWork()
-    {
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BlockFirstScan(started, release);
-        var runningScan = _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory);
-        var queuedModuleId = Guid.NewGuid();
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _sut.ScanOrEnqueueAsync(
-                queuedModuleId, _testRootDirectory, ct: new CancellationToken(canceled: true)));
-
-            Assert.False(_sut.CancelScan(queuedModuleId));
-            Assert.Single(_createdContainers);
-        }
-        finally
-        {
-            _sut.CancelScan(queuedModuleId);
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-    }
-
-    [Fact]
-    public async Task ScanOrEnqueueAsync_QueuedPatchAndCreate_ProcessesPatchFirstAndSkipsCancelledJob()
-    {
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BlockFirstScan(started, release);
-        var runningScan = _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory);
-        var createModuleId = Guid.NewGuid();
-        var patchModuleId = Guid.NewGuid();
-        var cancelledModuleId = Guid.NewGuid();
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.True((await _sut.ScanOrEnqueueAsync(createModuleId, _testRootDirectory, ScanPriority.Create)).WasQueued);
-            Assert.True((await _sut.ScanOrEnqueueAsync(cancelledModuleId, _testRootDirectory, ScanPriority.Patch)).WasQueued);
-            Assert.True((await _sut.ScanOrEnqueueAsync(patchModuleId, _testRootDirectory, ScanPriority.Patch)).WasQueued);
-            Assert.True(_sut.CancelScan(cancelledModuleId));
-
-            var queuedBeforeRelease = _sut.GetQueuedScans();
-            Assert.Equal(2, queuedBeforeRelease.Count);
-            Assert.Equal(patchModuleId, queuedBeforeRelease[0].ModuleId);
-            Assert.Equal(ScanPriority.Patch, queuedBeforeRelease[0].Priority);
-            Assert.False(queuedBeforeRelease[0].IsRunning);
-            Assert.Equal(createModuleId, queuedBeforeRelease[1].ModuleId);
-            Assert.Equal(ScanPriority.Create, queuedBeforeRelease[1].Priority);
-            Assert.False(queuedBeforeRelease[1].IsRunning);
-
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-            var patch = await _moduleService.Results.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-            var create = await _moduleService.Results.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-
-            Assert.Equal(patchModuleId, patch.ModuleId);
-            Assert.Equal(createModuleId, create.ModuleId);
-            Assert.Equal("module.dll", patch.Result.EntryAssemblyFileName);
-            Assert.Equal("/health", Assert.Single(create.Result.DiscoveredEndpoints).EndpointPath);
-            Assert.Equal(3, _createdContainers.Count);
-            Assert.False(_moduleService.Results.Reader.TryRead(out _));
-        }
-        finally
-        {
-            _sut.CancelScan(createModuleId);
-            _sut.CancelScan(patchModuleId);
-            _sut.CancelScan(cancelledModuleId);
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-    }
-
-    #endregion
-
-    #region Background Scan Tests
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ScanOrEnqueueAsync_BackgroundScanFails_MarksExistingModuleFailedAndContinuesQueue(bool moduleExists)
-    {
-        var failedModuleId = Guid.NewGuid();
-        var healthyModuleId = Guid.NewGuid();
-        if (moduleExists)
-        {
-            _context.Modules.Add(new Module
-            {
-                Id = failedModuleId,
-                ModuleName = "Queued module",
-                BaseUrlPath = "api/queued",
-                ContainerPort = 8080,
-                CurrentVersion = "v1.0.0",
-                Status = ModuleStatus.QueuedForScan
-            });
-            await _context.SaveChangesAsync();
-        }
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BlockFirstScan(started, release);
-        var originalResponder = _responder;
-        _responder = (request, cancellationToken) => request.RequestUri!.AbsolutePath.EndsWith("/containers/scan-2/wait", StringComparison.Ordinal)
-            ? Task.FromResult(JsonResponse(new { message = "Background scan failed." }, HttpStatusCode.InternalServerError))
-            : originalResponder(request, cancellationToken);
-        var runningScan = _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory);
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.True((await _sut.ScanOrEnqueueAsync(failedModuleId, _testRootDirectory, ScanPriority.Patch)).WasQueued);
-            Assert.True((await _sut.ScanOrEnqueueAsync(healthyModuleId, _testRootDirectory, ScanPriority.Create)).WasQueued);
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-
-            var processed = await _moduleService.Results.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-
-            Assert.Equal(healthyModuleId, processed.ModuleId);
-            Assert.Equal("module.dll", processed.Result.EntryAssemblyFileName);
-            Assert.False(_moduleService.Results.Reader.TryRead(out _));
-            Assert.Equal(3, _createdContainers.Count);
-            Assert.Equal(3, _requests.Count(request => request.StartsWith("DELETE ", StringComparison.Ordinal)));
-            var persisted = await _context.Modules.AsNoTracking().SingleOrDefaultAsync(module => module.Id == failedModuleId);
-            if (moduleExists)
-            {
-                Assert.NotNull(persisted);
-                Assert.Equal(ModuleStatus.Failed, persisted.Status);
-            }
-            else
-                Assert.Null(persisted);
-        }
-        finally
-        {
-            _sut.CancelScan(failedModuleId);
-            _sut.CancelScan(healthyModuleId);
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CancelScan_QueuedRunningScan_CancelsDockerAndAllowsNextJobToFinish(bool callerCancels)
-    {
-        using var cancellation = new CancellationTokenSource();
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var queuedScanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var queuedScanRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BlockFirstScan(started, release);
-        var originalResponder = _responder;
-        _responder = async (request, cancellationToken) =>
-        {
-            if (request.RequestUri!.AbsolutePath.EndsWith("/containers/scan-2/wait", StringComparison.Ordinal))
-            {
-                queuedScanStarted.TrySetResult();
-                await queuedScanRelease.Task.WaitAsync(cancellationToken);
-            }
-            if (request.Method == HttpMethod.Delete)
-                Assert.False(cancellationToken.IsCancellationRequested);
-            return await originalResponder(request, cancellationToken);
-        };
-        var runningScan = _sut.ScanOrEnqueueAsync(Guid.NewGuid(), _testRootDirectory);
-        var cancelledModuleId = Guid.NewGuid();
-        var healthyModuleId = Guid.NewGuid();
-        try
-        {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.True((await _sut.ScanOrEnqueueAsync(cancelledModuleId, _testRootDirectory, ScanPriority.Patch, cancellation.Token)).WasQueued);
-            Assert.True((await _sut.ScanOrEnqueueAsync(healthyModuleId, _testRootDirectory, ScanPriority.Create)).WasQueued);
-            release.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-            await queuedScanStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-            var snapshotWhileRunning = _sut.GetQueuedScans();
-            Assert.Equal(2, snapshotWhileRunning.Count);
-            Assert.Equal(cancelledModuleId, snapshotWhileRunning[0].ModuleId);
-            Assert.Equal(ScanPriority.Patch, snapshotWhileRunning[0].Priority);
-            Assert.True(snapshotWhileRunning[0].IsRunning);
-            Assert.Equal(healthyModuleId, snapshotWhileRunning[1].ModuleId);
-            Assert.Equal(ScanPriority.Create, snapshotWhileRunning[1].Priority);
-            Assert.False(snapshotWhileRunning[1].IsRunning);
-
-            if (callerCancels)
-                cancellation.Cancel();
-            else
-                Assert.True(_sut.CancelScan(cancelledModuleId));
-
-            var processed = await _moduleService.Results.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(healthyModuleId, processed.ModuleId);
-            Assert.False(_moduleService.Results.Reader.TryRead(out _));
-            Assert.False(_sut.CancelScan(cancelledModuleId));
-            Assert.Equal(3, _requests.Count(request => request.StartsWith("DELETE ", StringComparison.Ordinal)));
-        }
-        finally
-        {
-            _sut.CancelScan(cancelledModuleId);
-            _sut.CancelScan(healthyModuleId);
-            release.TrySetResult();
-            queuedScanRelease.TrySetResult();
-            await runningScan.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-    }
-
-    #endregion
-
     #region Test Fakes & Helpers
 
     private void BlockFirstScan(TaskCompletionSource started, TaskCompletionSource release)
@@ -550,35 +302,15 @@ public class ModuleEndpointScannerTests : IDisposable
         {
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
             _createdContainers.Enqueue(body.RootElement.Clone());
-            return JsonResponse(new { Id = "scan-" + Interlocked.Increment(ref _containerCount) });
+            return DockerHttpTestHelper.JsonResponse(new { Id = "scan-" + Interlocked.Increment(ref _containerCount) });
         }
         if (path.EndsWith("/start", StringComparison.Ordinal) || request.Method == HttpMethod.Delete)
             return new HttpResponseMessage(HttpStatusCode.NoContent);
         if (path.EndsWith("/wait", StringComparison.Ordinal))
-            return JsonResponse(new { StatusCode = 0 });
+            return DockerHttpTestHelper.JsonResponse(new { StatusCode = 0 });
         if (path.EndsWith("/logs", StringComparison.Ordinal))
-            return LogResponse(ValidOutput);
+            return DockerHttpTestHelper.LogResponse(ValidOutput);
         throw new InvalidOperationException("Unexpected Docker request: " + request.RequestUri);
-    }
-
-    private static HttpResponseMessage JsonResponse(object body, HttpStatusCode status = HttpStatusCode.OK) => new(status)
-    {
-        Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
-    };
-
-    private static HttpResponseMessage LogResponse(string stdout, string stderr = "")
-    {
-        using var stream = new MemoryStream();
-        foreach (var output in new[] { (Channel: (byte)1, Text: stdout), (Channel: (byte)2, Text: stderr) })
-        {
-            var payload = Encoding.UTF8.GetBytes(output.Text);
-            var header = new byte[8];
-            header[0] = output.Channel;
-            BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), payload.Length);
-            stream.Write(header);
-            stream.Write(payload);
-        }
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(stream.ToArray()) };
     }
 
     private sealed class RecordingModuleService : IScannerService
@@ -594,23 +326,6 @@ public class ModuleEndpointScannerTests : IDisposable
         }
 
         public Task<IEnumerable<ModuleScanQueueItemDto>> GetScanQueueAsync(CancellationToken ct = default) => throw new NotSupportedException();
-    }
-
-    private sealed class FakeDockerHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => responder(request, cancellationToken);
-    }
-
-    private sealed class FakeCredentials(HttpMessageHandler handler) : Credentials
-    {
-        public override bool IsTlsCredentials() => false;
-
-        public override HttpMessageHandler GetHandler(HttpMessageHandler innerHandler)
-        {
-            innerHandler.Dispose();
-            return handler;
-        }
     }
 
     #endregion

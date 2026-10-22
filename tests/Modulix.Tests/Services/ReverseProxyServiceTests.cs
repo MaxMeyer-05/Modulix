@@ -1,12 +1,3 @@
-using System.Net;
-using System.Net.Http.Headers;
-
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -23,7 +14,7 @@ namespace Modulix.Tests.Services;
 /// </summary>
 [Trait("Category", "Services")]
 [Trait("SubCategory", "ReverseProxyService")]
-public class ReverseProxyServiceTests
+public partial class ReverseProxyServiceTests
 {
     private readonly ReverseProxyService _sut = new(NullLogger<ReverseProxyService>.Instance);
 
@@ -248,102 +239,6 @@ public class ReverseProxyServiceTests
         };
 
         Assert.Throws<ArgumentOutOfRangeException>(() => _sut.UpsertModule(module));
-    }
-
-    #endregion
-
-    #region End-to-End Forwarding Pipeline Tests
-
-    [Fact]
-    public async Task MapModulixReverseProxy_ForwardsActiveEndpointsAndAuthorizationHeaders_Returns404ForUnknownRoutes()
-    {
-        // Arrange: Start a simulated module container on 127.0.0.1:0
-        var containerBuilder = WebApplication.CreateBuilder();
-        containerBuilder.WebHost.UseUrls("http://127.0.0.1:0");
-        await using var containerApp = containerBuilder.Build();
-
-        string? receivedPath = null;
-        string? receivedAuthHeader = null;
-
-        containerApp.MapGet("/api/reports", (HttpContext context) =>
-        {
-            receivedPath = context.Request.Path.Value;
-            receivedAuthHeader = context.Request.Headers.Authorization.ToString();
-            return Results.Ok("report-payload");
-        });
-
-        await containerApp.StartAsync();
-        var containerAddress = containerApp.Services
-            .GetRequiredService<IServer>()
-            .Features.Get<IServerAddressesFeature>()!
-            .Addresses.Single();
-        var containerPort = new Uri(containerAddress).Port;
-
-        // Arrange: Start the Modulix gateway with JWT auth and YARP reverse proxy
-        var gatewayBuilder = WebApplication.CreateBuilder();
-        gatewayBuilder.WebHost.UseUrls("http://127.0.0.1:0");
-        gatewayBuilder.Services
-            .AddAuthorization()
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer();
-        gatewayBuilder.Services.AddReverseProxyServices();
-
-        await using var gatewayApp = gatewayBuilder.Build();
-        gatewayApp.UseAuthentication();
-        gatewayApp.UseAuthorization();
-        gatewayApp.MapModulixReverseProxy();
-        await gatewayApp.StartAsync();
-
-        var gatewayAddress = gatewayApp.Services
-            .GetRequiredService<IServer>()
-            .Features.Get<IServerAddressesFeature>()!
-            .Addresses.Single();
-
-        var proxyService = gatewayApp.Services.GetRequiredService<IReverseProxyService>();
-        var moduleId = Guid.NewGuid();
-
-        using var httpClient = new HttpClient { BaseAddress = new Uri(gatewayAddress) };
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "container-specific-token");
-
-        // Act & Assert 1: Before registering the module, requests return 404
-        var beforeRegistrationResponse = await httpClient.GetAsync("/analytics/api/reports");
-        Assert.Equal(HttpStatusCode.NotFound, beforeRegistrationResponse.StatusCode);
-
-        // Act & Assert 2: Dynamically register the running module with one active GET endpoint
-        proxyService.UpsertModule(new ProxyModuleDefinition
-        {
-            ModuleId = moduleId,
-            BaseUrlPath = "analytics",
-            ContainerPort = containerPort,
-            Endpoints =
-            [
-                new ProxyEndpointDefinition { HttpMethod = "GET", EndpointPath = "/api/reports" }
-            ]
-        });
-
-        var activeEndpointResponse = await httpClient.GetAsync("/analytics/api/reports");
-        Assert.Equal(HttpStatusCode.OK, activeEndpointResponse.StatusCode);
-        Assert.Equal("\"report-payload\"", await activeEndpointResponse.Content.ReadAsStringAsync());
-        Assert.Equal("/api/reports", receivedPath);
-        Assert.Equal("Bearer container-specific-token", receivedAuthHeader);
-
-        // Act & Assert 3: Unregistered sub-endpoint returns 404; disallowed HTTP method on registered path returns 405 without forwarding
-        receivedPath = null;
-        var unknownEndpointResponse = await httpClient.GetAsync("/analytics/api/unconfirmed");
-        Assert.Equal(HttpStatusCode.NotFound, unknownEndpointResponse.StatusCode);
-        Assert.Null(receivedPath);
-
-        var wrongMethodResponse = await httpClient.PostAsync("/analytics/api/reports", content: null);
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, wrongMethodResponse.StatusCode);
-        Assert.Null(receivedPath);
-
-        // Act & Assert 4: Dynamically removing the module stops routing without restarting
-        proxyService.RemoveModule(moduleId);
-        var afterRemovalResponse = await httpClient.GetAsync("/analytics/api/reports");
-        Assert.Equal(HttpStatusCode.NotFound, afterRemovalResponse.StatusCode);
-
-        await gatewayApp.StopAsync();
-        await containerApp.StopAsync();
     }
 
     #endregion
