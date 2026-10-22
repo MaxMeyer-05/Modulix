@@ -81,6 +81,106 @@ public class DockerServiceTests
             await Assert.ThrowsAsync<TimeoutException>(() => service.WaitUntilReadyAsync("candidate", cancellation.Token));
     }
 
+    [Fact]
+    public async Task WaitUntilReadyAsync_WithoutHealthcheckAndWithBoundPort_WaitsForPortAndVerifiesContainerStillRunning()
+    {
+        var inspections = 0;
+        var portChecks = 0;
+        using var service = CreateService(
+            (request, cancellationToken) =>
+            {
+                inspections++;
+                return Task.FromResult(JsonResponse(new
+                {
+                    State = new { Running = true, Restarting = false, ExitCode = 0 },
+                    HostConfig = new
+                    {
+                        PortBindings = new Dictionary<string, object[]>
+                        {
+                            ["8080/tcp"] = [new { HostIp = "127.0.0.1", HostPort = "8080" }]
+                        }
+                    }
+                }));
+            },
+            portProbe: (port, ct) =>
+            {
+                Assert.Equal(8080, port);
+                return Task.FromResult(++portChecks >= 2);
+            });
+
+        await service.WaitUntilReadyAsync("candidate");
+
+        Assert.Equal(2, portChecks);
+        Assert.Equal(3, inspections);
+    }
+
+    [Fact]
+    public async Task WaitUntilReadyAsync_ContainerCrashesBeforePortAcceptsConnections_ThrowsInvalidOperationException()
+    {
+        var inspections = 0;
+        using var service = CreateService(
+            (request, cancellationToken) =>
+            {
+                inspections++;
+                return Task.FromResult(JsonResponse(new
+                {
+                    State = new
+                    {
+                        Running = inspections == 1,
+                        Restarting = false,
+                        ExitCode = inspections == 1 ? 0 : 139
+                    },
+                    HostConfig = new
+                    {
+                        PortBindings = new Dictionary<string, object[]>
+                        {
+                            ["8080/tcp"] = [new { HostIp = "127.0.0.1", HostPort = "8080" }]
+                        }
+                    }
+                }));
+            },
+            portProbe: (_, _) => Task.FromResult(false));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.WaitUntilReadyAsync("candidate"));
+
+        Assert.Contains("ExitCode: 139", exception.Message);
+        Assert.Equal(2, inspections);
+    }
+
+    [Theory]
+    [InlineData(true, false, 0, null, HttpStatusCode.OK, true)]
+    [InlineData(true, false, 0, "healthy", HttpStatusCode.OK, true)]
+    [InlineData(true, false, 0, "unhealthy", HttpStatusCode.OK, false)]
+    [InlineData(false, false, 0, null, HttpStatusCode.OK, false)]
+    [InlineData(true, true, 139, null, HttpStatusCode.OK, false)]
+    [InlineData(true, false, 1, null, HttpStatusCode.OK, false)]
+    [InlineData(false, false, 0, null, HttpStatusCode.NotFound, false)]
+    public async Task IsContainerRunningAsync_InspectsContainerState_ReturnsExpectedResult(
+        bool running, bool restarting, int exitCode, string? health, HttpStatusCode statusCode, bool expectedRunning)
+    {
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            if (statusCode == HttpStatusCode.NotFound)
+                return Task.FromResult(JsonResponse(new { message = "No such container." }, HttpStatusCode.NotFound));
+
+            return Task.FromResult(JsonResponse(new
+            {
+                State = new
+                {
+                    Running = running,
+                    Restarting = restarting,
+                    ExitCode = exitCode,
+                    Health = health is null ? null : new { Status = health }
+                }
+            }));
+        });
+
+        var actual = await service.IsContainerRunningAsync("candidate");
+
+        Assert.Equal(expectedRunning, actual);
+    }
+
     #endregion
 
     #region Container Lifecycle Tests
@@ -456,11 +556,12 @@ public class DockerServiceTests
 
     private static DockerService CreateService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder,
-        DockerOptions? options = null)
+        DockerOptions? options = null,
+        Func<int, CancellationToken, Task<bool>>? portProbe = null)
     {
         var credentials = new FakeCredentials(new FakeDockerHandler(responder));
         var client = new DockerClientConfiguration(new Uri("http://docker.test"), credentials).CreateClient();
-        return new DockerService(NullLogger<DockerService>.Instance, Options.Create(options ?? new DockerOptions()), client);
+        return new DockerService(NullLogger<DockerService>.Instance, Options.Create(options ?? new DockerOptions()), client, portProbe);
     }
 
     private static HttpResponseMessage JsonResponse(object body, HttpStatusCode status = HttpStatusCode.OK) => new(status)

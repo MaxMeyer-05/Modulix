@@ -55,6 +55,14 @@ public interface IDockerService
     Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId);
 
     /// <summary>
+    /// Checks whether the specified Docker container is currently running and healthy.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to inspect.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>True if the container exists, is running, is not restarting, and has not exited with an error; otherwise, false.</returns>
+    Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default);
+
+    /// <summary>
     /// Retrieves the logs of a Docker container.
     /// </summary>
     /// <param name="containerId">The ID of the container to get logs from.</param>

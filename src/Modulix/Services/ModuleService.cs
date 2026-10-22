@@ -105,7 +105,16 @@ public class ModuleService : IModuleService
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
         if (module.Status == ModuleStatus.Running)
-            throw new InvalidOperationException($"Module '{moduleId}' is already running.");
+        {
+            if (!string.IsNullOrWhiteSpace(module.ContainerId) &&
+                await _dockerService.IsContainerRunningAsync(module.ContainerId, ct))
+            {
+                throw new InvalidOperationException($"Module '{moduleId}' is already running.");
+            }
+
+            module.Status = ModuleStatus.Failed;
+            _reverseProxyService.RemoveModule(module.Id);
+        }
 
         if (module.Status == ModuleStatus.Starting)
             throw new InvalidOperationException($"Module '{moduleId}' is already starting.");
@@ -379,6 +388,8 @@ public class ModuleService : IModuleService
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
+
+        await ReconcileRunningModulesAsync(modules, ct);
         var moduleDtos = modules.Select(module => module.ToModuleDto()).ToList();
 
         _logger.LogDebug("Retrieved {Count} modules from the database.", moduleDtos.Count);
@@ -404,6 +415,7 @@ public class ModuleService : IModuleService
         if (module is null)
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
+        await ReconcileRunningModulesAsync([module], ct);
         return module.ToModuleDetailDto();
     }
 
@@ -443,5 +455,49 @@ public class ModuleService : IModuleService
         await _context.SaveChangesAsync(ct);
         _moduleEndpointExtension.SynchronizeReverseProxy(module);
         _logger.LogInformation("Updated module with ID '{ModuleId}' in the database.", moduleId);
+    }
+
+    private async Task ReconcileRunningModulesAsync(IReadOnlyCollection<Module> modules, CancellationToken ct)
+    {
+        var crashedModules = new List<Module>();
+
+        foreach (var module in modules.Where(m => m.Status == ModuleStatus.Running))
+        {
+            var isRunning = !string.IsNullOrWhiteSpace(module.ContainerId)
+                && await _dockerService.IsContainerRunningAsync(module.ContainerId, ct);
+
+            if (!isRunning)
+            {
+                _logger.LogWarning(
+                    "Container '{ContainerId}' for running module '{ModuleId}' is no longer active. Marking module as Failed.",
+                    module.ContainerId,
+                    module.Id);
+                module.Status = ModuleStatus.Failed;
+                _reverseProxyService.RemoveModule(module.Id);
+                crashedModules.Add(module);
+            }
+        }
+
+        if (crashedModules.Count == 0)
+            return;
+
+        foreach (var crashed in crashedModules)
+        {
+            var tracked = _context.ChangeTracker.Entries<Module>()
+                .FirstOrDefault(e => e.Entity.Id == crashed.Id)?.Entity;
+
+            if (tracked is not null)
+            {
+                tracked.Status = ModuleStatus.Failed;
+            }
+            else
+            {
+                var dbModule = await _context.Modules.FindAsync([crashed.Id], ct);
+                if (dbModule is not null)
+                    dbModule.Status = ModuleStatus.Failed;
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
     }
 }

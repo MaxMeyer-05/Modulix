@@ -15,6 +15,7 @@ using Modulix.Services.Interfaces;
 
 using Modulix.Docker;
 using Modulix.Docker.Options;
+using Modulix.Docker.Services;
 
 using Modulix;
 using Modulix.Mappers;
@@ -165,17 +166,40 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ServerContext>();
-    dbContext.Database.Migrate();
+    await dbContext.Database.MigrateAsync();
 
+    var dockerService = scope.ServiceProvider.GetRequiredService<IDockerService>();
     var reverseProxyService = scope.ServiceProvider.GetRequiredService<IReverseProxyService>();
-    var runningModules = dbContext.Modules
-        .AsNoTracking()
+    var candidateModules = await dbContext.Modules
         .Include(m => m.SubEndpoints)
         .Where(m => m.Status == ModuleStatus.Running)
-        .AsEnumerable()
-        .Select(m => m.ToProxyModuleDefinition())
-        .ToList();
-    reverseProxyService.UpdateModules(runningModules);
+        .ToListAsync();
+
+    var activeProxyModules = new List<Modulix.ReverseProxy.Models.ProxyModuleDefinition>();
+    var statusChanged = false;
+
+    foreach (var module in candidateModules)
+    {
+        var isRunning = !string.IsNullOrWhiteSpace(module.ContainerId)
+            && await dockerService.IsContainerRunningAsync(module.ContainerId);
+
+        if (isRunning)
+        {
+            activeProxyModules.Add(module.ToProxyModuleDefinition());
+        }
+        else
+        {
+            module.Status = ModuleStatus.Failed;
+            statusChanged = true;
+        }
+    }
+
+    if (statusChanged)
+    {
+        await dbContext.SaveChangesAsync();
+    }
+
+    reverseProxyService.UpdateModules(activeProxyModules);
 }
 
 if (app.Environment.IsDevelopment())

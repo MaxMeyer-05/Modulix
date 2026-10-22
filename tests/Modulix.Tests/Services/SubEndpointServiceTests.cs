@@ -571,6 +571,7 @@ public class SubEndpointServiceTests : IDisposable
             }
         }
 
+        public Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default) => Task.FromResult(true);
         public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default) => throw new NotSupportedException();
     }
 

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Formats.Tar;
 using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -31,19 +33,27 @@ public class DockerService : IDockerService, IDisposable
     private readonly ILogger<DockerService> _logger;
 
     /// <summary>
+    /// Delegate used to probe whether a local TCP port is accepting connections.
+    /// </summary>
+    private readonly Func<int, CancellationToken, Task<bool>> _portProbe;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DockerService"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The shared module settings.</param>
     /// <param name="client">The Docker client owned by this service.</param>
+    /// <param name="portProbe">Optional delegate for probing local TCP port readiness.</param>
     public DockerService(
         ILogger<DockerService> logger, 
         IOptions<DockerOptions> options,
-        DockerClient client)
+        DockerClient client,
+        Func<int, CancellationToken, Task<bool>>? portProbe = null)
     {
         _logger = logger;
         _options = options.Value;
         _client = client;
+        _portProbe = portProbe ?? ProbeTcpPortAsync;
     }
 
     /// <inheritdoc/>
@@ -213,15 +223,31 @@ public class DockerService : IDockerService, IDisposable
             while (true)
             {
                 var container = await _client.Containers.InspectContainerAsync(containerId, readinessCts.Token);
-                if (!container.State.Running || container.State.Restarting)
-                    throw new InvalidOperationException($"Container '{containerId}' stopped before becoming ready.");
+                if (!container.State.Running || container.State.Restarting || container.State.ExitCode != 0)
+                    throw new InvalidOperationException($"Container '{containerId}' stopped before becoming ready (ExitCode: {container.State.ExitCode}).");
 
                 var health = container.State.Health?.Status;
-                if (health is null or "healthy")
-                    return;
-
                 if (health == "unhealthy")
                     throw new InvalidOperationException($"Container '{containerId}' failed its health check.");
+
+                if (health == "healthy")
+                    return;
+
+                if (health is null)
+                {
+                    var hostPort = TryGetBoundHostPort(container);
+                    if (hostPort is null)
+                        return;
+
+                    if (await _portProbe(hostPort.Value, readinessCts.Token))
+                    {
+                        var verified = await _client.Containers.InspectContainerAsync(containerId, readinessCts.Token);
+                        if (!verified.State.Running || verified.State.Restarting || verified.State.ExitCode != 0)
+                            throw new InvalidOperationException($"Container '{containerId}' stopped before becoming ready (ExitCode: {verified.State.ExitCode}).");
+
+                        return;
+                    }
+                }
 
                 await Task.Delay(TimeSpan.FromSeconds(1), readinessCts.Token);
             }
@@ -229,6 +255,24 @@ public class DockerService : IDockerService, IDisposable
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             throw new TimeoutException($"Container '{containerId}' did not become ready within 60 seconds.");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default)
+    {
+        try
+        {
+            var container = await _client.Containers.InspectContainerAsync(containerId, ct);
+            if (!container.State.Running || container.State.Restarting || container.State.ExitCode != 0)
+                return false;
+
+            var health = container.State.Health?.Status;
+            return health is not "unhealthy";
+        }
+        catch (DockerContainerNotFoundException)
+        {
+            return false;
         }
     }
 
@@ -277,6 +321,51 @@ public class DockerService : IDockerService, IDisposable
         catch (DockerContainerNotFoundException ex)
         {
             throw new KeyNotFoundException($"Container '{containerId}' was not found.", ex);
+        }
+    }
+
+    private static int? TryGetBoundHostPort(ContainerInspectResponse container)
+    {
+        var portBindings = container.HostConfig?.PortBindings ?? container.NetworkSettings?.Ports;
+        if (portBindings is null)
+            return null;
+
+        foreach (var bindings in portBindings.Values)
+        {
+            if (bindings is null)
+                continue;
+
+            foreach (var binding in bindings)
+            {
+                if (int.TryParse(binding?.HostPort, NumberStyles.None, CultureInfo.InvariantCulture, out var port) &&
+                    port is > 0 and <= 65535)
+                {
+                    return port;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<bool> ProbeTcpPortAsync(int port, CancellationToken ct)
+    {
+        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        connectCts.CancelAfter(TimeSpan.FromSeconds(1));
+
+        using var tcpClient = new TcpClient();
+        try
+        {
+            await tcpClient.ConnectAsync(IPAddress.Loopback, port, connectCts.Token);
+            return true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
         }
     }
 

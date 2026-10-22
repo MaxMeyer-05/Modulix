@@ -734,9 +734,78 @@ public class ModuleServiceTests : IDisposable
         Assert.Equal(3, outOfRangePage.TotalCount);
     }
 
+    [Fact]
+    [Trait("Feature", "GetAllModules")]
+    public async Task GetAllModulesAsync_RunningModuleWithCrashedContainer_TransitionsToFailedAndRemovesProxyRoutes()
+    {
+        var module = CreateTestModuleEntity("Crashed Module", "api/v1/crashed-list", 8040);
+        module.Status = ModuleStatus.Running;
+        module.ContainerId = "crashed-container";
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "GET",
+            EndpointPath = "/status",
+            Status = ModuleEndpointsStatus.Active
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _reverseProxyService.UpsertModule(new Modulix.ReverseProxy.Models.ProxyModuleDefinition
+        {
+            ModuleId = module.Id,
+            BaseUrlPath = module.BaseUrlPath,
+            ContainerPort = module.ContainerPort,
+            Endpoints = [new Modulix.ReverseProxy.Models.ProxyEndpointDefinition { HttpMethod = "GET", EndpointPath = "/status" }]
+        });
+        _dockerService.IsContainerRunning = false;
+
+        var pagedResult = await _sut.GetAllModulesAsync();
+
+        var returned = Assert.Single(pagedResult.Items);
+        Assert.Equal(ModuleStatus.Failed, returned.Status);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
+    }
+
     #endregion
 
     #region GetModuleById Tests
+
+    [Fact]
+    [Trait("Feature", "GetModuleById")]
+    public async Task GetModuleByIdAsync_RunningModuleWithCrashedContainer_TransitionsToFailedAndRemovesProxyRoutes()
+    {
+        var module = CreateTestModuleEntity("Crashed Detail", "api/v1/crashed-detail", 8041);
+        module.Status = ModuleStatus.Running;
+        module.ContainerId = "crashed-detail-container";
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.Active
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+        _reverseProxyService.UpsertModule(new Modulix.ReverseProxy.Models.ProxyModuleDefinition
+        {
+            ModuleId = module.Id,
+            BaseUrlPath = module.BaseUrlPath,
+            ContainerPort = module.ContainerPort,
+            Endpoints = [new Modulix.ReverseProxy.Models.ProxyEndpointDefinition { HttpMethod = "GET", EndpointPath = "/health" }]
+        });
+        _dockerService.IsContainerRunning = false;
+
+        var result = await _sut.GetModuleByIdAsync(module.Id);
+
+        Assert.Equal(ModuleStatus.Failed, result.Status);
+        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
+    }
 
     [Fact]
     [Trait("Feature", "GetModuleById")]
@@ -1797,6 +1866,7 @@ public class ModuleServiceTests : IDisposable
         public List<string> Calls { get; } = [];
         public string? BuiltStoragePath { get; private set; }
         public string? BuiltEntryAssembly { get; private set; }
+        public bool IsContainerRunning { get; set; } = true;
         public string ContainerLogsResult { get; set; } = string.Empty;
         public Exception? BuildException { get; set; }
         public Exception? StartException { get; set; }
@@ -1866,6 +1936,12 @@ public class ModuleServiceTests : IDisposable
             {
                 return false;
             }
+        }
+
+        public Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(IsContainerRunning);
         }
 
         public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default)
