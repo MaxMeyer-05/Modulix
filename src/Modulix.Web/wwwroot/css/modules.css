@@ -530,13 +530,14 @@
   font-size: 12px;
   line-height: 1.65;
   tab-size: 4;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   scrollbar-width: thin;
   scrollbar-color: #384453 #0e141d;
 }
-.module-logs-output.module-logs-wrap {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.module-logs-section:has(#module-logs-wrap:not(:checked)) .module-logs-output {
+  white-space: pre;
+  overflow-wrap: normal;
 }
 
 @media (max-width: 1100px) {
