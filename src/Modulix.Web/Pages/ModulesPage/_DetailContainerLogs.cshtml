@@ -1,0 +1,91 @@
+@model DetailModel
+@{
+    var module = Model.Module!;
+    var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
+}
+<section class="module-info-section module-logs-section" id="module-container-logs" aria-labelledby="module-logs-heading">
+    <div class="module-section-heading">
+        <div class="module-logs-title-group">
+            <h2 id="module-logs-heading">Container logs</h2>
+            @if (!string.IsNullOrWhiteSpace(module.ContainerId))
+            {
+                <span class="module-logs-line-count">@Model.ContainerLogLineCount @(Model.ContainerLogLineCount == 1 ? "line" : "lines")</span>
+            }
+        </div>
+        <div class="module-section-heading-actions">
+            @if (!string.IsNullOrWhiteSpace(module.ContainerId))
+            {
+                <form class="module-logs-tail-form" method="get" action="@detailUrl#module-container-logs">
+                    @if (Model.CurrentPage > 1)
+                    {
+                        <input type="hidden" name="page" value="@Model.CurrentPage" />
+                    }
+                    @if (Model.PageSize != DetailModel.DefaultEndpointsPageSize)
+                    {
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    }
+                    <label class="module-pagination-size-label" for="detail-logs-tail">
+                        <span>Tail</span>
+                        <select id="detail-logs-tail" name="logsTail" data-page-size-select>
+                            @foreach (var tailOption in DetailModel.AllowedLogsTailSizes)
+                            {
+                                <option value="@tailOption" selected="@(Model.LogsTail == tailOption)">Last @tailOption lines</option>
+                            }
+                        </select>
+                    </label>
+                </form>
+                <label class="module-logs-wrap-toggle">
+                    <input type="checkbox" id="module-logs-wrap" checked />
+                    <span>Wrap lines</span>
+                </label>
+                <a class="module-button module-button-compact"
+                   href="@Model.GetPageUrl(module.Id, Model.CurrentPage)#module-container-logs"
+                   title="Refresh container logs">
+                    <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
+                </a>
+                <a class="module-button module-button-compact"
+                   asp-page="/ModulesPage/Detail"
+                   asp-page-handler="DownloadLogs"
+                   asp-route-id="@module.Id"
+                   title="Download container logs as a .log file">
+                    <i data-lucide="download" aria-hidden="true"></i><span>Download</span>
+                </a>
+            }
+            else
+            {
+                <button class="module-button module-button-compact" type="button" disabled title="No container assigned">
+                    <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
+                </button>
+                <button class="module-button module-button-compact" type="button" disabled title="No container assigned">
+                    <i data-lucide="download" aria-hidden="true"></i><span>Download</span>
+                </button>
+            }
+        </div>
+    </div>
+    @if (string.IsNullOrWhiteSpace(module.ContainerId))
+    {
+        <p class="module-section-empty">No container is assigned to this module yet. Start the module to view container output.</p>
+    }
+    else if (Model.ContainerLogsError is not null)
+    {
+        <div class="modules-error module-logs-error" role="alert">
+            <i data-lucide="circle-alert" aria-hidden="true"></i>
+            <div>
+                <strong>Could not load container logs</strong>
+                <p>@Model.ContainerLogsError</p>
+            </div>
+        </div>
+    }
+    else if (string.IsNullOrWhiteSpace(Model.ContainerLogs))
+    {
+        <div class="module-logs-viewer">
+            <p class="module-logs-empty">Container produced no log output.</p>
+        </div>
+    }
+    else
+    {
+        <div class="module-logs-viewer">
+            <pre class="module-logs-output" id="module-logs-output" tabindex="0" aria-label="Container log output">@Model.ContainerLogs</pre>
+        </div>
+    }
+</section>

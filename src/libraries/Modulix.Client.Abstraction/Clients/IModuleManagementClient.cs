@@ -78,6 +78,21 @@ public interface IModuleManagementClient
     Task<HttpResponseMessage> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
+    /// Retrieves the container logs of a specific module by its unique identifier.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>The HTTP response message resulting from the request to retrieve the container logs of the specified module.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<HttpResponseMessage> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default, string? authToken = null);
+
+    /// <summary>
     /// Updates the details of a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
