@@ -55,11 +55,12 @@ public interface IDockerService
     Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId);
 
     /// <summary>
-    /// Retrieves the logs of a running Docker container.
+    /// Retrieves the logs of a Docker container.
     /// </summary>
     /// <param name="containerId">The ID of the container to get logs from.</param>
+    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <typeparam name="T">The type to which the logs should be deserialized.</typeparam>
-    /// <returns>The container logs deserialized to the specified type.</returns>
-    Task<T> GetContainerLogsAsync<T>(string containerId, CancellationToken ct = default);
+    /// <returns>The container logs as a plain-text string.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the specified container could not be found.</exception>
+    Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default);
 }

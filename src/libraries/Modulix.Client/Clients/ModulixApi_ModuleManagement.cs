@@ -89,9 +89,12 @@ internal partial class ModulixApi : IModuleManagementClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetModuleContainerLogsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/logs";
+        if (tail.HasValue)
+            requestUri += $"?tail={tail.Value.ToString(CultureInfo.InvariantCulture)}";
+
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 

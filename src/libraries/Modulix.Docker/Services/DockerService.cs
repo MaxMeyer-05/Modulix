@@ -254,20 +254,30 @@ public class DockerService : IDockerService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task<T> GetContainerLogsAsync<T>(string containerId, CancellationToken ct = default)
+    public async Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default)
     {
-        var logs = await _client.Containers.GetContainerLogsAsync(containerId, false, new ContainerLogsParameters
+        try
         {
-            ShowStdout = true,
-            ShowStderr = true,
-            Timestamps = true
-        }, ct);
+            using var logs = await _client.Containers.GetContainerLogsAsync(containerId, false, new ContainerLogsParameters
+            {
+                ShowStdout = true,
+                ShowStderr = true,
+                Timestamps = true,
+                Tail = tail.HasValue ? tail.Value.ToString(CultureInfo.InvariantCulture) : "all"
+            }, ct);
 
-        var (stdout, stderr) = await logs.ReadOutputToEndAsync(ct);
-        var logContent = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
-        
-        return JsonSerializer.Deserialize<T>(logContent) 
-            ?? throw new InvalidOperationException("Failed to deserialize container logs.");
+            var (stdout, stderr) = await logs.ReadOutputToEndAsync(ct);
+            if (string.IsNullOrWhiteSpace(stdout))
+                return string.IsNullOrWhiteSpace(stderr) ? string.Empty : stderr;
+            if (string.IsNullOrWhiteSpace(stderr))
+                return stdout;
+
+            return $"{stdout.TrimEnd('\r', '\n')}{Environment.NewLine}{stderr}";
+        }
+        catch (DockerContainerNotFoundException ex)
+        {
+            throw new KeyNotFoundException($"Container '{containerId}' was not found.", ex);
+        }
     }
 
     /// <summary>

@@ -46,12 +46,13 @@ public interface IModuleService
     /// Retrieves the container logs of a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <typeparam name="T">The type of the container logs to return.</typeparam>
+    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The container logs of the specified module.</returns>
-    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
+    /// <exception cref="ArgumentException">Thrown if the tail value is less than or equal to zero.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown if the module or container with the specified ID does not exist.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the module does not have an associated container.</exception>
-    Task<T> GetModuleContainerLogsAsync<T>(Guid moduleId, CancellationToken ct = default);
+    Task<string> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
