@@ -1,4 +1,5 @@
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Services.Interfaces;
 

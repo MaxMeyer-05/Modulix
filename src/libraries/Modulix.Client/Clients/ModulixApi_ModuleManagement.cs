@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Net.Http.Headers;
 
 using Modulix.Client.Clients;
+
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Client;
 

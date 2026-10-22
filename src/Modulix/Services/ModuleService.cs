@@ -4,6 +4,8 @@ using Microsoft.Extensions.Options;
 using Modulix.Mappers;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Client.Models.Enums;
 
 using Modulix.Models.Options;
