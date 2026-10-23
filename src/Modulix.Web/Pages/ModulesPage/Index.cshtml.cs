@@ -354,7 +354,7 @@ public class IndexModel : PageModel
         try
         {
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
+                pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)

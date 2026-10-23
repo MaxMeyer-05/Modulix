@@ -11,6 +11,7 @@ public interface IModuleVersionClient
     /// <summary>
     /// Retrieves all module versions.
     /// </summary>
+    /// <param name="query">Optional - The module version query parameters.</param>
     /// <param name="pagination">Optional - The pagination query parameters.</param>
     /// <param name="ct">Optional - The cancellation token.</param>
     /// <param name="authToken">Optional - The authentication token.</param>
@@ -20,7 +21,7 @@ public interface IModuleVersionClient
     /// or
     /// when the HTTP response indicates a failure.
     /// </exception>
-    Task<HttpResponseMessage> GetAllModuleVersionsAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
+    Task<HttpResponseMessage> GetAllModuleVersionsAsync(ModuleVersionQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
     /// Retrieves all module versions for a specific module by its ID.

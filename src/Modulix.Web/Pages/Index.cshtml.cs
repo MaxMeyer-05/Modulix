@@ -213,7 +213,7 @@ public class IndexModel : PageModel
             _logger.LogDebug("Loading all modules for dashboard.");
 
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
+                pagination: new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
                 ct: ct);
             if (!response.IsSuccessStatusCode)
             {

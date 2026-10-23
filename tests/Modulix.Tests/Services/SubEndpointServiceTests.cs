@@ -75,8 +75,8 @@ public partial class SubEndpointServiceTests : ServiceTestBase
             new ModuleEndpoint { Id = Guid.NewGuid(), ModuleId = targetModule.Id, ModuleVersion = targetModule.Versions.Single(), HttpMethod = HttpMethod.Post, EndpointPath = "/target-2" });
         await _context.SaveChangesAsync();
 
-        var page1 = await _sut.GetModuleSubEndpointsAsync(targetModule.Id, new PaginationQueryDto { Page = 1, PageSize = 1 });
-        var page2 = await _sut.GetModuleSubEndpointsAsync(targetModule.Id, new PaginationQueryDto { Page = 2, PageSize = 1 });
+        var page1 = await _sut.GetModuleSubEndpointsAsync(targetModule.Id, pagination: new PaginationQueryDto { Page = 1, PageSize = 1 });
+        var page2 = await _sut.GetModuleSubEndpointsAsync(targetModule.Id, pagination: new PaginationQueryDto { Page = 2, PageSize = 1 });
 
         Assert.Equal(2, page1.TotalCount);
         Assert.Equal(2, page1.TotalPages);

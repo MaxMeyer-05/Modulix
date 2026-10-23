@@ -53,6 +53,7 @@ public interface IModuleManagementClient
     /// <summary>
     /// Retrieves all modules.
     /// </summary>
+    /// <param name="query">Optional - The module query parameters.</param>
     /// <param name="pagination">Optional - The pagination query parameters.</param>
     /// <param name="ct">Optional - The cancellation token.</param>
     /// <param name="authToken">Optional - The authentication token.</param>
@@ -62,7 +63,7 @@ public interface IModuleManagementClient
     /// or
     /// when the HTTP response indicates a failure.
     /// </exception>
-    Task<HttpResponseMessage> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
+    Task<HttpResponseMessage> GetAllModulesAsync(ModuleQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
