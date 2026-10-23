@@ -261,3 +261,88 @@
         </div>
     </form>
 </div>
+
+<div class="module-dialog @(Model.ReopenEditVersion ? "module-dialog-open" : "")" id="edit-version-dialog" popover="@(Model.ReopenEditVersion ? null : "auto")" role="dialog" aria-labelledby="edit-version-heading">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="edit-version-heading">Edit version metadata</h2></div>
+        @if (Model.ReopenEditVersion)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="edit-version-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="edit-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="EditVersion" asp-route-id="@module.Id">
+        @if (Model.EditVersionError is { } editVersionError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@editVersionError.Title</strong> <span class="module-code">HTTP @editVersionError.StatusCode</span>
+                <p>@editVersionError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <input type="hidden" name="originalVersion" id="edit-version-original" value="@Model.EditVersionTarget" />
+        <fieldset class="module-form-fields" id="module-edit-version-fields">
+            <label>
+                <span>Version <span class="required-mark">*</span></span>
+                <input name="Version" id="edit-version-name" value="@(Model.EditVersionInput?.Version ?? Model.EditVersionTarget)" required maxlength="50" placeholder="v1.0.0" />
+            </label>
+            <label>
+                <span>Changelog</span>
+                <textarea name="Changelog" id="edit-version-changelog" rows="3" maxlength="500" placeholder="Optional changelog for this version">@Model.EditVersionInput?.Changelog</textarea>
+            </label>
+        </fieldset>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenEditVersion)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="edit-version-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenDeleteVersion ? "module-dialog-open" : "")" id="delete-version-dialog" popover="@(Model.ReopenDeleteVersion ? null : "auto")" role="dialog" aria-labelledby="delete-version-heading" aria-describedby="delete-version-description">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="delete-version-heading">Delete module version?</h2></div>
+        @if (Model.ReopenDeleteVersion)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="delete-version-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="delete-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="DeleteVersion" asp-route-id="@module.Id">
+        @if (Model.DeleteVersionError is { } deleteVersionError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@deleteVersionError.Title</strong> <span class="module-code">HTTP @deleteVersionError.StatusCode</span>
+                <p>@deleteVersionError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <input type="hidden" name="version" id="delete-version-target" value="@Model.DeleteVersionTarget" />
+        <div class="module-result-body">
+            <p id="delete-version-description">Permanently delete version <strong class="module-code" id="delete-version-label">@Model.DeleteVersionTarget</strong> of <strong>@module.ModuleName</strong>? This will remove the stored files for this version. This cannot be undone.</p>
+        </div>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenDeleteVersion)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="delete-version-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete version</span></button>
+        </div>
+    </form>
+</div>

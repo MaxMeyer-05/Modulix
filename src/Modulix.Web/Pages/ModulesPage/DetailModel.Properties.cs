@@ -115,6 +115,31 @@ public partial class DetailModel
     public ActionError? DeleteError { get; private set; }
 
     /// <summary>
+    /// Gets the original version string targeted by a failed version edit attempt.
+    /// </summary>
+    public string? EditVersionTarget { get; private set; }
+
+    /// <summary>
+    /// Gets the submitted version metadata when a version edit attempt failed.
+    /// </summary>
+    public ModuleVersionUpdateDto? EditVersionInput { get; private set; }
+
+    /// <summary>
+    /// Gets the error from a failed version metadata update attempt.
+    /// </summary>
+    public ActionError? EditVersionError { get; private set; }
+
+    /// <summary>
+    /// Gets the target version string when a version deletion attempt failed.
+    /// </summary>
+    public string? DeleteVersionTarget { get; private set; }
+
+    /// <summary>
+    /// Gets the error from a failed version deletion attempt.
+    /// </summary>
+    public ActionError? DeleteVersionError { get; private set; }
+
+    /// <summary>
     /// Gets the feedback from the most recent completed module action.
     /// </summary>
     public ActionFeedback? Feedback { get; private set; }
@@ -163,6 +188,16 @@ public partial class DetailModel
     /// Indicates whether the delete dialog should be reopened due to an error.
     /// </summary>
     public bool ReopenDelete => DeleteError is not null;
+
+    /// <summary>
+    /// Indicates whether the edit version dialog should be reopened due to an error.
+    /// </summary>
+    public bool ReopenEditVersion => EditVersionError is not null;
+
+    /// <summary>
+    /// Indicates whether the delete version dialog should be reopened due to an error.
+    /// </summary>
+    public bool ReopenDeleteVersion => DeleteVersionError is not null;
 
     /// <summary>
     /// Indicates whether the module can currently be started.
