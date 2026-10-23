@@ -29,14 +29,4 @@ public class PaginationQueryDto
     /// The number of items per page.
     /// </summary>
     public int PageSize { get; set; } = DefaultPageSize;
-
-    /// <summary>
-    /// The search query string.
-    /// </summary>
-    public string Search { get; set; } = string.Empty;
-
-    /// <summary>
-    /// The sort field for the query.
-    /// </summary>
-    public string SortBy { get; set; } = string.Empty;
 }

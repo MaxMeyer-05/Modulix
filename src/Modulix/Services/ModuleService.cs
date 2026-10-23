@@ -391,8 +391,8 @@ public class ModuleService : IModuleService
 
         var totalCount = await query.CountAsync(ct);
         var modules = await query
-            .OrderByDescending(m => m.CreatedAtUtc)
-            .ThenBy(m => m.Id)
+            .OrderByDescending(m => m.ModuleName)
+            .ThenBy(m => m.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

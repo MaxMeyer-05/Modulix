@@ -236,8 +236,8 @@ public class SubEndpointService : ISubEndpointService
         var totalCount = await subEndpointQuery.CountAsync(ct);
         var subEndpoints = await subEndpointQuery
             .Include(se => se.ModuleVersion)
-            .OrderByDescending(e => e.CreatedAtUtc)
-            .ThenBy(e => e.Id)
+            .OrderByDescending(e => e.HttpMethod)
+            .ThenBy(e => e.EndpointPath)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

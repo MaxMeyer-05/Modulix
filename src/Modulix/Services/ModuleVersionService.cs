@@ -93,8 +93,8 @@ public class ModuleVersionService : IModuleVersionService
 
         var totalCount = await query.CountAsync(ct);
         var versions = await query
-            .OrderByDescending(v => v.ReleasedAtUtc)
-            .ThenByDescending(v => v.Id)
+            .OrderByDescending(v => v.Version)
+            .ThenByDescending(v => v.ReleasedAtUtc) 
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
