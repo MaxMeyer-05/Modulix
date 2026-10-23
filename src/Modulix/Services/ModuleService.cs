@@ -8,8 +8,6 @@ using Modulix.Client.Models.Dtos.Query;
 
 using Modulix.Client.Models.Enums;
 
-using Modulix.Models.Options;
-
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
@@ -47,7 +45,7 @@ public class ModuleService : IModuleService
     /// <summary>
     /// The shared module settings.
     /// </summary>
-    private readonly ModulixOptions _options;
+    private readonly ModuleSettings _options;
 
     /// <summary>
     /// The directory extension for handling module directories and archives.
@@ -78,7 +76,7 @@ public class ModuleService : IModuleService
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
-        IOptions<ModulixOptions> options,
+        IOptions<ModuleSettings> options,
         IDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         DirectoryExtension directoryExtension,
@@ -455,11 +453,7 @@ public class ModuleService : IModuleService
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
         module.UpdateModuleDto(dto);
-
-        _context.ChangeTracker.DetectChanges();
-        if (_context.Entry(module).State == EntityState.Unchanged)
-            return;
-
+        
         await _context.SaveChangesAsync(ct);
         _moduleEndpointExtension.SynchronizeReverseProxy(module);
         _logger.LogInformation("Updated module with ID '{ModuleId}' in the database.", moduleId);

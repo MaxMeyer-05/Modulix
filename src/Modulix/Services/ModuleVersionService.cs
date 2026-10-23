@@ -400,13 +400,6 @@ public class ModuleVersionService : IModuleVersionService
 
         moduleVersion.UpdateVersionEntity(dto);
 
-        _context.ChangeTracker.DetectChanges();
-        if (_context.Entry(moduleVersion).State == EntityState.Unchanged &&
-            _context.Entry(module).State == EntityState.Unchanged)
-        {
-            return;
-        }
-
         await _context.SaveChangesAsync(ct);
         _logger.LogInformation("Updated version '{Version}' for module with ID '{ModuleId}'.", moduleVersion.Version, moduleId);
     }
