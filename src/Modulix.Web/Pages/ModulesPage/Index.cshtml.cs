@@ -353,7 +353,15 @@ public class IndexModel : PageModel
 
         try
         {
+            var moduleQuery = new ModuleQueryDto
+            {
+                Status = Enum.TryParse<ModuleStatus>(StatusFilter, ignoreCase: true, out var parsedStatus)
+                    ? parsedStatus
+                    : null
+            };
+
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+                query: moduleQuery,
                 pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);
 
@@ -390,10 +398,7 @@ public class IndexModel : PageModel
 
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
-                    .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (StatusFilter.Length == 0
-                    || module.Status.ToString() == StatusFilter
-                    || (StatusFilter == nameof(ModuleStatus.PendingConfirmation) && module.Status == ModuleStatus.QueuedForScan)));
+                    .Contains(Query, StringComparison.OrdinalIgnoreCase));
 
             Modules = (SortBy switch
             {

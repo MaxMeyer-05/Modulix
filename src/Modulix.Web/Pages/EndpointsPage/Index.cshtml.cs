@@ -185,8 +185,17 @@ public class IndexModel : PageModel
 
         try
         {
+            var endpointQuery = new SubEndpointQueryDto
+            {
+                HttpMethod = !string.IsNullOrWhiteSpace(MethodFilter) ? new HttpMethod(MethodFilter) : null,
+                Status = Enum.TryParse<ModuleEndpointsStatus>(StatusFilter, ignoreCase: true, out var parsedStatus)
+                    ? parsedStatus
+                    : null
+            };
+
             using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
-                new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
+                query: endpointQuery,
+                pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)
@@ -228,8 +237,6 @@ public class IndexModel : PageModel
             var filtered = allEndpoints.Where(endpoint =>
                 $"{endpoint.ModuleName} {endpoint.HttpMethod} {endpoint.EndpointPath} {endpoint.Id}"
                     .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (MethodFilter.Length == 0 || endpoint.HttpMethod.Method.Equals(MethodFilter, StringComparison.OrdinalIgnoreCase))
-                && (StatusFilter.Length == 0 || endpoint.Status.ToString().Equals(StatusFilter, StringComparison.OrdinalIgnoreCase))
                 && (ModuleFilter.Length == 0 || endpoint.ModuleName.Equals(ModuleFilter, StringComparison.OrdinalIgnoreCase)));
 
             Endpoints = (SortBy switch
