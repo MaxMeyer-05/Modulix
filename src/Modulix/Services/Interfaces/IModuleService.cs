@@ -38,10 +38,11 @@ public interface IModuleService
     /// <summary>
     /// Retrieves all modules.
     /// </summary>
+    /// <param name="moduleQuery">The query parameters for filtering modules.</param>
     /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all module details, paged according to the provided pagination parameters.</returns>
-    Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default);
+    Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(ModuleQueryDto? moduleQuery = null, PaginationQueryDto? pagination = null, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves the container logs of a specific module by its unique identifier.

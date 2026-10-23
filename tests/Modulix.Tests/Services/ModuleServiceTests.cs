@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 using Modulix.Database.Entities;
 using Modulix.ReverseProxy.Models;
@@ -108,9 +109,9 @@ public partial class ModuleServiceTests : ServiceTestBase
         await _context.SaveChangesAsync();
 
         // Act
-        var page1 = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 1, PageSize = 2 });
-        var page2 = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 2, PageSize = 2 });
-        var outOfRangePage = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 5, PageSize = 2 });
+        var page1 = await _sut.GetAllModulesAsync(pagination: new PaginationQueryDto { Page = 1, PageSize = 2 });
+        var page2 = await _sut.GetAllModulesAsync(pagination: new PaginationQueryDto { Page = 2, PageSize = 2 });
+        var outOfRangePage = await _sut.GetAllModulesAsync(pagination: new PaginationQueryDto { Page = 5, PageSize = 2 });
 
         // Assert
         Assert.Equal(3, page1.TotalCount);
@@ -138,7 +139,7 @@ public partial class ModuleServiceTests : ServiceTestBase
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/status",
             Status = ModuleEndpointsStatus.Active
         });
@@ -177,7 +178,7 @@ public partial class ModuleServiceTests : ServiceTestBase
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.Active
         });
@@ -225,7 +226,7 @@ public partial class ModuleServiceTests : ServiceTestBase
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/prometheus",
             Status = ModuleEndpointsStatus.Active
         });

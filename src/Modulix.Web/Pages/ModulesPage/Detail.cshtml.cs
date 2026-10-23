@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.WebUtilities;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;

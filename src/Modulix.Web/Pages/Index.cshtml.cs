@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 using Modulix.Web.Services;
 

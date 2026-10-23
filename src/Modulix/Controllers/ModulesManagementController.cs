@@ -107,6 +107,7 @@ public class ModulesManagementController : ControllerBase
     /// <summary>
     /// Retrieves all modules.
     /// </summary>
+    /// <param name="moduleQuery">The query parameters for filtering modules.</param>
     /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
@@ -114,9 +115,9 @@ public class ModulesManagementController : ControllerBase
     /// </returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResultDto<ModuleDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResultDto<ModuleDto>>> GetAllModulesAsync([FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResultDto<ModuleDto>>> GetAllModulesAsync([FromQuery] ModuleQueryDto moduleQuery, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var result = await _moduleService.GetAllModulesAsync(pagination, ct);
+        var result = await _moduleService.GetAllModulesAsync(moduleQuery, pagination, ct);
         return Ok(result);
     }
 
@@ -155,10 +156,7 @@ public class ModulesManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetModuleContainerLogsAsync(
-        [FromRoute] Guid moduleId,
-        [FromQuery] int? tail = null,
-        CancellationToken ct = default)
+    public async Task<IActionResult> GetModuleContainerLogsAsync([FromRoute] Guid moduleId, [FromQuery] int? tail = null, CancellationToken ct = default)
     {
         var logs = await _moduleService.GetModuleContainerLogsAsync(moduleId, tail, ct);
         return Content(logs, "text/plain; charset=utf-8");

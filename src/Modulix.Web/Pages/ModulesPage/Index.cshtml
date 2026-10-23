@@ -269,7 +269,7 @@
                             var idx = 0;
                             foreach (var ep in Model.Input.InitialEndpoints)
                             {
-                                var currentMethod = (ep.HttpMethod ?? "GET").ToUpperInvariant();
+                                var currentMethod = (ep.HttpMethod?.Method ?? "GET").ToUpperInvariant();
                                 <div class="module-subendpoint-row" data-subendpoint-row>
                                     <select name="InitialEndpoints[@idx].HttpMethod" aria-label="HTTP method">
                                         @foreach (var httpMethod in new[] { "GET", "POST", "PUT", "PATCH", "DELETE" })

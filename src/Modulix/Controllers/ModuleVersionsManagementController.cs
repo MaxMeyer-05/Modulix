@@ -37,6 +37,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// <summary>
     /// Retrieves all module versions across all modules.
     /// </summary>
+    /// <param name="moduleVersionQuery">The query parameters for filtering module versions.</param>
     /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
@@ -44,9 +45,9 @@ public class ModuleVersionsManagementController : ControllerBase
     /// </returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResultDto<ModuleVersionDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResultDto<ModuleVersionDto>>> GetAllModuleVersionsAsync([FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResultDto<ModuleVersionDto>>> GetAllModuleVersionsAsync([FromQuery] ModuleVersionQueryDto? moduleVersionQuery, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var result = await _moduleVersionService.GetAllModuleVersionsAsync(pagination, ct);
+        var result = await _moduleVersionService.GetAllModuleVersionsAsync(moduleVersionQuery, pagination, ct);
         return Ok(result);
     }
 
