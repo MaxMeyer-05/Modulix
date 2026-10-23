@@ -165,7 +165,6 @@ document.querySelectorAll("[data-delete-version]").forEach(button => {
         input.name = `InitialEndpoints[${index}].EndpointPath`;
         input.required = true;
         input.maxLength = 200;
-        input.pattern = "/.*";
         input.placeholder = "/api/v1/items";
         input.setAttribute("aria-label", "Endpoint path");
 

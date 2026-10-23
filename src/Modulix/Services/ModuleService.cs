@@ -248,7 +248,22 @@ public class ModuleService : IModuleService
         module.Versions.Add(initialVersion);
 
         // Add initial sub-endpoints for the module
-        var manualRoutes = dto.InitialEndpoints?.ToList() ?? [];
+        var manualRoutes = dto.InitialEndpoints?
+            .Where(ep => ep.HttpMethod is not null && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+            .Select(ep =>
+            {
+                var path = ep.EndpointPath.Trim();
+                if (!path.StartsWith('/'))
+                    path = "/" + path;
+
+                return new CreateModuleSubEndpointDto
+                {
+                    HttpMethod = ep.HttpMethod,
+                    EndpointPath = path
+                };
+            })
+            .ToList() ?? [];
+
         foreach (var ep in manualRoutes)
         {
             module.SubEndpoints.Add(new ModuleEndpoint

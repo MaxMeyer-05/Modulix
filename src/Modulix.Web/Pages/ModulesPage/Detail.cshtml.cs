@@ -51,7 +51,7 @@ public partial class DetailModel : PageModel
     }
 
     /// <summary>
-    /// Builds a URL for the module detail page preserving pagination and log tail parameters.
+    /// Builds a URL for the module detail page preserving pagination parameters.
     /// </summary>
     public string GetPageUrl(Guid id, int targetPage)
     {
@@ -62,8 +62,6 @@ public partial class DetailModel : PageModel
             queryParams["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
         if (PageSize != DefaultEndpointsPageSize)
             queryParams["pageSize"] = PageSize.ToString(CultureInfo.InvariantCulture);
-        if (LogsTail != DefaultContainerLogsTail)
-            queryParams["logsTail"] = LogsTail.ToString(CultureInfo.InvariantCulture);
 
         return QueryHelpers.AddQueryString(baseUrl, queryParams);
     }
@@ -74,31 +72,27 @@ public partial class DetailModel : PageModel
     /// <param name="id">The ID of the module to load.</param>
     /// <param name="pageNumber">The 1-based page number for the module's endpoints.</param>
     /// <param name="pageSize">The number of endpoints per page.</param>
-    /// <param name="logsTail">The number of container log lines from the end to load.</param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         [FromQuery(Name = "page")] int pageNumber = PaginationQueryDto.DefaultPage,
-        [FromQuery(Name = "pageSize")] int pageSize = DefaultEndpointsPageSize,
-        [FromQuery(Name = "logsTail")] int logsTail = DefaultContainerLogsTail)
+        [FromQuery(Name = "pageSize")] int pageSize = DefaultEndpointsPageSize)
     {
         if (TempData[FeedbackKey] is string json)
             Feedback = JsonSerializer.Deserialize<ActionFeedback>(json);
 
-        await LoadModuleAsync(id, pageNumber, pageSize, logsTail);
+        await LoadModuleAsync(id, pageNumber, pageSize);
         return Page();
     }
 
     private async Task LoadModuleAsync(
         Guid id,
         int pageNumber = PaginationQueryDto.DefaultPage,
-        int pageSize = DefaultEndpointsPageSize,
-        int logsTail = DefaultContainerLogsTail)
+        int pageSize = DefaultEndpointsPageSize)
     {
         CurrentPage = pageNumber < 1 ? PaginationQueryDto.DefaultPage : pageNumber;
         PageSize = pageSize < 1
             ? DefaultEndpointsPageSize
             : Math.Min(pageSize, PaginationQueryDto.MaxPageSize);
-        LogsTail = AllowedLogsTailSizes.Contains(logsTail) ? logsTail : DefaultContainerLogsTail;
 
         try
         {
@@ -120,8 +114,6 @@ public partial class DetailModel : PageModel
 
             if (Module is null)
                 return;
-
-            await LoadContainerLogsAsync(id);
 
             using var endpointsResponse = await _modulixApiClient.SubEndpointManagement.GetModuleEndpointsAsync(
                 moduleId: id,

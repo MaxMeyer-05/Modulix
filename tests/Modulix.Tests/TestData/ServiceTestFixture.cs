@@ -15,7 +15,6 @@ using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
 using Modulix.Docker.Services;
 using Modulix.Extensions;
-using Modulix.Models.Options;
 using Modulix.ReverseProxy.Services;
 using Modulix.Scanner.Interfaces;
 
@@ -35,7 +34,7 @@ public abstract class ServiceTestBase : IDisposable
     protected readonly FailingSaveInterceptor _saveInterceptor = new();
     protected readonly DirectoryExtension _directoryExtension;
     protected readonly ModuleEndpointExtension _moduleEndpointExtension;
-    protected readonly IOptions<ModulixOptions> _moduleOptions;
+    protected readonly IOptions<ModuleSettings> _moduleOptions;
 
     protected ServiceTestBase()
     {
@@ -53,7 +52,7 @@ public abstract class ServiceTestBase : IDisposable
         _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_Tests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_testRootDirectory);
 
-        _moduleOptions = Options.Create(new ModulixOptions
+        _moduleOptions = Options.Create(new ModuleSettings
         {
             StorageBasePath = Path.Combine(_testRootDirectory, "storage", "modules")
         });

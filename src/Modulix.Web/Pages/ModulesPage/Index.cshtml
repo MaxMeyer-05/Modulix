@@ -277,7 +277,7 @@
                                             <option value="@httpMethod" selected="@(currentMethod == httpMethod)">@httpMethod</option>
                                         }
                                     </select>
-                                    <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" pattern="/.*" placeholder="/api/v1/items" aria-label="Endpoint path" />
+                                    <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" placeholder="/api/v1/items" aria-label="Endpoint path" />
                                     <button class="module-icon-button module-subendpoint-remove" type="button" data-remove-subendpoint aria-label="Remove endpoint" title="Remove endpoint">
                                         <i data-lucide="trash-2" aria-hidden="true"></i>
                                     </button>

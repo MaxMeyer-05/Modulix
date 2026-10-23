@@ -390,6 +390,44 @@ public partial class ModuleServiceTests
         Assert.Null(result.DiscrepancyReport.ExtraEndpoints);
     }
 
+    [Theory]
+    [InlineData("health")]
+    [InlineData("  api/v1/items  ")]
+    [InlineData("/api/v1/items")]
+    [Trait("Feature", "CreateModule")]
+    public async Task CreateModuleAsync_InitialEndpointsWithoutLeadingSlash_NormalizesEndpointPaths(string rawEndpointPath)
+    {
+        var expectedNormalizedPath = "/" + rawEndpointPath.Trim().TrimStart('/');
+        _endpointScanner.DiscoveredEndpoints =
+        [
+            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = expectedNormalizedPath }
+        ];
+
+        var dto = new CreateModuleDto
+        {
+            ModuleName = "Normalized Endpoints Module",
+            BaseUrlPath = "api/v1/normalized",
+            Version = "v1.0.0",
+            ModuleFile = CreateDummyZipFile(),
+            InitialEndpoints =
+            [
+                new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = rawEndpointPath }
+            ]
+        };
+
+        var result = await _sut.CreateModuleAsync(dto);
+
+        Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
+        Assert.Equal(ModuleStatus.Running, result.Module.Status);
+        var matched = Assert.Single(result.DiscrepancyReport.MatchedEndpoints!);
+        Assert.Equal(expectedNormalizedPath, matched.EndpointPath);
+
+        var persistedEndpoint = await _context.ModuleEndpoints
+            .SingleAsync(endpoint => endpoint.ModuleId == result.Module.Id);
+        Assert.Equal(expectedNormalizedPath, persistedEndpoint.EndpointPath);
+        Assert.Equal(ModuleEndpointsStatus.Active, persistedEndpoint.Status);
+    }
+
     [Fact]
     [Trait("Feature", "CreateModule")]
     public async Task CreateModuleAsync_ScannerFails_DoesNotPersistModuleOrLeaveStorageDirectory()
