@@ -24,6 +24,41 @@ document.querySelectorAll("[data-page-size-select]").forEach(select => {
     });
 });
 
+document.querySelectorAll("[data-edit-version]").forEach(button => {
+    button.addEventListener("click", () => {
+        const version = button.dataset.editVersion || "";
+        const changelog = button.dataset.editChangelog || "";
+        const originalInput = document.getElementById("edit-version-original");
+        const nameInput = document.getElementById("edit-version-name");
+        const changelogInput = document.getElementById("edit-version-changelog");
+
+        if (originalInput) {
+            originalInput.value = version;
+        }
+        if (nameInput) {
+            nameInput.value = version;
+        }
+        if (changelogInput) {
+            changelogInput.value = changelog;
+        }
+    });
+});
+
+document.querySelectorAll("[data-delete-version]").forEach(button => {
+    button.addEventListener("click", () => {
+        const version = button.dataset.deleteVersion || "";
+        const targetInput = document.getElementById("delete-version-target");
+        const label = document.getElementById("delete-version-label");
+
+        if (targetInput) {
+            targetInput.value = version;
+        }
+        if (label) {
+            label.textContent = version;
+        }
+    });
+});
+
 (() => {
     const container = document.querySelector("[data-auto-refresh]");
     if (!container) {

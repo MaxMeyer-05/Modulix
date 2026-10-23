@@ -158,6 +158,7 @@
 .confirm-endpoint-item { display: grid; grid-template-columns: minmax(0, 1fr) 170px; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--module-border); border-radius: 6px; background: #121822; }
 .endpoint-metadata { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; color: #91a0b2; font-size: 11px; }
 .endpoint-metadata .module-code { font-size: 11px; }
+.module-version-changelog { grid-column: 1 / -1; margin: 0; color: #b8c3d0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-line; }
 .module-section-empty { margin: 20px 0 0; color: var(--module-muted); }
 
 .module-dialog { width: 560px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid #384453; border-radius: 8px; background: var(--module-surface); color: var(--module-text); overflow-y: auto; font-size: 14px; }

@@ -1,16 +1,16 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Modulix.Models.Options;
+namespace Modulix;
 
 /// <summary>
 /// Defines shared settings for module storage and archive limits.
 /// </summary>
-public sealed class ModulixOptions
+public sealed class ModuleSettings
 {
     /// <summary>
     /// The configuration section containing the shared settings.
     /// </summary>
-    public const string SectionName = "Modulix";
+    public const string SectionName = "Module";
 
     /// <summary>
     /// The module storage path, absolute or relative to the application's content root.

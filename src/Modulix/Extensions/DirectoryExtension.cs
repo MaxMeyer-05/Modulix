@@ -1,8 +1,6 @@
 using System.IO.Compression;
 using Microsoft.Extensions.Options;
 
-using Modulix.Models.Options;
-
 namespace Modulix.Extensions;
 
 /// <summary>
@@ -13,7 +11,7 @@ public class DirectoryExtension
     /// <summary>
     /// The shared module settings.
     /// </summary>
-    private readonly ModulixOptions _options;
+    private readonly ModuleSettings _options;
 
     /// <summary>
     /// The logger instance.
@@ -27,7 +25,7 @@ public class DirectoryExtension
     /// <param name="options">The shared module settings.</param>
     public DirectoryExtension(
         ILogger<DirectoryExtension> logger, 
-        IOptions<ModulixOptions> options)
+        IOptions<ModuleSettings> options)
     {
         _logger = logger;
         _options = options.Value;
