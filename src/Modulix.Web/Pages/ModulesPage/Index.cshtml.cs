@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +8,8 @@ using Microsoft.AspNetCore.WebUtilities;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
@@ -249,7 +250,7 @@ public class IndexModel : PageModel
         if (input.InitialEndpoints is not null)
         {
             var normalizedEndpoints = input.InitialEndpoints
-                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod?.Method) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
                 .Select(ep =>
                 {
                     var path = ep.EndpointPath.Trim();
@@ -258,7 +259,7 @@ public class IndexModel : PageModel
 
                     return new CreateModuleSubEndpointDto
                     {
-                        HttpMethod = ep.HttpMethod.Trim().ToUpperInvariant(),
+                        HttpMethod = new HttpMethod(ep.HttpMethod.Method.Trim().ToUpperInvariant()),
                         EndpointPath = path
                     };
                 })
