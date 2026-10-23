@@ -1,4 +1,5 @@
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Client.Clients;
 
@@ -25,6 +26,7 @@ public interface ISubEndpointManagementClient
     /// <summary>
     /// Retrieves detailed information about all registered sub-endpoints across all modules.
     /// </summary>
+    /// <param name="query">Optional - The sub-endpoint query parameters.</param>
     /// <param name="pagination">Optional - The pagination query parameters.</param>
     /// <param name="ct">Optional - The cancellation token.</param>
     /// <param name="authToken">Optional - The authentication token.</param>
@@ -34,12 +36,13 @@ public interface ISubEndpointManagementClient
     /// or
     /// when the HTTP response indicates a failure.
     /// </exception>
-    Task<HttpResponseMessage> GetAllEndpointsDetailAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
+    Task<HttpResponseMessage> GetAllEndpointsDetailAsync(SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
 
     /// <summary>
     /// Retrieves all endpoints for a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="query">Optional - The sub-endpoint query parameters.</param>
     /// <param name="pagination">Optional - The pagination query parameters.</param>
     /// <param name="ct">Optional - The cancellation token.</param>
     /// <param name="authToken">Optional - The authentication token.</param>
@@ -49,5 +52,5 @@ public interface ISubEndpointManagementClient
     /// or
     /// when the HTTP response indicates a failure.
     /// </exception>
-    Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
+    Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
 }

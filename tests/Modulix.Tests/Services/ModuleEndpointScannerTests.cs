@@ -24,7 +24,7 @@ namespace Modulix.Tests.Services;
 [Trait("SubCategory", "ModuleEndpointScanner")]
 public partial class ModuleEndpointScannerTests : IDisposable
 {
-    private const string ValidOutput = "{\"EntryAssemblyFileName\":\"module.dll\",\"DiscoveredEndpoints\":[{\"HttpMethod\":\"GET\",\"EndpointPath\":\"/health\"}]}";
+    private const string ValidOutput = "{\"EntryAssemblyFileName\":\"module.dll\",\"DiscoveredEndpoints\":[{\"HttpMethod\":{\"Method\":\"GET\"},\"EndpointPath\":\"/health\"}]}";
     private readonly string _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_ServerScanner_Tests_" + Guid.NewGuid().ToString("N"));
     private readonly ConcurrentQueue<string> _requests = new();
     private readonly ConcurrentQueue<JsonElement> _createdContainers = new();
@@ -106,7 +106,7 @@ public partial class ModuleEndpointScannerTests : IDisposable
     {
         _responder = (request, cancellationToken) => request.RequestUri!.AbsolutePath.EndsWith("/logs", StringComparison.Ordinal)
             ? Task.FromResult(DockerHttpTestHelper.LogResponse(camelCase
-                ? "{\"entryAssemblyFileName\":\"module.dll\",\"discoveredEndpoints\":[{\"httpMethod\":\"GET\",\"endpointPath\":\"/health\"}]}"
+                ? "{\"entryAssemblyFileName\":\"module.dll\",\"discoveredEndpoints\":[{\"httpMethod\":{\"method\":\"GET\"},\"endpointPath\":\"/health\"}]}"
                 : ValidOutput, "diagnostic output"))
             : RespondAsync(request, cancellationToken);
 
@@ -116,7 +116,7 @@ public partial class ModuleEndpointScannerTests : IDisposable
         Assert.NotNull(response.Result);
         Assert.Equal("module.dll", response.Result.EntryAssemblyFileName);
         var endpoint = Assert.Single(response.Result.DiscoveredEndpoints);
-        Assert.Equal("GET", endpoint.HttpMethod);
+        Assert.Equal(HttpMethod.Get, endpoint.HttpMethod);
         Assert.Equal("/health", endpoint.EndpointPath);
         Assert.False(_moduleService.Results.Reader.TryRead(out _));
         var container = Assert.Single(_createdContainers);

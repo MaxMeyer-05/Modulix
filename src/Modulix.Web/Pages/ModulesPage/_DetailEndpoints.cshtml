@@ -26,7 +26,7 @@
         <ul class="module-endpoint-list">
             @foreach (var endpoint in Model.Endpoints)
             {
-                var methodUpper = endpoint.HttpMethod.ToUpperInvariant();
+                var methodUpper = endpoint.HttpMethod.Method.ToUpperInvariant();
                 var methodClass = methodUpper switch
                 {
                     "GET" => "method-get",

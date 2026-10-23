@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Modulix.Mappers;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
@@ -72,7 +74,7 @@ public class ModuleVersionService : IModuleVersionService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleVersionDto>> GetAllModuleVersionsAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleVersionDto>> GetAllModuleVersionsAsync(ModuleVersionQueryDto? moduleVersionQuery = null, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         pagination ??= new PaginationQueryDto();
         var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
@@ -80,11 +82,19 @@ public class ModuleVersionService : IModuleVersionService
             ? PaginationQueryDto.DefaultPageSize
             : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
 
-        var totalCount = await _context.ModuleVersions.CountAsync(ct);
-        var versions = await _context.ModuleVersions
-            .AsNoTracking()
-            .OrderByDescending(v => v.ReleasedAtUtc)
-            .ThenByDescending(v => v.Id)
+        var query = _context.ModuleVersions.AsNoTracking();
+        if (moduleVersionQuery is not null)
+        {
+            if (moduleVersionQuery.Version is not null)
+            {
+                query = query.Where(v => v.Version == moduleVersionQuery.Version);
+            }
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var versions = await query
+            .OrderByDescending(v => v.Version)
+            .ThenByDescending(v => v.ReleasedAtUtc) 
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

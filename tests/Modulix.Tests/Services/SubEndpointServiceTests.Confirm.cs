@@ -51,7 +51,7 @@ public partial class SubEndpointServiceTests
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
         };
@@ -61,7 +61,7 @@ public partial class SubEndpointServiceTests
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "POST",
+            HttpMethod = HttpMethod.Post,
             EndpointPath = "/legacy",
             Status = ModuleEndpointsStatus.PendingConfirmation
         };
@@ -109,7 +109,7 @@ public partial class SubEndpointServiceTests
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
         };
@@ -125,7 +125,7 @@ public partial class SubEndpointServiceTests
                 new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/health" }]
+                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/health" }]
                 }
             ]
         };
@@ -153,7 +153,7 @@ public partial class SubEndpointServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
         });
@@ -161,15 +161,15 @@ public partial class SubEndpointServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "POST",
+            HttpMethod = HttpMethod.Post,
             EndpointPath = "/legacy",
             Status = ModuleEndpointsStatus.PendingConfirmation
         });
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
 
-        var missing = new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" };
-        var extra = new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" };
+        var missing = new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" };
+        var extra = new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/legacy" };
         var partial = new ConfirmEndpointsDto
         {
             ConfirmedEndpoints = confirmMissing || confirmExtra
@@ -221,7 +221,7 @@ public partial class SubEndpointServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
         });
@@ -238,7 +238,7 @@ public partial class SubEndpointServiceTests
             ConfirmedEndpoints = [new SubEndpointDiscrepancyReportDto
             {
                 ModuleId = module.Id,
-                ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+                ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }]
             }]
         });
 
@@ -267,7 +267,7 @@ public partial class SubEndpointServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = currentVersion,
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.PendingConfirmation
         });
@@ -275,7 +275,7 @@ public partial class SubEndpointServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = currentVersion,
-            HttpMethod = "POST",
+            HttpMethod = HttpMethod.Post,
             EndpointPath = "/legacy",
             Status = ModuleEndpointsStatus.PendingConfirmation
         });
@@ -297,8 +297,8 @@ public partial class SubEndpointServiceTests
                 ConfirmedEndpoints = [new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = module.Id,
-                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }],
-                    ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/legacy" }]
+                    MissingEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }],
+                    ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/legacy" }]
                 }]
             }, cancellation.Token));
 

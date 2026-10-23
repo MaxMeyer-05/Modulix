@@ -61,6 +61,12 @@ public class ServerContext : DbContext
             entity.Property(e => e.Status)
                 .HasConversion<string>();
 
+            entity.Property(e => e.HttpMethod)
+                .HasConversion(
+                    v => v.Method,
+                    v => new HttpMethod(v))
+                .HasMaxLength(10);
+
             entity.HasOne(e => e.ModuleVersion)
                 .WithMany(v => v.DiscoveredEndpoints)
                 .HasForeignKey(e => e.ModuleVersionId)

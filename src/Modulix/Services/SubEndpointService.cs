@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Modulix.Mappers;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
@@ -80,14 +82,14 @@ public class SubEndpointService : ISubEndpointService
         {
             // Check if the pending endpoint is confirmed as an extra endpoint
             if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee =>
-                ee.HttpMethod.Equals(endpoint.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
+                ee.HttpMethod == endpoint.HttpMethod &&
                 ee.EndpointPath.Equals(endpoint.EndpointPath, StringComparison.OrdinalIgnoreCase)) == true))
             {
                 endpoint.Status = ModuleEndpointsStatus.Active;
             }
             // Check if the pending endpoint is confirmed as a missing endpoint
             else if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me =>
-                me.HttpMethod.Equals(endpoint.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
+                me.HttpMethod == endpoint.HttpMethod &&
                 me.EndpointPath.Equals(endpoint.EndpointPath, StringComparison.OrdinalIgnoreCase)) == true))
             {
                 _context.ModuleEndpoints.Remove(endpoint);
@@ -164,7 +166,7 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         pagination ??= new PaginationQueryDto();
         var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
@@ -172,9 +174,18 @@ public class SubEndpointService : ISubEndpointService
             ? PaginationQueryDto.DefaultPageSize
             : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
 
-        var totalCount = await _context.ModuleEndpoints.CountAsync(ct);
-        var subEndpointsDetail = await _context.ModuleEndpoints
-            .AsNoTracking()
+        var subEndpointQuery = _context.ModuleEndpoints.AsNoTracking();
+        if (query is not null)
+        {
+            if (query.HttpMethod is not null)
+                subEndpointQuery = subEndpointQuery.Where(se => se.HttpMethod == query.HttpMethod);
+
+            if (query.Status is not null)
+                subEndpointQuery = subEndpointQuery.Where(se => se.Status == query.Status);
+        }
+
+        var totalCount = await subEndpointQuery.CountAsync(ct);
+        var subEndpointsDetail = await subEndpointQuery
             .Include(se => se.Module)
             .Include(se => se.ModuleVersion)
             .OrderByDescending(se => se.CreatedAtUtc)
@@ -197,7 +208,7 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, PaginationQueryDto? pagination = null, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleSubEndpointDto>> GetModuleSubEndpointsAsync(Guid moduleId, SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         var exists = await _context.Modules.FindAsync([moduleId], ct);
         if (exists is null)
@@ -209,15 +220,24 @@ public class SubEndpointService : ISubEndpointService
             ? PaginationQueryDto.DefaultPageSize
             : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
 
-        var query = _context.ModuleEndpoints
+        var subEndpointQuery = _context.ModuleEndpoints
             .AsNoTracking()
             .Where(e => e.ModuleId == moduleId);
 
-        var totalCount = await query.CountAsync(ct);
-        var subEndpoints = await query
+        if (query is not null)
+        {
+            if (query.HttpMethod is not null)
+                subEndpointQuery = subEndpointQuery.Where(se => se.HttpMethod == query.HttpMethod);
+
+            if (query.Status is not null)
+                subEndpointQuery = subEndpointQuery.Where(se => se.Status == query.Status);
+        }
+
+        var totalCount = await subEndpointQuery.CountAsync(ct);
+        var subEndpoints = await subEndpointQuery
             .Include(se => se.ModuleVersion)
-            .OrderByDescending(e => e.CreatedAtUtc)
-            .ThenBy(e => e.Id)
+            .OrderByDescending(e => e.HttpMethod)
+            .ThenBy(e => e.EndpointPath)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

@@ -1,4 +1,5 @@
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 
 namespace Modulix.Web.Pages.ModulesPage;

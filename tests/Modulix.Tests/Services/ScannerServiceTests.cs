@@ -36,7 +36,7 @@ public class ScannerServiceTests : ServiceTestBase
         await _sut.ProcessQueuedScanResultAsync(Guid.NewGuid(), new ModuleScanResultDto
         {
             EntryAssemblyFileName = "scanned.dll",
-            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }]
         });
 
         Assert.Empty(await _context.Modules.ToListAsync());
@@ -57,7 +57,7 @@ public class ScannerServiceTests : ServiceTestBase
         await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "stale.dll",
-            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/stale" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/stale" }]
         });
 
         var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).Include(item => item.Versions).SingleAsync();
@@ -82,7 +82,7 @@ public class ScannerServiceTests : ServiceTestBase
             {
                 ModuleId = module.Id,
                 ModuleVersion = module.Versions.Single(),
-                HttpMethod = "GET",
+                HttpMethod = HttpMethod.Get,
                 EndpointPath = "/health",
                 Status = ModuleEndpointsStatus.PendingConfirmation
             });
@@ -92,7 +92,7 @@ public class ScannerServiceTests : ServiceTestBase
         await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "scanned.dll",
-            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }]
         });
 
         var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).Include(item => item.Versions).SingleAsync(item => item.Id == module.Id);
@@ -114,7 +114,7 @@ public class ScannerServiceTests : ServiceTestBase
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = "GET",
+            HttpMethod = HttpMethod.Get,
             EndpointPath = "/expected",
             Status = ModuleEndpointsStatus.PendingConfirmation
         });
@@ -124,7 +124,7 @@ public class ScannerServiceTests : ServiceTestBase
         await _sut.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "module.dll",
-            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/discovered" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/discovered" }]
         });
 
         var persisted = await _context.Modules.AsNoTracking().Include(item => item.SubEndpoints).SingleAsync(item => item.Id == module.Id);

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +8,8 @@ using Microsoft.AspNetCore.WebUtilities;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
@@ -249,7 +250,7 @@ public class IndexModel : PageModel
         if (input.InitialEndpoints is not null)
         {
             var normalizedEndpoints = input.InitialEndpoints
-                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod?.Method) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
                 .Select(ep =>
                 {
                     var path = ep.EndpointPath.Trim();
@@ -258,7 +259,7 @@ public class IndexModel : PageModel
 
                     return new CreateModuleSubEndpointDto
                     {
-                        HttpMethod = ep.HttpMethod.Trim().ToUpperInvariant(),
+                        HttpMethod = new HttpMethod(ep.HttpMethod.Method.Trim().ToUpperInvariant()),
                         EndpointPath = path
                     };
                 })
@@ -352,8 +353,16 @@ public class IndexModel : PageModel
 
         try
         {
+            var moduleQuery = new ModuleQueryDto
+            {
+                Status = Enum.TryParse<ModuleStatus>(StatusFilter, ignoreCase: true, out var parsedStatus)
+                    ? parsedStatus
+                    : null
+            };
+
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
+                query: moduleQuery,
+                pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)
@@ -389,10 +398,7 @@ public class IndexModel : PageModel
 
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
-                    .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (StatusFilter.Length == 0
-                    || module.Status.ToString() == StatusFilter
-                    || (StatusFilter == nameof(ModuleStatus.PendingConfirmation) && module.Status == ModuleStatus.QueuedForScan)));
+                    .Contains(Query, StringComparison.OrdinalIgnoreCase));
 
             Modules = (SortBy switch
             {

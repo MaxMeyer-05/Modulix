@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 using Modulix.Web.Services;
 
@@ -212,7 +213,7 @@ public class IndexModel : PageModel
             _logger.LogDebug("Loading all modules for dashboard.");
 
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
+                pagination: new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
                 ct: ct);
             if (!response.IsSuccessStatusCode)
             {
@@ -254,7 +255,7 @@ public class IndexModel : PageModel
         try
         {
             using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
-                new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
+                pagination: new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
                 ct: ct);
             if (response.IsSuccessStatusCode)
             {
