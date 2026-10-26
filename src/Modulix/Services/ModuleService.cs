@@ -262,6 +262,7 @@ public class ModuleService : IModuleService
                     EndpointPath = path
                 };
             })
+            .DistinctBy(ep => (ep.HttpMethod, ep.EndpointPath))
             .ToList() ?? [];
 
         foreach (var ep in manualRoutes)
