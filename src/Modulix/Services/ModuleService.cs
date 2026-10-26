@@ -248,7 +248,23 @@ public class ModuleService : IModuleService
         module.Versions.Add(initialVersion);
 
         // Add initial sub-endpoints for the module
-        var manualRoutes = dto.InitialEndpoints?.ToList() ?? [];
+        var manualRoutes = dto.InitialEndpoints?
+            .Where(ep => ep.HttpMethod is not null && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+            .Select(ep =>
+            {
+                var path = ep.EndpointPath.Trim();
+                if (!path.StartsWith('/'))
+                    path = "/" + path;
+
+                return new CreateModuleSubEndpointDto
+                {
+                    HttpMethod = ep.HttpMethod,
+                    EndpointPath = path
+                };
+            })
+            .DistinctBy(ep => (ep.HttpMethod, ep.EndpointPath))
+            .ToList() ?? [];
+
         foreach (var ep in manualRoutes)
         {
             module.SubEndpoints.Add(new ModuleEndpoint
@@ -423,24 +439,6 @@ public class ModuleService : IModuleService
 
         await ReconcileRunningModulesAsync([module], ct);
         return module.ToModuleDetailDto();
-    }
-
-    /// <inheritdoc/>
-    public async Task<string> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default)
-    {
-        if (tail is <= 0)
-            throw new ArgumentException("Tail line count must be greater than zero.", nameof(tail));
-
-        var module = await _context.Modules
-            .AsNoTracking()
-            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
-        if (module is null)
-            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
-
-        if (string.IsNullOrWhiteSpace(module.ContainerId))
-            throw new InvalidOperationException($"Module with ID '{moduleId}' does not have an associated container.");
-
-        return await _dockerService.GetContainerLogsAsync(module.ContainerId, tail, ct);
     }
 
     /// <inheritdoc/>

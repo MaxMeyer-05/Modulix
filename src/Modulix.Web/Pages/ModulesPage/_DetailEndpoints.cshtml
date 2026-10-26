@@ -75,10 +75,6 @@
         <div class="module-pagination-bar module-pagination-bar-inline" aria-label="Module endpoints pagination">
             <form class="module-pagination-size" method="get" action="@detailUrl">
                 <input type="hidden" name="page" value="1" />
-                @if (Model.LogsTail != DetailModel.DefaultContainerLogsTail)
-                {
-                    <input type="hidden" name="logsTail" value="@Model.LogsTail" />
-                }
                 <label class="module-pagination-size-label" for="detail-endpoints-page-size">
                     <span>Rows per page</span>
                     <select id="detail-endpoints-page-size" name="pageSize" data-page-size-select>

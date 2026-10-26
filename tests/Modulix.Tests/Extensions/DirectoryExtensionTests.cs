@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Modulix.Extensions;
-using Modulix.Models.Options;
 
 namespace Modulix.Tests.Extensions;
 
@@ -15,7 +14,7 @@ namespace Modulix.Tests.Extensions;
 public class DirectoryExtensionTests : IDisposable
 {
     private readonly string _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_Directory_Tests_" + Guid.NewGuid().ToString("N"));
-    private readonly ModulixOptions _options;
+    private readonly ModuleSettings _options;
     private readonly DirectoryExtension _sut;
 
     #region Setup & Teardown
@@ -23,7 +22,7 @@ public class DirectoryExtensionTests : IDisposable
     public DirectoryExtensionTests()
     {
         Directory.CreateDirectory(_testRootDirectory);
-        _options = new ModulixOptions { StorageBasePath = Path.Combine(_testRootDirectory, "modules") };
+        _options = new ModuleSettings { StorageBasePath = Path.Combine(_testRootDirectory, "modules") };
         _sut = new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, Options.Create(_options));
     }
 

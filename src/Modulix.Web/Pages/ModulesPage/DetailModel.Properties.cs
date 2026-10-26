@@ -20,19 +20,9 @@ public partial class DetailModel
     public const int DefaultEndpointsPageSize = 10;
 
     /// <summary>
-    /// Default number of tail lines fetched for module container logs.
-    /// </summary>
-    public const int DefaultContainerLogsTail = 500;
-
-    /// <summary>
     /// Allowed page size options for the module endpoints list.
     /// </summary>
     public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
-
-    /// <summary>
-    /// Allowed tail line count options for the module container logs viewer.
-    /// </summary>
-    public static readonly int[] AllowedLogsTailSizes = [100, 250, 500, 1000];
 
     /// <summary>
     /// Gets the module detail.
@@ -143,26 +133,6 @@ public partial class DetailModel
     /// Gets the feedback from the most recent completed module action.
     /// </summary>
     public ActionFeedback? Feedback { get; private set; }
-
-    /// <summary>
-    /// Gets the raw container log output for the module's current container.
-    /// </summary>
-    public string? ContainerLogs { get; private set; }
-
-    /// <summary>
-    /// Gets the error message when retrieving container logs fails.
-    /// </summary>
-    public string? ContainerLogsError { get; private set; }
-
-    /// <summary>
-    /// Gets the selected tail line limit for container logs.
-    /// </summary>
-    public int LogsTail { get; private set; } = DefaultContainerLogsTail;
-
-    /// <summary>
-    /// Gets the number of non-empty log lines currently loaded.
-    /// </summary>
-    public int ContainerLogLineCount { get; private set; }
 
     /// <summary>
     /// Indicates whether the edit dialog should be reopened due to an error.

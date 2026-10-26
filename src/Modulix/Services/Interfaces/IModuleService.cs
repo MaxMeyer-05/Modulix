@@ -45,18 +45,6 @@ public interface IModuleService
     Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(ModuleQueryDto? moduleQuery = null, PaginationQueryDto? pagination = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Retrieves the container logs of a specific module by its unique identifier.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>The container logs of the specified module.</returns>
-    /// <exception cref="ArgumentException">Thrown if the tail value is less than or equal to zero.</exception>
-    /// <exception cref="KeyNotFoundException">Thrown if the module or container with the specified ID does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if the module does not have an associated container.</exception>
-    Task<string> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default);
-
-    /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module.</param>
