@@ -186,7 +186,7 @@ public partial class ModuleServiceTests
             ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/ping",
-            Status = ModuleEndpointsStatus.Active
+            Status = ModuleEndpointsStatus.Inactive
         });
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
@@ -195,6 +195,7 @@ public partial class ModuleServiceTests
 
         Assert.Equal(ModuleStatus.Running, result.Status);
         Assert.Equal("existing-container", result.ContainerId);
+        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(result.Endpoints).Status);
         Assert.Equal(["start", "ready"], _dockerService.Calls);
         Assert.Contains(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
@@ -295,6 +296,7 @@ public partial class ModuleServiceTests
         var result = await _sut.StopModuleAsync(module.Id);
 
         Assert.Equal(ModuleStatus.Stopped, result.Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(result.Endpoints).Status);
         Assert.Equal(["stop:running-container"], _dockerService.Calls);
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }

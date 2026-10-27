@@ -189,6 +189,7 @@ using (var scope = app.Services.CreateScope())
         else
         {
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
             statusChanged = true;
         }
     }

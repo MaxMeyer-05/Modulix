@@ -175,7 +175,7 @@
         }
         <input type="hidden" name="moduleName" value="@module.ModuleName" />
         <fieldset class="module-form-fields" id="module-confirm-endpoints-fields">
-            <p class="module-dialog-description" id="confirm-endpoints-description">Review the pending discrepancy endpoints for <strong>@module.ModuleName</strong>. Each endpoint defaults to <strong>Remove endpoint</strong> unless you explicitly switch it to <strong>Confirm (Activate)</strong>. Once all pending endpoints are resolved, the module container will be built and started automatically.</p>
+            <p class="module-dialog-description" id="confirm-endpoints-description">Review the pending discrepancy endpoints for <strong>@module.ModuleName</strong>. Extra endpoints discovered by the scanner default to <strong>Confirm (Activate)</strong>, while missing endpoints default to <strong>Remove endpoint</strong>. Once all pending endpoints are resolved, the module container will be built and started automatically.</p>
             @if (pendingEndpoints.Count == 0)
             {
                 <p class="module-section-empty">No pending endpoints require confirmation.</p>
@@ -229,8 +229,8 @@
                                 }
                             </div>
                             <select name="decisions[@i].Action" aria-label="Action for @methodUpper @pendingEp.EndpointPath">
-                                <option value="remove" selected>Remove endpoint</option>
-                                <option value="activate">Confirm (Activate)</option>
+                                <option value="activate" selected="@(discrepancyKind == EndpointDiscrepancyKind.Extra)">Confirm (Activate)</option>
+                                <option value="remove" selected="@(discrepancyKind != EndpointDiscrepancyKind.Extra)">Remove endpoint</option>
                             </select>
                         </div>
                     }

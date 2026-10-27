@@ -179,6 +179,9 @@ public class ModuleVersionService : IModuleVersionService
         }
 
         var previousState = (module.ContainerId, module.CurrentVersion, module.Status);
+        var previousEndpointStatuses = module.SubEndpoints
+            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
+            .ToList();
         var versionDirectory = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
         var newVersion = dto.ToVersionEntity();
         newVersion.ModuleId = module.Id;
@@ -198,6 +201,7 @@ public class ModuleVersionService : IModuleVersionService
                 newVersion.ModuleEntryAssemblyFileName = string.Empty;
                 _logger.LogInformation("Module scan for module with ID '{ModuleId}' was queued.", moduleId);
                 module.Status = ModuleStatus.QueuedForScan;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
                 await _context.SaveChangesAsync(ct);
                 _moduleEndpointExtension.SynchronizeReverseProxy(module);
 
@@ -226,6 +230,12 @@ public class ModuleVersionService : IModuleVersionService
                 module.Versions.Remove(newVersion);
                 _context.Entry(newVersion).State = EntityState.Detached;
                 _context.Entry(module).State = EntityState.Unchanged;
+
+                foreach (var previousEndpoint in previousEndpointStatuses)
+                {
+                    previousEndpoint.Endpoint.Status = previousEndpoint.Status;
+                    _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
+                }
             }
             finally
             {
@@ -323,11 +333,13 @@ public class ModuleVersionService : IModuleVersionService
             await _dockerService.RunContainerAsync(builtContainerId, ct);
             await _dockerService.WaitUntilReadyAsync(builtContainerId, ct);
             module.Status = ModuleStatus.Running;
+            ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogError(ex, "Failed to start rolled back container for module '{ModuleId}' (Version: '{Version}').", module.Id, targetVersion.Version);
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         }
 
         try
