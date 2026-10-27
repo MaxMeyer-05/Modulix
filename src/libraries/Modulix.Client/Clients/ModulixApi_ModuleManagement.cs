@@ -38,7 +38,7 @@ internal partial class ModulixApi : IModuleManagementClient
             foreach (var endpoint in request.InitialEndpoints)
             {
                 content.Add(
-                    new StringContent(endpoint.HttpMethod.Method),
+                    new StringContent(endpoint.HttpMethod),
                     $"{nameof(request.InitialEndpoints)}[{index}].{nameof(CreateModuleSubEndpointDto.HttpMethod)}");
                 content.Add(
                     new StringContent(endpoint.EndpointPath),

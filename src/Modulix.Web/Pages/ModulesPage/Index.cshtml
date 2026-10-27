@@ -269,7 +269,7 @@
                             var idx = 0;
                             foreach (var ep in Model.Input.InitialEndpoints)
                             {
-                                var currentMethod = (ep.HttpMethod?.Method ?? "GET").ToUpperInvariant();
+                                var currentMethod = (ep.HttpMethod ?? "GET").ToUpperInvariant();
                                 <div class="module-subendpoint-row" data-subendpoint-row>
                                     <select name="InitialEndpoints[@idx].HttpMethod" aria-label="HTTP method">
                                         @foreach (var httpMethod in new[] { "GET", "POST", "PUT", "PATCH", "DELETE" })
@@ -338,7 +338,7 @@
                                     <ul class="module-discrepancy-routes">
                                         @foreach (var ep in extraRoutes)
                                         {
-                                            var m = ep.HttpMethod.Method.ToUpperInvariant();
+                                            var m = ep.HttpMethod.ToUpperInvariant();
                                             <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
                                         }
                                     </ul>
@@ -354,7 +354,7 @@
                                     <ul class="module-discrepancy-routes">
                                         @foreach (var ep in missingRoutes)
                                         {
-                                            var m = ep.HttpMethod.Method.ToUpperInvariant();
+                                            var m = ep.HttpMethod.ToUpperInvariant();
                                             <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
                                         }
                                     </ul>
@@ -370,7 +370,7 @@
                                     <ul class="module-discrepancy-routes">
                                         @foreach (var ep in matchedRoutes)
                                         {
-                                            var m = ep.HttpMethod.Method.ToUpperInvariant();
+                                            var m = ep.HttpMethod.ToUpperInvariant();
                                             <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
                                         }
                                     </ul>

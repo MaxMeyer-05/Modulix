@@ -112,7 +112,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
             {
                 ModuleId = module.Id,
                 ModuleVersion = module.Versions.Single(),
-                HttpMethod = HttpMethod.Get,
+                HttpMethod = "GET",
                 EndpointPath = "/health",
                 Status = ModuleEndpointsStatus.PendingConfirmation
             });
@@ -311,13 +311,13 @@ public class ModuleVersionServiceTests : ServiceTestBase
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/original",
             Status = ModuleEndpointsStatus.Active
         });
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
-        _endpointScanner.DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/changed" }];
+        _endpointScanner.DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/changed" }];
 
         var result = await _sut.CreateModuleVersionAsync(module.Id,
             new ModuleVersionCreateDto { Version = "v1.1.0", ModuleFile = CreateDummyZipFile() });
@@ -423,7 +423,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
         await _scannerService.ProcessQueuedScanResultAsync(module.Id, new ModuleScanResultDto
         {
             EntryAssemblyFileName = "updated.dll",
-            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }]
+            DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
         });
 
         Assert.Equal("replacement-container", module.ContainerId);
@@ -440,7 +440,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
         Assert.Equal(ModuleStatus.Running, persisted.Status);
         Assert.Equal("updated.dll", persistedNewVersion.ModuleEntryAssemblyFileName);
         var endpoint = Assert.Single(persisted.SubEndpoints);
-        Assert.Equal(HttpMethod.Get, endpoint.HttpMethod);
+        Assert.Equal("GET", endpoint.HttpMethod);
         Assert.Equal("/health", endpoint.EndpointPath);
         Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status);
     }

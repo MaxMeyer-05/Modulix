@@ -151,7 +151,7 @@
                 <tbody>
                     @foreach (var endpoint in endpoints)
                     {
-                        var methodUpper = endpoint.HttpMethod.Method.ToUpperInvariant();
+                        var methodUpper = endpoint.HttpMethod.ToUpperInvariant();
                         var methodClass = methodUpper switch
                         {
                             "GET" => "method-get",

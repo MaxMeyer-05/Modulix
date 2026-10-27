@@ -84,7 +84,7 @@
                                 <ul class="module-discrepancy-routes">
                                     @foreach (var ep in Model.ExtraDiscrepancyEndpoints)
                                     {
-                                        var methodUpper = ep.HttpMethod.Method.ToUpperInvariant();
+                                        var methodUpper = ep.HttpMethod.ToUpperInvariant();
                                         var methodClass = methodUpper switch
                                         {
                                             "GET" => "method-get",
@@ -111,7 +111,7 @@
                                 <ul class="module-discrepancy-routes">
                                     @foreach (var ep in Model.MissingDiscrepancyEndpoints)
                                     {
-                                        var methodUpper = ep.HttpMethod.Method.ToUpperInvariant();
+                                        var methodUpper = ep.HttpMethod.ToUpperInvariant();
                                         var methodClass = methodUpper switch
                                         {
                                             "GET" => "method-get",
@@ -138,7 +138,7 @@
                                 <ul class="module-discrepancy-routes">
                                     @foreach (var ep in Model.MatchedDiscrepancyEndpoints)
                                     {
-                                        var methodUpper = ep.HttpMethod.Method.ToUpperInvariant();
+                                        var methodUpper = ep.HttpMethod.ToUpperInvariant();
                                         var methodClass = methodUpper switch
                                         {
                                             "GET" => "method-get",

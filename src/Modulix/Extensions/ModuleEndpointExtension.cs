@@ -160,7 +160,7 @@ public class ModuleEndpointExtension
             foreach (var initial in initialEndpoints)
             {
                 var found = discoveredEndpoints.Any(scanned =>
-                    scanned.HttpMethod == initial.HttpMethod &&
+                    scanned.HttpMethod.Equals(initial.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
                     scanned.EndpointPath.Equals(initial.EndpointPath, StringComparison.OrdinalIgnoreCase));
 
                 if (found)
@@ -178,7 +178,7 @@ public class ModuleEndpointExtension
             foreach (var scanned in discoveredEndpoints)
             {
                 var isExpected = initialEndpoints.Any(initial =>
-                    initial.HttpMethod == scanned.HttpMethod &&
+                    initial.HttpMethod.Equals(scanned.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
                     initial.EndpointPath.Equals(scanned.EndpointPath, StringComparison.OrdinalIgnoreCase));
 
                 if (!isExpected)
