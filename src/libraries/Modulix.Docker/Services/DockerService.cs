@@ -339,33 +339,6 @@ public class DockerService : IDockerService, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <inheritdoc/>
-    public async Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default)
-    {
-        try
-        {
-            using var logs = await _client.Containers.GetContainerLogsAsync(containerId, false, new ContainerLogsParameters
-            {
-                ShowStdout = true,
-                ShowStderr = true,
-                Timestamps = true,
-                Tail = tail.HasValue ? tail.Value.ToString(CultureInfo.InvariantCulture) : "all"
-            }, ct);
-
-            var (stdout, stderr) = await logs.ReadOutputToEndAsync(ct);
-            if (string.IsNullOrWhiteSpace(stdout))
-                return string.IsNullOrWhiteSpace(stderr) ? string.Empty : stderr;
-            if (string.IsNullOrWhiteSpace(stderr))
-                return stdout;
-
-            return $"{stdout.TrimEnd('\r', '\n')}{Environment.NewLine}{stderr}";
-        }
-        catch (DockerContainerNotFoundException ex)
-        {
-            throw new KeyNotFoundException($"Container '{containerId}' was not found.", ex);
-        }
-    }
-
     private async Task TryDeleteImageAsync(string? imageName, Guid moduleId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(imageName))

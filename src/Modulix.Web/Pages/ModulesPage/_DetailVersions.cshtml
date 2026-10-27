@@ -38,16 +38,7 @@
                                 title="Edit metadata for version @ver.Version">
                             <i data-lucide="pencil" aria-hidden="true"></i><span>Edit</span>
                         </button>
-                        @if (isActiveVersion)
-                        {
-                            <button class="module-button module-button-compact module-button-danger"
-                                    type="button"
-                                    disabled
-                                    title="Cannot delete the currently active version">
-                                <i data-lucide="trash-2" aria-hidden="true"></i><span>Delete</span>
-                            </button>
-                        }
-                        else
+                        @if (!isActiveVersion)
                         {
                             <button class="module-button module-button-compact module-button-danger"
                                     type="button"
