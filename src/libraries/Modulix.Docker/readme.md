@@ -7,10 +7,14 @@ Docker container management library for the Modulix framework.
 To use the Modulix Docker library, add the following package reference to your project:
 
 ```xml
-<PackageReference Include="Modulix.Docker" Version="1.1.2" />
+<PackageReference Include="Modulix.Docker" Version="1.1.3" />
 ```
 
 ## changelog
+
+### 1.1.3
+- Mounted a persistent, version-independent host data directory (`<hostDataPath>:/app/data`) into module containers in `DockerService.BuildContainerAsync` and configured write permissions for `APP_UID`.
+- Removed `GetContainerLogsAsync` from `IDockerService` and `DockerService`.
 
 ### 1.1.2
 - Added `GetContainerLogsAsync` and `IsContainerRunningAsync` to `IDockerService` / `DockerService`, and enhanced `WaitUntilReadyAsync` with TCP port readiness checks for containers without a `HEALTHCHECK`.

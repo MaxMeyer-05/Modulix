@@ -12,6 +12,11 @@ dotnet run --project src/Modulix --launch-profile http
 
 ## changelog
 
+### 1.1.3
+- Added version-independent persistent module data directories (`<StorageBasePath>/<moduleId>/data`) via `DirectoryExtension`, preserved across version updates and rollbacks and removed upon module deletion.
+- Synchronized sub-endpoint statuses (`Active` / `Inactive`) with the module runtime lifecycle (`Running`, `Stopped`, `Failed`, `QueuedForScan`).
+- Normalized user-supplied sub-endpoint paths without a leading `/` and removed the module container logs endpoint.
+
 ### 1.1.2
 - Added `GET /api/modules-management/modules/{moduleId}/logs` endpoint (with optional `tail` parameter) to retrieve module container logs.
 - Added runtime container state reconciliation to detect crashed `Running` containers, transition them to `Failed`, and remove stale YARP routes.

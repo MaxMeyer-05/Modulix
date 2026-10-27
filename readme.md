@@ -124,7 +124,7 @@ dotnet test Modulix.slnx
 
 ### Module Artifacts, Versioning, and Upload Validation
 
-A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, an allocated host port, a `CurrentVersion`, discovered sub-endpoints (linked to the `ModuleVersion` in which they were discovered), and a `ModuleStatus`. Version artifacts are stored per version under `<StorageBasePath>/<moduleId>/versions/<version>` so previous versions remain available for instant rollbacks without rescanning.
+A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, an allocated host port, a `CurrentVersion`, discovered sub-endpoints (linked to the `ModuleVersion` in which they were discovered), and a `ModuleStatus`. Version artifacts are stored per version under `<StorageBasePath>/<moduleId>/versions/<version>` so previous versions remain available for instant rollbacks without rescanning, while a version-independent directory `<StorageBasePath>/<moduleId>/data` persists runtime data (such as local SQLite databases or generated files) across version updates and rollbacks.
 
 To protect the host during extraction, uploads are capped at 50 MiB and validated against path traversal (ZipSlip), maximum entry counts (`MaximumArchiveEntryCount`), and maximum uncompressed size (`MaximumArchiveUncompressedBytes`).
 
@@ -143,19 +143,19 @@ Concurrent scanner containers are bounded by `Docker:MaxConcurrentScans`. When a
 
 ### Container Lifecycle and Version Rollback
 
-When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage`, builds a dedicated image for the active `ModuleVersion`, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
+When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage` (preparing `/app/data` with write permissions for `$APP_UID`), builds a dedicated image for the active `ModuleVersion`, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, mounts `<StorageBasePath>/<moduleId>/data` into `/app/data`, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
 
 Modules support:
 - **Start / Stop:** Starting and stopping module containers (`POST /api/modules-management/modules/{moduleId}/start` and `/stop`).
 - **Metadata Updates:** Updating module name and description (`PUT /api/modules-management/modules/{moduleId}`).
 - **Version Releases & Rollbacks:** Deploying new module versions (`POST /api/version-management/module-versions/{moduleId}/version`), rolling back to an earlier version (`POST /api/version-management/module-versions/{moduleId}/rollback/{version}`), and updating or deleting inactive versions.
-- **Full Teardown:** Deleting a module (`DELETE /api/modules-management/modules/{moduleId}/delete`), which stops and removes the container, image, database records, reverse proxy routes, and all stored version directories.
+- **Full Teardown:** Deleting a module (`DELETE /api/modules-management/modules/{moduleId}/delete`), which stops and removes the container, image, database records, reverse proxy routes, persistent data directory, and all stored version directories.
 
 ### Dynamic Reverse Proxy Routing
 
 `Modulix.ReverseProxy` integrates YARP with an in-memory `IProxyConfigProvider`:
 
-- Only modules with status `Running` and sub-endpoints with status `Active` are exposed through the proxy.
+- Only modules with status `Running` and sub-endpoints with status `Active` are exposed through the proxy. Sub-endpoints automatically transition to `Inactive` when a module stops or fails, and are restored to `Active` for the current version when the module is running.
 - Incoming requests to `/{BaseUrlPath}/{EndpointPath}` matching the configured HTTP method have their `/{BaseUrlPath}` prefix stripped and are forwarded to `http://127.0.0.1:{ContainerPort}/{EndpointPath}`.
 - Reserved system prefixes (`api/modules-management`, `api/version-management`, `api/endpoint-management`, `api/scanner-management`, `api`, `swagger`, `openapi`) are blocked from being registered by modules.
 - Active routes are restored from SQLite on server startup and hot-reloaded without downtime whenever modules are created, confirmed, started, stopped, rolled back, updated, or deleted.
@@ -180,7 +180,6 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | --- | --- | --- |
 | `GET` | `/` | List registered modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleDto>`). |
 | `GET` | `/{moduleId}` | Retrieve module details, sub-endpoints, versions, and lifecycle status. |
-| `GET` | `/{moduleId}/logs` | Retrieve `stdout`/`stderr` container logs for a module (supports optional `tail` query parameter). |
 | `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
 | `POST` | `/{moduleId}/start` | Start a stopped or created module container. |
 | `POST` | `/{moduleId}/stop` | Stop a running module container. |

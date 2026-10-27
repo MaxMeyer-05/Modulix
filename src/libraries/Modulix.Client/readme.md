@@ -7,10 +7,13 @@ HTTP client library for the Modulix framework.
 To use the Modulix HTTP client library, add the following package reference to your project:
 
 ```xml
-<PackageReference Include="Modulix.Client" Version="1.1.2" />
+<PackageReference Include="Modulix.Client" Version="1.1.3" />
 ```
 
 ## changelog
+
+### 1.1.3
+- Removed `GetModuleContainerLogsAsync` from `ModulixApi`.
 
 ### 1.1.2
 - Added `GetModuleContainerLogsAsync` (with optional `tail` parameter) to `ModulixApi` for retrieving module container logs.
