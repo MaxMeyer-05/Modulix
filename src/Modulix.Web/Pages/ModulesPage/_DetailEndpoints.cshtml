@@ -1,5 +1,6 @@
 @model DetailModel
 @using System.Globalization
+@using Modulix.Web.Services
 @{
     var module = Model.Module!;
     var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
@@ -36,9 +37,31 @@
                     _ => "method-other"
                 };
                 var isPendingEndpoint = endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation;
+                var discrepancyKind = Model.GetEndpointDiscrepancyKind(
+                    endpoint.HttpMethod,
+                    endpoint.EndpointPath,
+                    endpoint.DiscoveredInVersion);
                 <li>
                     <div class="endpoint-route"><span class="endpoint-method @methodClass">@methodUpper</span><span class="module-code">/@module.BaseUrlPath.Trim('/')@endpoint.EndpointPath</span></div>
                     <div class="endpoint-status-actions">
+                        @if (isPendingEndpoint && discrepancyKind == EndpointDiscrepancyKind.Extra)
+                        {
+                            <span class="module-badge badge-pending" data-discrepancy-kind="extra" title="Discovered by the scanner, but not specified by the user">
+                                <span aria-hidden="true"></span>Extra · Discovered by scanner
+                            </span>
+                        }
+                        else if (isPendingEndpoint && discrepancyKind == EndpointDiscrepancyKind.Missing)
+                        {
+                            <span class="module-badge badge-failed" data-discrepancy-kind="missing" title="Specified by the user, but not found by the scanner">
+                                <span aria-hidden="true"></span>Missing · Not found by scanner
+                            </span>
+                        }
+                        else if (!isPendingEndpoint && discrepancyKind == EndpointDiscrepancyKind.Matched && Model.HasDiscrepancyReport)
+                        {
+                            <span class="module-badge badge-running" data-discrepancy-kind="matched" title="Specified by the user and verified by the scanner">
+                                <span aria-hidden="true"></span>Matched
+                            </span>
+                        }
                         <span class="endpoint-state @(isPendingEndpoint ? "endpoint-state-pending" : "")">@(isPendingEndpoint ? "Pending confirmation" : endpoint.Status.ToString())</span>
                         @if (isPendingEndpoint && Model.CanConfirmEndpoints)
                         {

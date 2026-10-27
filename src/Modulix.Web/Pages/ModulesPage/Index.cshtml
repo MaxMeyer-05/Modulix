@@ -322,6 +322,62 @@
                 <div class="module-result-body">
                     <span class="module-result-code module-code" id="module-result-code">HTTP @success.StatusCode</span>
                     <p id="module-result-description">@success.Description</p>
+                    @if (success.DiscrepancyReport is { HasDiscrepancy: true } discrepancy)
+                    {
+                        var extraRoutes = discrepancy.ExtraEndpoints ?? [];
+                        var missingRoutes = discrepancy.MissingEndpoints ?? [];
+                        var matchedRoutes = discrepancy.MatchedEndpoints ?? [];
+                        <div class="module-discrepancy-summary" id="creation-discrepancy-report">
+                            @if (extraRoutes.Count > 0)
+                            {
+                                <div class="module-discrepancy-group" data-discrepancy-group="extra">
+                                    <div class="module-discrepancy-group-header">
+                                        <span class="module-badge badge-pending"><span aria-hidden="true"></span>Extra endpoints (@extraRoutes.Count)</span>
+                                        <span class="module-discrepancy-hint">Discovered by scanner, not specified</span>
+                                    </div>
+                                    <ul class="module-discrepancy-routes">
+                                        @foreach (var ep in extraRoutes)
+                                        {
+                                            var m = ep.HttpMethod.Method.ToUpperInvariant();
+                                            <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                            @if (missingRoutes.Count > 0)
+                            {
+                                <div class="module-discrepancy-group" data-discrepancy-group="missing">
+                                    <div class="module-discrepancy-group-header">
+                                        <span class="module-badge badge-failed"><span aria-hidden="true"></span>Missing endpoints (@missingRoutes.Count)</span>
+                                        <span class="module-discrepancy-hint">Specified by user, not found by scanner</span>
+                                    </div>
+                                    <ul class="module-discrepancy-routes">
+                                        @foreach (var ep in missingRoutes)
+                                        {
+                                            var m = ep.HttpMethod.Method.ToUpperInvariant();
+                                            <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                            @if (matchedRoutes.Count > 0)
+                            {
+                                <div class="module-discrepancy-group" data-discrepancy-group="matched">
+                                    <div class="module-discrepancy-group-header">
+                                        <span class="module-badge badge-running"><span aria-hidden="true"></span>Matched endpoints (@matchedRoutes.Count)</span>
+                                        <span class="module-discrepancy-hint">Specified and verified by scanner</span>
+                                    </div>
+                                    <ul class="module-discrepancy-routes">
+                                        @foreach (var ep in matchedRoutes)
+                                        {
+                                            var m = ep.HttpMethod.Method.ToUpperInvariant();
+                                            <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
                 <div class="module-dialog-footer">
                     <button class="module-button" type="submit" autofocus>Close</button>

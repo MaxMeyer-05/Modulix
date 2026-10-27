@@ -63,6 +63,12 @@ public partial class DetailModel
                 cancellationToken: HttpContext.RequestAborted)
                 ?? throw new JsonException("The API returned an empty response.");
 
+            _endpointDiscrepancyService?.SaveReport(id, result.DiscrepancyReport);
+            if (result.DiscrepancyReport is { HasDiscrepancy: true } discrepancyReport)
+            {
+                TempData[DiscrepancyReportKey] = JsonSerializer.Serialize(discrepancyReport, WebJsonOptions);
+            }
+
             var updatedModule = result.Module;
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
 
@@ -181,6 +187,7 @@ public partial class DetailModel
 
             var updatedModule = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
                 cancellationToken: HttpContext.RequestAborted);
+            _endpointDiscrepancyService?.ClearReport(id);
             var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
             var resolvedVersion = updatedModule?.CurrentVersion ?? trimmedVersion;
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
@@ -307,6 +314,15 @@ public partial class DetailModel
                 cancellationToken: HttpContext.RequestAborted);
             var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
+
+            if (updatedModule?.Status == ModuleStatus.PendingConfirmation)
+            {
+                _endpointDiscrepancyService?.RemoveEndpoints(id, activateEndpoints.Concat(removeEndpoints));
+            }
+            else
+            {
+                _endpointDiscrepancyService?.ClearReport(id);
+            }
 
             if (updatedModule?.Status == ModuleStatus.Failed)
             {

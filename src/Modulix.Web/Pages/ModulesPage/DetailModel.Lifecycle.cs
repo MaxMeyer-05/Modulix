@@ -263,6 +263,7 @@ public partial class DetailModel
                 return Page();
             }
 
+            _endpointDiscrepancyService?.ClearReport(id);
             var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
             _userActivityService.Record(
                 User,

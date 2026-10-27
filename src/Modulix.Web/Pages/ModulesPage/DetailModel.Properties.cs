@@ -1,6 +1,7 @@
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
+using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
 
@@ -13,6 +14,11 @@ public partial class DetailModel
     /// TempData key used for module action feedback across redirects.
     /// </summary>
     public const string FeedbackKey = "ModuleActionFeedback";
+
+    /// <summary>
+    /// TempData key used for preserving the endpoint discrepancy report across redirects.
+    /// </summary>
+    public const string DiscrepancyReportKey = "ModuleDiscrepancyReport";
 
     /// <summary>
     /// Default page size for the module endpoints list on the detail page.
@@ -28,6 +34,11 @@ public partial class DetailModel
     /// Gets the module detail.
     /// </summary>
     public ModuleDetailDto? Module { get; private set; }
+
+    /// <summary>
+    /// Gets the endpoint discrepancy report associated with the module's pending confirmation state, if available.
+    /// </summary>
+    public SubEndpointDiscrepancyReportDto? DiscrepancyReport { get; private set; }
 
     /// <summary>
     /// Gets the paged sub-endpoints for the current page of the module detail view.
@@ -223,6 +234,99 @@ public partial class DetailModel
         && PendingEndpoints.Count > 0;
 
     /// <summary>
+    /// Indicates whether a discrepancy report with active discrepancies is available for this module.
+    /// </summary>
+    public bool HasDiscrepancyReport => DiscrepancyReport?.HasDiscrepancy == true
+        && (ExtraDiscrepancyEndpoints.Count > 0 || MissingDiscrepancyEndpoints.Count > 0);
+
+    /// <summary>
+    /// Gets the endpoints from <see cref="DiscrepancyReport"/> that matched the expected configuration.
+    /// </summary>
+    public IReadOnlyList<DiscoveredSubEndpointDto> MatchedDiscrepancyEndpoints =>
+        DiscrepancyReport?.MatchedEndpoints ?? [];
+
+    /// <summary>
+    /// Gets the extra endpoints from <see cref="DiscrepancyReport"/> that were discovered by the scanner but not specified by the user.
+    /// </summary>
+    public IReadOnlyList<DiscoveredSubEndpointDto> ExtraDiscrepancyEndpoints =>
+        FilterPendingDiscrepancyEndpoints(DiscrepancyReport?.ExtraEndpoints);
+
+    /// <summary>
+    /// Gets the missing endpoints from <see cref="DiscrepancyReport"/> that were specified by the user but not found by the scanner.
+    /// </summary>
+    public IReadOnlyList<DiscoveredSubEndpointDto> MissingDiscrepancyEndpoints =>
+        FilterPendingDiscrepancyEndpoints(DiscrepancyReport?.MissingEndpoints);
+
+    /// <summary>
+    /// Determines the discrepancy category (<see cref="EndpointDiscrepancyKind"/>) for a sub-endpoint.
+    /// </summary>
+    /// <param name="httpMethod">The HTTP method of the endpoint.</param>
+    /// <param name="endpointPath">The relative route path of the endpoint.</param>
+    /// <param name="discoveredInVersion">Optional version string in which the endpoint was registered or discovered.</param>
+    public EndpointDiscrepancyKind GetEndpointDiscrepancyKind(
+        HttpMethod httpMethod,
+        string endpointPath,
+        string? discoveredInVersion = null)
+    {
+        var method = httpMethod?.Method;
+        if (string.IsNullOrWhiteSpace(method) || string.IsNullOrWhiteSpace(endpointPath))
+            return EndpointDiscrepancyKind.None;
+
+        if (DiscrepancyReport is not null)
+        {
+            if (DiscrepancyReport.ExtraEndpoints?.Any(ep =>
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod?.Method, ep.EndpointPath, method, endpointPath)) == true)
+            {
+                return EndpointDiscrepancyKind.Extra;
+            }
+
+            if (DiscrepancyReport.MissingEndpoints?.Any(ep =>
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod?.Method, ep.EndpointPath, method, endpointPath)) == true)
+            {
+                return EndpointDiscrepancyKind.Missing;
+            }
+
+            if (DiscrepancyReport.MatchedEndpoints?.Any(ep =>
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod?.Method, ep.EndpointPath, method, endpointPath)) == true)
+            {
+                return EndpointDiscrepancyKind.Matched;
+            }
+        }
+
+        if (Module is not null &&
+            !string.IsNullOrWhiteSpace(discoveredInVersion) &&
+            !string.IsNullOrWhiteSpace(Module.CurrentVersion))
+        {
+            if (!string.Equals(discoveredInVersion, Module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+                return EndpointDiscrepancyKind.Missing;
+
+            if (OrderedVersions.Count > 1 &&
+                string.Equals(discoveredInVersion, Module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                return EndpointDiscrepancyKind.Extra;
+            }
+        }
+
+        return EndpointDiscrepancyKind.None;
+    }
+
+    private IReadOnlyList<DiscoveredSubEndpointDto> FilterPendingDiscrepancyEndpoints(
+        IReadOnlyList<DiscoveredSubEndpointDto>? candidates)
+    {
+        if (candidates is null || candidates.Count == 0)
+            return [];
+
+        var pending = PendingEndpoints;
+        if (pending.Count == 0)
+            return candidates;
+
+        return candidates
+            .Where(c => pending.Any(p =>
+                EndpointDiscrepancyService.EndpointsMatch(c.HttpMethod?.Method, c.EndpointPath, p.HttpMethod?.Method, p.EndpointPath)))
+            .ToList();
+    }
+
+    /// <summary>
     /// Indicates whether the module can currently be rolled back to an earlier version.
     /// </summary>
     public bool CanRollback => Module is not null
@@ -269,8 +373,9 @@ public partial class DetailModel
         public string EndpointPath { get; set; } = string.Empty;
 
         /// <summary>
-        /// The chosen action ("activate" to keep and activate, or "remove" to delete).
+        /// The chosen action ("remove" to delete, or "activate" to keep and activate).
+        /// Defaults to "remove" so discrepancy endpoints are not activated unintentionally.
         /// </summary>
-        public string Action { get; set; } = "activate";
+        public string Action { get; set; } = "remove";
     }
 }
