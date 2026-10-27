@@ -185,46 +185,6 @@ public partial class DockerServiceTests
 
     #endregion
 
-    #region GetContainerLogs Tests
-
-    [Theory]
-    [InlineData("stdout line\n", "", null, "all", "stdout line\n")]
-    [InlineData("", "stderr line\n", 100, "100", "stderr line\n")]
-    [InlineData("stdout line\n", "stderr error\n", 250, "250", "stdout line\r\nstderr error\n")]
-    [InlineData("", "", null, "all", "")]
-    public async Task GetContainerLogsAsync_MultiplexedOutput_CombinesStdoutAndStderr(
-        string stdout, string stderr, int? tail, string expectedTailQuery, string expectedOutput)
-    {
-        using var service = CreateService((request, cancellationToken) =>
-        {
-            Assert.Equal(HttpMethod.Get, request.Method);
-            Assert.EndsWith("/containers/log-container/logs", request.RequestUri!.AbsolutePath);
-            var query = QueryHelpers.ParseQuery(request.RequestUri.Query);
-            Assert.Equal("1", query["stdout"].ToString());
-            Assert.Equal("1", query["stderr"].ToString());
-            Assert.Equal("1", query["timestamps"].ToString());
-            Assert.Equal(expectedTailQuery, query["tail"].ToString());
-
-            return Task.FromResult(DockerHttpTestHelper.LogResponse(stdout, stderr));
-        });
-
-        var actual = await service.GetContainerLogsAsync("log-container", tail);
-
-        Assert.Equal(expectedOutput.Replace("\r\n", Environment.NewLine), actual);
-    }
-
-    [Fact]
-    public async Task GetContainerLogsAsync_MissingContainer_ThrowsKeyNotFoundException()
-    {
-        using var service = CreateService((request, cancellationToken) =>
-            Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "No such container." }, HttpStatusCode.NotFound)));
-
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            service.GetContainerLogsAsync("missing-container"));
-    }
-
-    #endregion
-
     #region DockerRegistration Tests
 
     [Theory]

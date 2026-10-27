@@ -137,6 +137,7 @@ public class ModuleService : IModuleService
 
         try
         {
+            _directoryExtension.EnsureModuleDataDirectory(module.Id);
             module.Status = ModuleStatus.Starting;
 
             if (string.IsNullOrWhiteSpace(module.ContainerId))
@@ -303,6 +304,7 @@ public class ModuleService : IModuleService
         catch
         {
             _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
+            _directoryExtension.DeleteModuleDataDirectory(module.Id);
             throw;
         }
 
@@ -330,6 +332,7 @@ public class ModuleService : IModuleService
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
                 _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
+                _directoryExtension.DeleteModuleDataDirectory(module.Id);
             }
 
             _context.Entry(module).State = EntityState.Detached;
@@ -389,6 +392,8 @@ public class ModuleService : IModuleService
         {
             _directoryExtension.DeleteModuleDirectory(version.StoragePath, moduleId);
         }
+
+        _directoryExtension.DeleteModuleDataDirectory(moduleId);
 
         var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, moduleId.ToString());
         _directoryExtension.DeleteModuleDirectory(moduleBaseDirectory, moduleId);

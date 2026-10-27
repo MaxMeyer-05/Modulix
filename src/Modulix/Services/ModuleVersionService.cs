@@ -319,6 +319,7 @@ public class ModuleVersionService : IModuleVersionService
 
         try
         {
+            _directoryExtension.EnsureModuleDataDirectory(module.Id);
             module.CurrentVersion = targetVersion.Version;
             module.Status = ModuleStatus.Starting;
 

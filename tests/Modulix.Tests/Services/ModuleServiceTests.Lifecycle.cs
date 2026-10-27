@@ -93,6 +93,8 @@ public partial class ModuleServiceTests
 
         var module = CreateTestModuleEntity("To Delete", "api/v1/delete", 8009);
         module.Versions.Single().StoragePath = moduleDir;
+        var dataDir = _directoryExtension.EnsureModuleDataDirectory(module.Id);
+        File.WriteAllText(Path.Combine(dataDir, "app.db"), "sqlite-bytes");
         module.ContainerId = hasContainer ? "existing-container" : null;
 
         var endpoint = new ModuleEndpoint
@@ -112,6 +114,7 @@ public partial class ModuleServiceTests
         await _sut.DeleteModuleAsync(module.Id);
 
         Assert.False(Directory.Exists(moduleDir));
+        Assert.False(Directory.Exists(dataDir));
         Assert.Null(await _context.Modules.FindAsync(module.Id));
         Assert.Null(await _context.ModuleEndpoints.FindAsync(endpoint.Id));
         Assert.Equal(hasContainer ? ["existing-container"] : Array.Empty<string>(), _dockerService.RemovedContainerIds);
