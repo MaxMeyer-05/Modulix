@@ -297,6 +297,8 @@ public partial class DockerServiceTests
                     createdName = QueryHelpers.ParseQuery(request.RequestUri.Query)["name"].ToString();
                     var hostConfig = body.RootElement.GetProperty("HostConfig");
                     Assert.Equal(networkName, hostConfig.GetProperty("NetworkMode").GetString());
+                    var boundVolume = Assert.Single(hostConfig.GetProperty("Binds").EnumerateArray());
+                    Assert.Equal($"{Path.Combine(Path.GetFullPath(root), "data")}:/app/data", boundVolume.GetString());
                     Assert.False(hostConfig.TryGetProperty("PublishAllPorts", out var publishAllPorts) && publishAllPorts.GetBoolean());
                     var exposedPort = Assert.Single(body.RootElement.GetProperty("ExposedPorts").EnumerateObject());
                     Assert.Equal($"{containerPort}/tcp", exposedPort.Name);
@@ -403,6 +405,62 @@ public partial class DockerServiceTests
         finally
         {
             Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BuildContainerAsync_VersionedModuleStoragePath_MountsSharedPersistentDataDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Modulix_Docker_Tests_" + Guid.NewGuid().ToString("N"));
+        var moduleId = Guid.NewGuid();
+        var v1Path = Path.Combine(root, moduleId.ToString(), "versions", "v1.0.0");
+        var v2Path = Path.Combine(root, moduleId.ToString(), "versions", "v1.1.0");
+        var expectedDataPath = Path.Combine(Path.GetFullPath(root), moduleId.ToString(), "data");
+        Directory.CreateDirectory(v1Path);
+        Directory.CreateDirectory(v2Path);
+        var recordedBinds = new List<string>();
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(v1Path, "module.dll"), "v1");
+            await File.WriteAllTextAsync(Path.Combine(v2Path, "module.dll"), "v2");
+
+            using var service = CreateService(async (request, cancellationToken) =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                if (path.EndsWith("/networks", StringComparison.Ordinal))
+                    return DockerHttpTestHelper.JsonResponse(new[] { new { Name = "modulix-network" } });
+
+                if (path.EndsWith("/build", StringComparison.Ordinal))
+                    return DockerHttpTestHelper.JsonResponse(new { stream = "Build complete.\n" });
+
+                if (path.EndsWith("/containers/create", StringComparison.Ordinal))
+                {
+                    using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    var bind = Assert.Single(body.RootElement.GetProperty("HostConfig").GetProperty("Binds").EnumerateArray());
+                    recordedBinds.Add(bind.GetString()!);
+                    return DockerHttpTestHelper.JsonResponse(new { Id = "candidate-" + recordedBinds.Count });
+                }
+
+                return DockerHttpTestHelper.JsonResponse(Array.Empty<object>());
+            });
+
+            await service.BuildContainerAsync(moduleId, v1Path, "module.dll", 8080);
+            Assert.True(Directory.Exists(expectedDataPath));
+
+            var dbFilePath = Path.Combine(expectedDataPath, "app.db");
+            await File.WriteAllTextAsync(dbFilePath, "sqlite-data");
+
+            await service.BuildContainerAsync(moduleId, v2Path, "module.dll", 8080);
+
+            Assert.Equal([$"{expectedDataPath}:/app/data", $"{expectedDataPath}:/app/data"], recordedBinds);
+            Assert.True(File.Exists(dbFilePath));
+            Assert.Equal("sqlite-data", await File.ReadAllTextAsync(dbFilePath));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
         }
     }
 

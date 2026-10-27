@@ -189,18 +189,30 @@
                 <section class="module-info-section" aria-labelledby="module-actions-heading">
                     <h2 id="module-actions-heading">Module actions</h2>
                     <div class="module-detail-actions">
-                        <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
-                            <input type="hidden" name="moduleName" value="@module.ModuleName" />
-                            <button class="module-button" type="submit" id="start-module-button" disabled="@(!Model.CanStart)" title="@(Model.CanStart ? "Start the module container" : $"Cannot start module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
-                        </form>
-                        <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
-                            <input type="hidden" name="moduleName" value="@module.ModuleName" />
-                            <button class="module-button" type="submit" id="stop-module-button" disabled="@(!Model.CanStop)" title="@(Model.CanStop ? "Stop the module container" : $"Cannot stop module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
-                        </form>
-                        <button class="module-button @(Model.CanConfirmEndpoints ? "module-button-primary" : "")" type="button" id="confirm-endpoints-button" popovertarget="confirm-endpoints-dialog" disabled="@(!Model.CanConfirmEndpoints)" title="@(Model.CanConfirmEndpoints ? $"Review and confirm {Model.PendingEndpoints.Count} pending endpoint(s)" : "No pending endpoints require confirmation")"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+                        @if (Model.CanStart)
+                        {
+                            <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
+                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                <button class="module-button" type="submit" id="start-module-button" title="Start the module container"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
+                            </form>
+                        }
+                        @if (Model.CanStop)
+                        {
+                            <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
+                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                <button class="module-button" type="submit" id="stop-module-button" title="Stop the module container"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
+                            </form>
+                        }
+                        @if (Model.CanConfirmEndpoints)
+                        {
+                            <button class="module-button module-button-primary" type="button" id="confirm-endpoints-button" popovertarget="confirm-endpoints-dialog" title="Review and confirm @Model.PendingEndpoints.Count pending endpoint(s)"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+                        }
                         <button class="module-button" type="button" id="edit-module-button" popovertarget="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
                         <button class="module-button" type="button" id="update-files-button" popovertarget="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
-                        <button class="module-button" type="button" id="rollback-module-button" popovertarget="rollback-module-dialog" disabled="@(!Model.CanRollback)" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                        @if (Model.CanRollback)
+                        {
+                            <button class="module-button" type="button" id="rollback-module-button" popovertarget="rollback-module-dialog" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                        }
                         <button class="module-button module-button-danger" type="button" id="delete-module-button" popovertarget="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
                     </div>
                 </section>

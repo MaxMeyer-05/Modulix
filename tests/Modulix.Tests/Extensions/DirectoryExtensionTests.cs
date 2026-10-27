@@ -82,6 +82,27 @@ public class DirectoryExtensionTests : IDisposable
         Assert.Equal("configuration", await File.ReadAllTextAsync(Path.Combine(result, "config/settings.json")));
         Assert.False(File.Exists(Path.Combine(result, "obsolete.dll")));
         Assert.Equal("keep", await File.ReadAllTextAsync(otherModuleFile));
+        Assert.True(Directory.Exists(_sut.GetModuleDataDirectoryPath(moduleId)));
+    }
+
+    [Fact]
+    public async Task EnsureAndDeleteModuleDataDirectory_PreservesDataAcrossVersionsAndDeletesOnCleanup()
+    {
+        var moduleId = Guid.NewGuid();
+        var dataDir = _sut.EnsureModuleDataDirectory(moduleId);
+        var dbFile = Path.Combine(dataDir, "app.db");
+        await File.WriteAllTextAsync(dbFile, "persistent-sqlite-data");
+
+        using var v1Archive = CreateArchive(("module.dll", "v1"));
+        await _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(v1Archive));
+        using var v2Archive = CreateArchive(("module.dll", "v2"));
+        await _sut.CreateModuleTargetPathAsync(moduleId, "v1.1.0", CreateFormFile(v2Archive));
+
+        Assert.True(File.Exists(dbFile));
+        Assert.Equal("persistent-sqlite-data", await File.ReadAllTextAsync(dbFile));
+
+        _sut.DeleteModuleDataDirectory(moduleId);
+        Assert.False(Directory.Exists(dataDir));
     }
 
     [Theory]

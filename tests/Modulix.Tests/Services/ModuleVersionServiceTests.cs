@@ -139,6 +139,8 @@ public class ModuleVersionServiceTests : ServiceTestBase
 
         var module = CreateTestModuleEntity("File Update", "api/v1/updatefiles", 8008);
         module.Versions.Single().StoragePath = moduleDir;
+        var dataDir = _directoryExtension.EnsureModuleDataDirectory(module.Id);
+        await File.WriteAllTextAsync(Path.Combine(dataDir, "app.db"), "persisted-db");
         module.ContainerId = "existing-container";
         module.Status = ModuleStatus.Running;
         _context.Modules.Add(module);
@@ -162,6 +164,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
 
         var newVersion = module.Versions.Single(v => v.Version == "v1.1.0");
         Assert.True(File.Exists(Path.Combine(moduleDir, "old_file.txt")));
+        Assert.Equal("persisted-db", await File.ReadAllTextAsync(Path.Combine(dataDir, "app.db")));
         Assert.NotEqual(moduleDir, newVersion.StoragePath);
         Assert.True(File.Exists(Path.Combine(newVersion.StoragePath, newFileName)));
         Assert.Equal("replacement-container", module.ContainerId);
@@ -443,5 +446,64 @@ public class ModuleVersionServiceTests : ServiceTestBase
         Assert.Equal("GET", endpoint.HttpMethod);
         Assert.Equal("/health", endpoint.EndpointPath);
         Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status);
+    }
+
+    [Fact]
+    [Trait("Feature", "RollbackModuleVersion")]
+    public async Task RollbackModuleVersionAsync_ValidTargetVersion_RollsBackAndPreservesPersistentData()
+    {
+        var module = CreateTestModuleEntity("Rollback Module", "api/v1/rollback", 8029);
+        var v1 = module.Versions.Single();
+        v1.Version = "v1.0.0";
+        v1.ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-10);
+        v1.StoragePath = Path.Combine(_testRootDirectory, "rollback-v1");
+        Directory.CreateDirectory(v1.StoragePath);
+
+        var v2 = new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = "v1.1.0",
+            ReleasedAtUtc = DateTime.UtcNow,
+            StoragePath = Path.Combine(_testRootDirectory, "rollback-v2"),
+            ModuleEntryAssemblyFileName = "v2.dll"
+        };
+        Directory.CreateDirectory(v2.StoragePath);
+        module.Versions.Add(v2);
+        module.CurrentVersion = "v1.1.0";
+        module.ContainerId = "v2-container";
+        module.Status = ModuleStatus.Running;
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            ModuleVersion = v1,
+            HttpMethod = "GET",
+            EndpointPath = "/v1",
+            Status = ModuleEndpointsStatus.Active
+        });
+        module.SubEndpoints.Add(new ModuleEndpoint
+        {
+            ModuleId = module.Id,
+            ModuleVersion = v2,
+            HttpMethod = "GET",
+            EndpointPath = "/v2",
+            Status = ModuleEndpointsStatus.Active
+        });
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var dataDir = _directoryExtension.EnsureModuleDataDirectory(module.Id);
+        var dbFile = Path.Combine(dataDir, "app.db");
+        await File.WriteAllTextAsync(dbFile, "sqlite-runtime-data");
+
+        var result = await _sut.RollbackModuleVersionAsync(module.Id, "v1.0.0");
+
+        Assert.Equal("v1.0.0", result.CurrentVersion);
+        Assert.Equal(ModuleStatus.Running, result.Status);
+        Assert.Equal(v1.StoragePath, _dockerService.BuiltStoragePath);
+        Assert.Equal(["build", "start", "ready", "remove:v2-container"], _dockerService.Calls);
+        Assert.True(File.Exists(dbFile));
+        Assert.Equal("sqlite-runtime-data", await File.ReadAllTextAsync(dbFile));
+        Assert.Equal(ModuleEndpointsStatus.Active, result.Endpoints.Single(e => e.EndpointPath == "/v1").Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, result.Endpoints.Single(e => e.EndpointPath == "/v2").Status);
     }
 }
