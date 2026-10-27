@@ -449,6 +449,103 @@
   text-decoration: none;
 }
 
+.module-discrepancy-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #4d3b26;
+  border-left: 3px solid #e9b16c;
+  border-radius: 6px;
+  background: #221c15;
+  color: var(--module-text);
+  line-height: 1.5;
+}
+.module-discrepancy-banner-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.module-discrepancy-banner-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.module-discrepancy-banner-title > svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: #e9b16c;
+}
+.module-discrepancy-banner-title p {
+  margin: 4px 0 0;
+  color: #d6c5b3;
+  font-size: 13px;
+}
+.module-discrepancy-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+.module-result-body .module-discrepancy-summary {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 16px;
+}
+.module-discrepancy-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--module-border);
+  border-radius: 6px;
+  background: #121822;
+}
+.module-discrepancy-group-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.module-discrepancy-hint {
+  color: var(--module-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.module-discrepancy-routes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.module-discrepancy-routes li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.confirm-endpoint-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.confirm-endpoint-reason {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--module-muted);
+  font-size: 11.5px;
+}
+
 .module-failed-banner {
   align-items: center;
 }

@@ -27,6 +27,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddRazorPages();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IUserActivityService, UserActivityService>();
+builder.Services.AddSingleton<IEndpointDiscrepancyService, EndpointDiscrepancyService>();
 
 var authSettings = builder.Configuration
     .GetRequiredSection(AuthorizationSettings.SectionName)

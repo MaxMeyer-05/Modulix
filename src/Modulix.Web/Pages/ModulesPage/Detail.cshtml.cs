@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Dtos.Query;
+using Modulix.Client.Models.Enums;
 using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
@@ -19,6 +20,8 @@ namespace Modulix.Web.Pages.ModulesPage;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public partial class DetailModel : PageModel
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>
     /// The Modulix API client.
     /// </summary>
@@ -28,6 +31,11 @@ public partial class DetailModel : PageModel
     /// The user session activity service.
     /// </summary>
     private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
+    /// The endpoint discrepancy report service.
+    /// </summary>
+    private readonly IEndpointDiscrepancyService? _endpointDiscrepancyService;
 
     /// <summary>
     /// The logger instance.
@@ -40,14 +48,17 @@ public partial class DetailModel : PageModel
     /// <param name="modulixApiClient">The Modulix API client.</param>
     /// <param name="userActivityService">The user session activity service.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="endpointDiscrepancyService">The endpoint discrepancy report service.</param>
     public DetailModel(
         IModulixApi modulixApiClient,
         IUserActivityService userActivityService,
-        ILogger<DetailModel> logger)
+        ILogger<DetailModel> logger,
+        IEndpointDiscrepancyService? endpointDiscrepancyService = null)
     {
         _modulixApiClient = modulixApiClient;
         _userActivityService = userActivityService;
         _logger = logger;
+        _endpointDiscrepancyService = endpointDiscrepancyService;
     }
 
     /// <summary>
@@ -80,6 +91,13 @@ public partial class DetailModel : PageModel
         if (TempData[FeedbackKey] is string json)
             Feedback = JsonSerializer.Deserialize<ActionFeedback>(json);
 
+        if (TempData[DiscrepancyReportKey] is string discrepancyJson)
+        {
+            DiscrepancyReport = JsonSerializer.Deserialize<SubEndpointDiscrepancyReportDto>(discrepancyJson, WebJsonOptions);
+            if (DiscrepancyReport is not null)
+                _endpointDiscrepancyService?.SaveReport(id, DiscrepancyReport);
+        }
+
         await LoadModuleAsync(id, pageNumber, pageSize);
         return Page();
     }
@@ -93,6 +111,8 @@ public partial class DetailModel : PageModel
         PageSize = pageSize < 1
             ? DefaultEndpointsPageSize
             : Math.Min(pageSize, PaginationQueryDto.MaxPageSize);
+
+        DiscrepancyReport ??= _endpointDiscrepancyService?.GetReport(id);
 
         try
         {
@@ -114,6 +134,8 @@ public partial class DetailModel : PageModel
 
             if (Module is null)
                 return;
+
+            ResolveDiscrepancyReport(id);
 
             using var endpointsResponse = await _modulixApiClient.SubEndpointManagement.GetModuleEndpointsAsync(
                 moduleId: id,
@@ -152,6 +174,52 @@ public partial class DetailModel : PageModel
         {
             _logger.LogError(exception, "ERROR loading module detail.");
             ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
+        }
+    }
+
+    private void ResolveDiscrepancyReport(Guid id)
+    {
+        if (Module is null)
+            return;
+
+        if (!HasPendingEndpoints)
+        {
+            DiscrepancyReport = null;
+            _endpointDiscrepancyService?.ClearReport(id);
+            return;
+        }
+
+        if (DiscrepancyReport is not null)
+            return;
+
+        if (OrderedVersions.Count > 1)
+        {
+            var matched = Module.Endpoints
+                .Where(e => e.Status == ModuleEndpointsStatus.Active)
+                .Select(e => new DiscoveredSubEndpointDto { HttpMethod = e.HttpMethod, EndpointPath = e.EndpointPath })
+                .ToList();
+
+            var extra = PendingEndpoints
+                .Where(e => string.Equals(e.DiscoveredInVersion, Module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+                .Select(e => new DiscoveredSubEndpointDto { HttpMethod = e.HttpMethod, EndpointPath = e.EndpointPath })
+                .ToList();
+
+            var missing = PendingEndpoints
+                .Where(e => !string.Equals(e.DiscoveredInVersion, Module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+                .Select(e => new DiscoveredSubEndpointDto { HttpMethod = e.HttpMethod, EndpointPath = e.EndpointPath })
+                .ToList();
+
+            if (extra.Count > 0 || missing.Count > 0)
+            {
+                DiscrepancyReport = new SubEndpointDiscrepancyReportDto
+                {
+                    ModuleId = id,
+                    HasDiscrepancy = true,
+                    MatchedEndpoints = matched,
+                    ExtraEndpoints = extra,
+                    MissingEndpoints = missing
+                };
+            }
         }
     }
 
