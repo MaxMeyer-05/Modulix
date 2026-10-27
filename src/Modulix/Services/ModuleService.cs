@@ -113,6 +113,7 @@ public class ModuleService : IModuleService
             }
 
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
             _reverseProxyService.RemoveModule(module.Id);
         }
 
@@ -129,6 +130,9 @@ public class ModuleService : IModuleService
         }
 
         var previousState = (module.ContainerId, module.Status);
+        var previousEndpointStatuses = module.SubEndpoints
+            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
+            .ToList();
         string? builtContainerId = null;
 
         try
@@ -152,11 +156,13 @@ public class ModuleService : IModuleService
             await _dockerService.RunContainerAsync(module.ContainerId, ct);
             await _dockerService.WaitUntilReadyAsync(module.ContainerId, ct);
             module.Status = ModuleStatus.Running;
+            ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogError(ex, "Failed to start module container for module '{ModuleId}'.", module.Id);
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         }
 
         try
@@ -170,6 +176,13 @@ public class ModuleService : IModuleService
 
             (module.ContainerId, module.Status) = previousState;
             _context.Entry(module).State = EntityState.Unchanged;
+
+            foreach (var previousEndpoint in previousEndpointStatuses)
+            {
+                previousEndpoint.Endpoint.Status = previousEndpoint.Status;
+                _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
+            }
+
             throw;
         }
 
@@ -201,6 +214,7 @@ public class ModuleService : IModuleService
         }
 
         module.Status = ModuleStatus.Stopped;
+        ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         await _context.SaveChangesAsync(ct);
 
         _moduleEndpointExtension.SynchronizeReverseProxy(module);
@@ -300,6 +314,7 @@ public class ModuleService : IModuleService
             if (scanResponse.WasQueued)
             {
                 module.Status = ModuleStatus.QueuedForScan;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
                 await _context.SaveChangesAsync(ct);
             }
             else
@@ -473,6 +488,7 @@ public class ModuleService : IModuleService
                     module.ContainerId,
                     module.Id);
                 module.Status = ModuleStatus.Failed;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
                 _reverseProxyService.RemoveModule(module.Id);
                 crashedModules.Add(module);
             }
@@ -488,13 +504,20 @@ public class ModuleService : IModuleService
 
             if (tracked is not null)
             {
+                await _context.Entry(tracked).Collection(m => m.SubEndpoints).LoadAsync(ct);
                 tracked.Status = ModuleStatus.Failed;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(tracked);
             }
             else
             {
-                var dbModule = await _context.Modules.FindAsync([crashed.Id], ct);
+                var dbModule = await _context.Modules
+                    .Include(m => m.SubEndpoints)
+                    .SingleOrDefaultAsync(m => m.Id == crashed.Id, ct);
                 if (dbModule is not null)
+                {
                     dbModule.Status = ModuleStatus.Failed;
+                    ModuleEndpointExtension.DeactivateActiveSubEndpoints(dbModule);
+                }
             }
         }
 

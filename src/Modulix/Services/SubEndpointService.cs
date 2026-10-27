@@ -131,11 +131,13 @@ public class SubEndpointService : ISubEndpointService
             await _dockerService.RunContainerAsync(candidateId, ct);
             await _dockerService.WaitUntilReadyAsync(candidateId, ct);
             module.Status = ModuleStatus.Running;
+            ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to start confirmed module container {ModuleId}.", module.Id);
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         }
 
         try

@@ -102,6 +102,55 @@ public class ModuleEndpointExtension
     }
 
     /// <summary>
+    /// Marks all active sub-endpoints of the specified module as <see cref="ModuleEndpointsStatus.Inactive"/>,
+    /// leaving endpoints in <see cref="ModuleEndpointsStatus.PendingConfirmation"/> untouched.
+    /// </summary>
+    /// <param name="module">The module entity whose active sub-endpoints should be deactivated.</param>
+    public static void DeactivateActiveSubEndpoints(Module module)
+    {
+        foreach (var endpoint in module.SubEndpoints.Where(e => e.Status == ModuleEndpointsStatus.Active))
+        {
+            endpoint.Status = ModuleEndpointsStatus.Inactive;
+        }
+    }
+
+    /// <summary>
+    /// Restores confirmed sub-endpoints belonging to the module's <see cref="Module.CurrentVersion"/>
+    /// to <see cref="ModuleEndpointsStatus.Active"/>, while marking endpoints from newer versions as
+    /// <see cref="ModuleEndpointsStatus.Inactive"/> and leaving <see cref="ModuleEndpointsStatus.PendingConfirmation"/> endpoints untouched.
+    /// </summary>
+    /// <param name="module">The module entity whose sub-endpoints should be activated.</param>
+    public static void ActivateCurrentVersionSubEndpoints(Module module)
+    {
+        var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion);
+
+        foreach (var endpoint in module.SubEndpoints.Where(e => e.Status != ModuleEndpointsStatus.PendingConfirmation))
+        {
+            if (currentVersion is null)
+            {
+                endpoint.Status = ModuleEndpointsStatus.Active;
+                continue;
+            }
+
+            var endpointVersion = endpoint.ModuleVersion
+                ?? module.Versions.FirstOrDefault(v => v.Id == endpoint.ModuleVersionId);
+
+            var isSameVersion = ReferenceEquals(endpointVersion, currentVersion) ||
+                string.Equals(endpointVersion?.Version, currentVersion.Version, StringComparison.Ordinal) ||
+                (endpointVersion is not null && currentVersion.Id != 0 && endpointVersion.Id == currentVersion.Id);
+
+            var existedInCurrentVersion = endpointVersion is null ||
+                isSameVersion ||
+                endpointVersion.ReleasedAtUtc < currentVersion.ReleasedAtUtc ||
+                (endpointVersion.ReleasedAtUtc == currentVersion.ReleasedAtUtc && endpointVersion.Id <= currentVersion.Id);
+
+            endpoint.Status = existedInCurrentVersion
+                ? ModuleEndpointsStatus.Active
+                : ModuleEndpointsStatus.Inactive;
+        }
+    }
+
+    /// <summary>
     /// Synchronizes the reverse proxy configuration for the specified module based on its current status and active sub-endpoints.
     /// </summary>
     /// <param name="module">The module entity to synchronize.</param>
@@ -230,11 +279,13 @@ public class ModuleEndpointExtension
                 await _dockerService.RunContainerAsync(containerId, ct);
                 await _dockerService.WaitUntilReadyAsync(containerId, ct);
                 module.Status = ModuleStatus.Running;
+                ActivateCurrentVersionSubEndpoints(module);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to provision Docker container for module {ModuleId}.", module.Id);
                 module.Status = ModuleStatus.Failed;
+                DeactivateActiveSubEndpoints(module);
             }
         }
 

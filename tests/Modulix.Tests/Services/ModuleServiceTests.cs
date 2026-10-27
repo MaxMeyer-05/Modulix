@@ -158,8 +158,9 @@ public partial class ModuleServiceTests : ServiceTestBase
 
         var returned = Assert.Single(pagedResult.Items);
         Assert.Equal(ModuleStatus.Failed, returned.Status);
-        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        var persisted = await _context.Modules.AsNoTracking().Include(m => m.SubEndpoints).SingleAsync(m => m.Id == module.Id);
         Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(persisted.SubEndpoints).Status);
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
 
@@ -196,8 +197,10 @@ public partial class ModuleServiceTests : ServiceTestBase
         var result = await _sut.GetModuleByIdAsync(module.Id);
 
         Assert.Equal(ModuleStatus.Failed, result.Status);
-        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(result.Endpoints).Status);
+        var persisted = await _context.Modules.AsNoTracking().Include(m => m.SubEndpoints).SingleAsync(m => m.Id == module.Id);
         Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(persisted.SubEndpoints).Status);
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
 
