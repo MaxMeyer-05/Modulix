@@ -12,6 +12,11 @@ dotnet run --project src/Modulix.Web
 
 ## changelog
 
+### 1.1.3
+- Surfaced `SubEndpointDiscrepancyReportDto` details (`Extra`, `Missing`, and `Matched` endpoints) on `/modules/{id}` and in the endpoint confirmation dialog, defaulting `Extra` endpoints to confirm and `Missing` endpoints to remove.
+- Hid unavailable/blocked action buttons across module details, dialogs, pagination, and log views instead of rendering them disabled.
+- Allowed entering initial sub-endpoint paths without a leading `/` during module creation and removed the module container logs section.
+
 ### 1.1.2
 - Added container logs viewer section on the module detail page (`/modules/{id}`) with tail line selection, line wrapping, refresh, and `.log` file download.
 - Added a prominent failure alert banner on `/modules/{id}` when a module container is in `Failed` status.

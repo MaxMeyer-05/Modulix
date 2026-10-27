@@ -4,6 +4,9 @@ Abstraction library for the Modulix HTTP client.
 
 ## changelog
 
+### 1.1.3
+- Removed `GetModuleContainerLogsAsync` from `IModuleManagementClient`.
+
 ### 1.1.2
 - Added `GetModuleContainerLogsAsync` (with optional `tail` parameter) to `IModuleManagementClient`.
 
