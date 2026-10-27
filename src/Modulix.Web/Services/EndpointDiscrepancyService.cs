@@ -113,7 +113,7 @@ public sealed class EndpointDiscrepancyService : IEndpointDiscrepancyService
     /// Determines whether two <see cref="DiscoveredSubEndpointDto"/> instances refer to the same HTTP method and route path.
     /// </summary>
     public static bool EndpointsMatch(DiscoveredSubEndpointDto left, DiscoveredSubEndpointDto right) =>
-        EndpointsMatch(left.HttpMethod?.Method, left.EndpointPath, right.HttpMethod?.Method, right.EndpointPath);
+        EndpointsMatch(left.HttpMethod, left.EndpointPath, right.HttpMethod, right.EndpointPath);
 
     /// <summary>
     /// Determines whether two HTTP method and route path pairs refer to the same endpoint.
@@ -146,7 +146,7 @@ public sealed class EndpointDiscrepancyService : IEndpointDiscrepancyService
 
     private static DiscoveredSubEndpointDto CloneEndpoint(DiscoveredSubEndpointDto endpoint) => new()
     {
-        HttpMethod = new HttpMethod(endpoint.HttpMethod.Method),
+        HttpMethod = endpoint.HttpMethod,
         EndpointPath = endpoint.EndpointPath
     };
 }

@@ -264,30 +264,30 @@ public partial class DetailModel
     /// <param name="endpointPath">The relative route path of the endpoint.</param>
     /// <param name="discoveredInVersion">Optional version string in which the endpoint was registered or discovered.</param>
     public EndpointDiscrepancyKind GetEndpointDiscrepancyKind(
-        HttpMethod httpMethod,
+        string httpMethod,
         string endpointPath,
         string? discoveredInVersion = null)
     {
-        var method = httpMethod?.Method;
+        var method = httpMethod;
         if (string.IsNullOrWhiteSpace(method) || string.IsNullOrWhiteSpace(endpointPath))
             return EndpointDiscrepancyKind.None;
 
         if (DiscrepancyReport is not null)
         {
             if (DiscrepancyReport.ExtraEndpoints?.Any(ep =>
-                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod?.Method, ep.EndpointPath, method, endpointPath)) == true)
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod, ep.EndpointPath, method, endpointPath)) == true)
             {
                 return EndpointDiscrepancyKind.Extra;
             }
 
             if (DiscrepancyReport.MissingEndpoints?.Any(ep =>
-                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod?.Method, ep.EndpointPath, method, endpointPath)) == true)
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod, ep.EndpointPath, method, endpointPath)) == true)
             {
                 return EndpointDiscrepancyKind.Missing;
             }
 
             if (DiscrepancyReport.MatchedEndpoints?.Any(ep =>
-                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod?.Method, ep.EndpointPath, method, endpointPath)) == true)
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod, ep.EndpointPath, method, endpointPath)) == true)
             {
                 return EndpointDiscrepancyKind.Matched;
             }
@@ -322,7 +322,7 @@ public partial class DetailModel
 
         return candidates
             .Where(c => pending.Any(p =>
-                EndpointDiscrepancyService.EndpointsMatch(c.HttpMethod?.Method, c.EndpointPath, p.HttpMethod?.Method, p.EndpointPath)))
+                EndpointDiscrepancyService.EndpointsMatch(c.HttpMethod, c.EndpointPath, p.HttpMethod, p.EndpointPath)))
             .ToList();
     }
 

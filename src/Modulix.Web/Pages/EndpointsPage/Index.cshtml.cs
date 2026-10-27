@@ -187,7 +187,7 @@ public class IndexModel : PageModel
         {
             var endpointQuery = new SubEndpointQueryDto
             {
-                HttpMethod = !string.IsNullOrWhiteSpace(MethodFilter) ? new HttpMethod(MethodFilter) : null,
+                HttpMethod = !string.IsNullOrWhiteSpace(MethodFilter) ? MethodFilter : null,
                 Status = Enum.TryParse<ModuleEndpointsStatus>(StatusFilter, ignoreCase: true, out var parsedStatus)
                     ? parsedStatus
                     : null
@@ -243,7 +243,7 @@ public class IndexModel : PageModel
             {
                 "path" => filtered
                     .OrderBy(e => e.EndpointPath, StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true))
-                    .ThenBy(e => e.HttpMethod.Method, StringComparer.OrdinalIgnoreCase),
+                    .ThenBy(e => e.HttpMethod, StringComparer.OrdinalIgnoreCase),
                 "module" => filtered
                     .OrderBy(e => e.ModuleName, StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true))
                     .ThenBy(e => e.EndpointPath, StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true)),

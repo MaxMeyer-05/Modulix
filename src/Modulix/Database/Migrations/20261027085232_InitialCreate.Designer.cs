@@ -11,7 +11,7 @@ using Modulix.Database.DbContexts;
 namespace Modulix.Database.Migrations
 {
     [DbContext(typeof(ServerContext))]
-    [Migration("20261023064835_InitialCreate")]
+    [Migration("20261027085232_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />

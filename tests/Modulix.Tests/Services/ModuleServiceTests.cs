@@ -139,7 +139,7 @@ public partial class ModuleServiceTests : ServiceTestBase
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/status",
             Status = ModuleEndpointsStatus.Active
         });
@@ -178,7 +178,7 @@ public partial class ModuleServiceTests : ServiceTestBase
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/health",
             Status = ModuleEndpointsStatus.Active
         });
@@ -226,7 +226,7 @@ public partial class ModuleServiceTests : ServiceTestBase
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/prometheus",
             Status = ModuleEndpointsStatus.Active
         });

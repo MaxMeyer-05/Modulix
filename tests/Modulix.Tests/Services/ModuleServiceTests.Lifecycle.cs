@@ -100,7 +100,7 @@ public partial class ModuleServiceTests
             Id = Guid.NewGuid(),
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/status",
             Status = ModuleEndpointsStatus.Active
         };
@@ -184,7 +184,7 @@ public partial class ModuleServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/ping",
             Status = ModuleEndpointsStatus.Active
         });
@@ -278,7 +278,7 @@ public partial class ModuleServiceTests
         {
             ModuleId = module.Id,
             ModuleVersion = module.Versions.Single(),
-            HttpMethod = HttpMethod.Get,
+            HttpMethod = "GET",
             EndpointPath = "/ping",
             Status = ModuleEndpointsStatus.Active
         });
@@ -309,8 +309,8 @@ public partial class ModuleServiceTests
     {
         _endpointScanner.DiscoveredEndpoints =
         [
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/reports" },
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/export" }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/reports" },
+            new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/export" }
         ];
 
         var createResult = await _sut.CreateModuleAsync(new CreateModuleDto
@@ -320,7 +320,7 @@ public partial class ModuleServiceTests
             ContainerPort = 8095,
             Version = "v1.0.0",
             ModuleFile = CreateDummyZipFile(),
-            InitialEndpoints = [new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/reports" }]
+            InitialEndpoints = [new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/reports" }]
         });
 
         var moduleId = createResult.Module.Id;
@@ -335,7 +335,7 @@ public partial class ModuleServiceTests
                 new SubEndpointDiscrepancyReportDto
                 {
                     ModuleId = moduleId,
-                    ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/export" }]
+                    ExtraEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/export" }]
                 }
             ]
         });
@@ -365,8 +365,8 @@ public partial class ModuleServiceTests
             EntryAssemblyFileName = "module.dll",
             DiscoveredEndpoints =
             [
-                new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/reports" },
-                new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/export" }
+                new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/reports" },
+                new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/export" }
             ]
         });
 

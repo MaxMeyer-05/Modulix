@@ -261,7 +261,7 @@ public partial class DetailModel
             .Where(d => !string.Equals(d.Action, "remove", StringComparison.OrdinalIgnoreCase))
             .Select(d => new DiscoveredSubEndpointDto
             {
-                HttpMethod = new HttpMethod(d.HttpMethod.Trim().ToUpperInvariant()),
+                HttpMethod = d.HttpMethod.Trim().ToUpperInvariant(),
                 EndpointPath = d.EndpointPath.Trim()
             })
             .ToList();
@@ -270,7 +270,7 @@ public partial class DetailModel
             .Where(d => string.Equals(d.Action, "remove", StringComparison.OrdinalIgnoreCase))
             .Select(d => new DiscoveredSubEndpointDto
             {
-                HttpMethod = new HttpMethod(d.HttpMethod.Trim().ToUpperInvariant()),
+                HttpMethod = d.HttpMethod.Trim().ToUpperInvariant(),
                 EndpointPath = d.EndpointPath.Trim()
             })
             .ToList();

@@ -99,7 +99,7 @@ public class ModuleEndpointExtensionTests : IDisposable
     {
         var module = await CreateModuleAsync();
         var discovered = discoversEndpoints
-            ? new List<DiscoveredSubEndpointDto> { new() { HttpMethod = HttpMethod.Get, EndpointPath = "/health" } }
+            ? new List<DiscoveredSubEndpointDto> { new() { HttpMethod = "GET", EndpointPath = "/health" } }
             : [];
 
         var report = await _sut.CreateEndpointDiscrepancyReportAsync(module, discovered);
@@ -114,7 +114,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         {
             var endpoint = Assert.Single(persisted.SubEndpoints);
             Assert.Equal(module.Id, endpoint.ModuleId);
-            Assert.Equal(HttpMethod.Get, endpoint.HttpMethod);
+            Assert.Equal("GET", endpoint.HttpMethod);
             Assert.Equal("/health", endpoint.EndpointPath);
             Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status);
 
@@ -133,11 +133,11 @@ public class ModuleEndpointExtensionTests : IDisposable
     [Fact]
     public async Task CreateEndpointDiscrepancyReportAsync_AllRoutesMatchIgnoringCase_ActivatesWithoutDuplicatesAndWaitsForReadiness()
     {
-        var module = await CreateModuleAsync(new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/Items" });
+        var module = await CreateModuleAsync(new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/Items" });
         var endpointId = Assert.Single(module.SubEndpoints).Id;
 
         var report = await _sut.CreateEndpointDiscrepancyReportAsync(module,
-            [new DiscoveredSubEndpointDto { HttpMethod = new HttpMethod("get"), EndpointPath = "/items" }]);
+            [new DiscoveredSubEndpointDto { HttpMethod = "get", EndpointPath = "/items" }]);
 
         Assert.Null(report);
         var persisted = await LoadPersistedModuleAsync(module.Id);
@@ -152,13 +152,13 @@ public class ModuleEndpointExtensionTests : IDisposable
     public async Task CreateEndpointDiscrepancyReportAsync_MixedRoutes_PersistsDiscrepanciesWithoutStartingContainer()
     {
         var module = await CreateModuleAsync(
-            new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/items" },
-            new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Delete, EndpointPath = "/old" });
+            new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/items" },
+            new CreateModuleSubEndpointDto { HttpMethod = "DELETE", EndpointPath = "/old" });
 
         var report = await _sut.CreateEndpointDiscrepancyReportAsync(module,
         [
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/items" },
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/new" }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/items" },
+            new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/new" }
         ]);
 
         Assert.NotNull(report);

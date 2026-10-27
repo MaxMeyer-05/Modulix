@@ -82,14 +82,14 @@ public class SubEndpointService : ISubEndpointService
         {
             // Check if the pending endpoint is confirmed as an extra endpoint
             if (dto.ConfirmedEndpoints.Any(ce => ce.ExtraEndpoints?.Any(ee =>
-                ee.HttpMethod == endpoint.HttpMethod &&
+                ee.HttpMethod.Equals(endpoint.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
                 ee.EndpointPath.Equals(endpoint.EndpointPath, StringComparison.OrdinalIgnoreCase)) == true))
             {
                 endpoint.Status = ModuleEndpointsStatus.Active;
             }
             // Check if the pending endpoint is confirmed as a missing endpoint
             else if (dto.ConfirmedEndpoints.Any(ce => ce.MissingEndpoints?.Any(me =>
-                me.HttpMethod == endpoint.HttpMethod &&
+                me.HttpMethod.Equals(endpoint.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
                 me.EndpointPath.Equals(endpoint.EndpointPath, StringComparison.OrdinalIgnoreCase)) == true))
             {
                 _context.ModuleEndpoints.Remove(endpoint);

@@ -85,7 +85,7 @@ public static class ModuleMapper
             .Where(e => e.Status == ModuleEndpointsStatus.Active)
             .Select(e => new ProxyEndpointDefinition
             {
-                HttpMethod = e.HttpMethod.Method,
+                HttpMethod = e.HttpMethod,
                 EndpointPath = e.EndpointPath
             })
             .ToList()

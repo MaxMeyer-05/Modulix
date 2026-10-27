@@ -186,7 +186,7 @@
                     @for (var i = 0; i < pendingEndpoints.Count; i++)
                     {
                         var pendingEp = pendingEndpoints[i];
-                        var methodUpper = pendingEp.HttpMethod.Method.ToUpperInvariant();
+                        var methodUpper = pendingEp.HttpMethod.ToUpperInvariant();
                         var methodClass = methodUpper switch
                         {
                             "GET" => "method-get",

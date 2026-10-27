@@ -260,7 +260,7 @@ public class IndexModel : PageModel
         if (input.InitialEndpoints is not null)
         {
             var normalizedEndpoints = input.InitialEndpoints
-                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod?.Method) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
                 .Select(ep =>
                 {
                     var path = ep.EndpointPath.Trim();
@@ -269,7 +269,7 @@ public class IndexModel : PageModel
 
                     return new CreateModuleSubEndpointDto
                     {
-                        HttpMethod = new HttpMethod(ep.HttpMethod.Method.Trim().ToUpperInvariant()),
+                        HttpMethod = ep.HttpMethod.Trim().ToUpperInvariant(),
                         EndpointPath = path
                     };
                 })

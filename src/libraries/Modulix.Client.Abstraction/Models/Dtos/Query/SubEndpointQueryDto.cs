@@ -10,7 +10,7 @@ public class SubEndpointQueryDto
     /// <summary>
     /// The HTTP method of the sub-endpoint to filter by.
     /// </summary>
-    public HttpMethod? HttpMethod { get; set; }
+    public string? HttpMethod { get; set; }
 
     /// <summary>
     /// The status of the sub-endpoint to filter by.

@@ -188,8 +188,8 @@ public partial class ModuleServiceTests
     {
         _endpointScanner.DiscoveredEndpoints =
         [
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" },
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/jobs" }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" },
+            new DiscoveredSubEndpointDto { HttpMethod = "POST", EndpointPath = "/jobs" }
         ];
 
         var dto = new CreateModuleDto
@@ -208,8 +208,8 @@ public partial class ModuleServiceTests
 
         Assert.Equal(2, persistedEndpoints.Count);
         Assert.All(persistedEndpoints, endpoint => Assert.Equal(ModuleEndpointsStatus.Active, endpoint.Status));
-        Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == HttpMethod.Get && endpoint.EndpointPath == "/health");
-        Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == HttpMethod.Post && endpoint.EndpointPath == "/jobs");
+        Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/health");
+        Assert.Contains(persistedEndpoints, endpoint => endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/jobs");
         Assert.False(result.DiscrepancyReport!.HasDiscrepancy);
         Assert.Equal(ModuleStatus.Running, result.Module.Status);
     }
@@ -273,7 +273,7 @@ public partial class ModuleServiceTests
             _dockerService.BuildException = new InvalidOperationException("Build failed.");
         if (scenario == "start")
             _dockerService.StartException = new InvalidOperationException("Start failed.");
-        _endpointScanner.DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }];
+        _endpointScanner.DiscoveredEndpoints = [new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }];
 
         var exception = await Record.ExceptionAsync(() =>
             _sut.CreateModuleAsync(new CreateModuleDto
@@ -283,7 +283,7 @@ public partial class ModuleServiceTests
                 Version = "v1.0.0",
                 ModuleFile = CreateDummyZipFile(),
                 InitialEndpoints = scenario == "pending"
-                    ? [new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/jobs" }]
+                    ? [new CreateModuleSubEndpointDto { HttpMethod = "POST", EndpointPath = "/jobs" }]
                     : null
             }, cancellation.Token));
 
@@ -319,7 +319,7 @@ public partial class ModuleServiceTests
             BaseUrlPath = "api/queued",
             Version = "v1.0.0",
             ModuleFile = CreateDummyZipFile(),
-            InitialEndpoints = [new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }]
+            InitialEndpoints = [new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }]
         });
 
         Assert.Equal(ModuleStatus.QueuedForScan, result.Module.Status);
@@ -366,7 +366,7 @@ public partial class ModuleServiceTests
     {
         _endpointScanner.DiscoveredEndpoints =
         [
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }
         ];
 
         var dto = new CreateModuleDto
@@ -377,7 +377,7 @@ public partial class ModuleServiceTests
             ModuleFile = CreateDummyZipFile(),
             InitialEndpoints =
             [
-                new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" }
+                new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" }
             ]
         };
 
@@ -400,7 +400,7 @@ public partial class ModuleServiceTests
         var expectedNormalizedPath = "/" + rawEndpointPath.Trim().TrimStart('/');
         _endpointScanner.DiscoveredEndpoints =
         [
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = expectedNormalizedPath }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = expectedNormalizedPath }
         ];
 
         var dto = new CreateModuleDto
@@ -411,7 +411,7 @@ public partial class ModuleServiceTests
             ModuleFile = CreateDummyZipFile(),
             InitialEndpoints =
             [
-                new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = rawEndpointPath }
+                new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = rawEndpointPath }
             ]
         };
 
@@ -508,8 +508,8 @@ public partial class ModuleServiceTests
     {
         _endpointScanner.DiscoveredEndpoints =
         [
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" },
-            new DiscoveredSubEndpointDto { HttpMethod = HttpMethod.Delete, EndpointPath = "/legacy" }
+            new DiscoveredSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" },
+            new DiscoveredSubEndpointDto { HttpMethod = "DELETE", EndpointPath = "/legacy" }
         ];
 
         var dto = new CreateModuleDto
@@ -520,8 +520,8 @@ public partial class ModuleServiceTests
             ModuleFile = CreateDummyZipFile(),
             InitialEndpoints =
             [
-                new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Get, EndpointPath = "/health" },
-                new CreateModuleSubEndpointDto { HttpMethod = HttpMethod.Post, EndpointPath = "/jobs" }
+                new CreateModuleSubEndpointDto { HttpMethod = "GET", EndpointPath = "/health" },
+                new CreateModuleSubEndpointDto { HttpMethod = "POST", EndpointPath = "/jobs" }
             ]
         };
 
@@ -530,19 +530,19 @@ public partial class ModuleServiceTests
         Assert.True(result.DiscrepancyReport!.HasDiscrepancy);
         Assert.Equal(ModuleStatus.PendingConfirmation, result.Module.Status);
         Assert.Empty(_dockerService.Calls);
-        Assert.Contains(result.DiscrepancyReport.MatchedEndpoints!, endpoint => endpoint.HttpMethod == HttpMethod.Get && endpoint.EndpointPath == "/health");
-        Assert.Contains(result.DiscrepancyReport.MissingEndpoints!, endpoint => endpoint.HttpMethod == HttpMethod.Post && endpoint.EndpointPath == "/jobs");
-        Assert.Contains(result.DiscrepancyReport.ExtraEndpoints!, endpoint => endpoint.HttpMethod == HttpMethod.Delete && endpoint.EndpointPath == "/legacy");
+        Assert.Contains(result.DiscrepancyReport.MatchedEndpoints!, endpoint => endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/health");
+        Assert.Contains(result.DiscrepancyReport.MissingEndpoints!, endpoint => endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/jobs");
+        Assert.Contains(result.DiscrepancyReport.ExtraEndpoints!, endpoint => endpoint.HttpMethod == "DELETE" && endpoint.EndpointPath == "/legacy");
 
         var persistedEndpoints = await _context.ModuleEndpoints
             .Where(endpoint => endpoint.ModuleId == result.Module.Id)
             .ToListAsync();
 
         Assert.Contains(persistedEndpoints, endpoint =>
-            endpoint.HttpMethod == HttpMethod.Get && endpoint.EndpointPath == "/health" && endpoint.Status == ModuleEndpointsStatus.Active);
+            endpoint.HttpMethod == "GET" && endpoint.EndpointPath == "/health" && endpoint.Status == ModuleEndpointsStatus.Active);
         Assert.Contains(persistedEndpoints, endpoint =>
-            endpoint.HttpMethod == HttpMethod.Post && endpoint.EndpointPath == "/jobs" && endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
+            endpoint.HttpMethod == "POST" && endpoint.EndpointPath == "/jobs" && endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
         Assert.Contains(persistedEndpoints, endpoint =>
-            endpoint.HttpMethod == HttpMethod.Delete && endpoint.EndpointPath == "/legacy" && endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
+            endpoint.HttpMethod == "DELETE" && endpoint.EndpointPath == "/legacy" && endpoint.Status == ModuleEndpointsStatus.PendingConfirmation);
     }
 }
