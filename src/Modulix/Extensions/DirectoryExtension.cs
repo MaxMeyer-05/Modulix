@@ -1,8 +1,6 @@
 using System.IO.Compression;
 using Microsoft.Extensions.Options;
 
-using Modulix.Models.Options;
-
 namespace Modulix.Extensions;
 
 /// <summary>
@@ -13,7 +11,7 @@ public class DirectoryExtension
     /// <summary>
     /// The shared module settings.
     /// </summary>
-    private readonly ModulixOptions _options;
+    private readonly ModuleSettings _options;
 
     /// <summary>
     /// The logger instance.
@@ -27,7 +25,7 @@ public class DirectoryExtension
     /// <param name="options">The shared module settings.</param>
     public DirectoryExtension(
         ILogger<DirectoryExtension> logger, 
-        IOptions<ModulixOptions> options)
+        IOptions<ModuleSettings> options)
     {
         _logger = logger;
         _options = options.Value;
@@ -210,6 +208,7 @@ public class DirectoryExtension
 
             ValidateModuleArchive(tmpZipPath);
             ExtractModuleArchive(tmpZipPath, targetPath);
+            EnsureModuleDataDirectory(moduleId);
             _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
         }
         catch
@@ -223,5 +222,53 @@ public class DirectoryExtension
         }
 
         return targetPath;
+    }
+
+    /// <summary>
+    /// Gets the host path to the persistent, version-independent data directory for a module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <returns>The full host path to the module's persistent data directory (<c>&lt;StorageBasePath&gt;/&lt;moduleId&gt;/data</c>).</returns>
+    public string GetModuleDataDirectoryPath(Guid moduleId) =>
+        Path.GetFullPath(Path.Combine(_options.StorageBasePath, moduleId.ToString(), "data"));
+
+    /// <summary>
+    /// Ensures the persistent, version-independent data directory for a module exists on the host
+    /// and has write permissions for container processes.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <returns>The full host path to the module's persistent data directory.</returns>
+    public string EnsureModuleDataDirectory(Guid moduleId)
+    {
+        var dataPath = GetModuleDataDirectoryPath(moduleId);
+        try
+        {
+            Directory.CreateDirectory(dataPath);
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    dataPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                    UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
+                    UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create persistent data directory '{DataPath}' for module '{ModuleId}'.", dataPath, moduleId);
+            throw;
+        }
+
+        return dataPath;
+    }
+
+    /// <summary>
+    /// Deletes the persistent data directory for the specified module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    public void DeleteModuleDataDirectory(Guid moduleId)
+    {
+        var dataPath = GetModuleDataDirectoryPath(moduleId);
+        DeleteModuleDirectory(dataPath, moduleId);
     }
 }

@@ -81,6 +81,7 @@ public class DockerService : IDockerService, IDisposable
                 FROM {_options.BaseImage}
                 WORKDIR /app
                 COPY . .
+                RUN mkdir -p /app/data && chown -R "$APP_UID" /app /app/data 2>/dev/null || true && chmod -R 777 /app/data
                 ENV ASPNETCORE_ENVIRONMENT=Production
                 ENTRYPOINT {JsonSerializer.Serialize(new[] { "dotnet", entryDllName })}
             """;
@@ -114,6 +115,8 @@ public class DockerService : IDockerService, IDisposable
             if (progress.ErrorMessage is not null)
                 throw new InvalidOperationException($"Docker image build failed: {progress.ErrorMessage}");
 
+            var hostDataPath = EnsureHostDataDirectory(storagePath);
+
             var createResponse = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
             {
                 Image = imageName,
@@ -130,6 +133,7 @@ public class DockerService : IDockerService, IDisposable
                 HostConfig = new HostConfig
                 {
                     NetworkMode = _options.NetworkName,
+                    Binds = [$"{hostDataPath}:/app/data"],
                     PublishAllPorts = false,
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
@@ -339,33 +343,6 @@ public class DockerService : IDockerService, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <inheritdoc/>
-    public async Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default)
-    {
-        try
-        {
-            using var logs = await _client.Containers.GetContainerLogsAsync(containerId, false, new ContainerLogsParameters
-            {
-                ShowStdout = true,
-                ShowStderr = true,
-                Timestamps = true,
-                Tail = tail.HasValue ? tail.Value.ToString(CultureInfo.InvariantCulture) : "all"
-            }, ct);
-
-            var (stdout, stderr) = await logs.ReadOutputToEndAsync(ct);
-            if (string.IsNullOrWhiteSpace(stdout))
-                return string.IsNullOrWhiteSpace(stderr) ? string.Empty : stderr;
-            if (string.IsNullOrWhiteSpace(stderr))
-                return stdout;
-
-            return $"{stdout.TrimEnd('\r', '\n')}{Environment.NewLine}{stderr}";
-        }
-        catch (DockerContainerNotFoundException ex)
-        {
-            throw new KeyNotFoundException($"Container '{containerId}' was not found.", ex);
-        }
-    }
-
     private async Task TryDeleteImageAsync(string? imageName, Guid moduleId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(imageName))
@@ -384,6 +361,31 @@ public class DockerService : IDockerService, IDisposable
         {
             _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for module '{ModuleId}'.", imageName, moduleId);
         }
+    }
+
+    private static string EnsureHostDataDirectory(string storagePath)
+    {
+        var fullStoragePath = Path.GetFullPath(storagePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var parentDir = Directory.GetParent(fullStoragePath);
+
+        var hostDataPath = parentDir is not null &&
+            string.Equals(parentDir.Name, "versions", StringComparison.OrdinalIgnoreCase) &&
+            parentDir.Parent is { } moduleRootDir
+            ? Path.Combine(moduleRootDir.FullName, "data")
+            : Path.Combine(fullStoragePath, "data");
+
+        Directory.CreateDirectory(hostDataPath);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(
+                hostDataPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
+        }
+
+        return hostDataPath;
     }
 
     private static int? TryGetBoundHostPort(ContainerInspectResponse container)

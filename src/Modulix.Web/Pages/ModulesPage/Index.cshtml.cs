@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +8,8 @@ using Microsoft.AspNetCore.WebUtilities;
 using Modulix.Client;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
@@ -24,6 +25,8 @@ public class IndexModel : PageModel
     /// </summary>
     private const string ResultKey = "ModuleCreationResult";
 
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>
     /// The Modulix API client.
     /// </summary>
@@ -33,6 +36,11 @@ public class IndexModel : PageModel
     /// The user session activity service.
     /// </summary>
     private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
+    /// The endpoint discrepancy report service.
+    /// </summary>
+    private readonly IEndpointDiscrepancyService? _endpointDiscrepancyService;
 
     /// <summary>
     /// The logger instance.
@@ -45,14 +53,17 @@ public class IndexModel : PageModel
     /// <param name="modulixApiClient">The Modulix API client.</param>
     /// <param name="userActivityService">The user session activity service.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="endpointDiscrepancyService">The endpoint discrepancy report service.</param>
     public IndexModel(
         IModulixApi modulixApiClient,
         IUserActivityService userActivityService,
-        ILogger<IndexModel> logger)
+        ILogger<IndexModel> logger,
+        IEndpointDiscrepancyService? endpointDiscrepancyService = null)
     {
         _modulixApiClient = modulixApiClient;
         _userActivityService = userActivityService;
         _logger = logger;
+        _endpointDiscrepancyService = endpointDiscrepancyService;
     }
 
     /// <summary>
@@ -177,7 +188,7 @@ public class IndexModel : PageModel
         [FromQuery(Name = "pageSize")] int pageSize = PaginationQueryDto.DefaultPageSize)
     {
         if (TempData[ResultKey] is string json)
-            CreationSuccess = JsonSerializer.Deserialize<CreationResult>(json);
+            CreationSuccess = JsonSerializer.Deserialize<CreationResult>(json, WebJsonOptions);
 
         if (TempData[DetailModel.FeedbackKey] is string feedbackJson)
             Feedback = JsonSerializer.Deserialize<DetailModel.ActionFeedback>(feedbackJson);
@@ -218,7 +229,7 @@ public class IndexModel : PageModel
         var result = await CreateAsync(input);
         if (result.IsSuccess)
         {
-            TempData[ResultKey] = JsonSerializer.Serialize(result);
+            TempData[ResultKey] = JsonSerializer.Serialize(result, WebJsonOptions);
             return RedirectToPage();
         }
 
@@ -288,9 +299,15 @@ public class IndexModel : PageModel
                 ?? throw new JsonException("The API returned an empty response.");
 
             var module = result.Module;
+            _endpointDiscrepancyService?.SaveReport(module.Id, result.DiscrepancyReport);
+
             var statusCode = (int)response.StatusCode;
             var moduleUrl = statusCode is 201 or 202
                 ? Url.Page("/ModulesPage/Detail", new { id = module.Id }) : null;
+            var hasDiscrepancy = result.DiscrepancyReport?.HasDiscrepancy == true;
+            var title = hasDiscrepancy
+                ? "Endpoints require confirmation"
+                : ReasonPhrases.GetReasonPhrase(statusCode);
             var description = !string.IsNullOrWhiteSpace(result.Message)
                 ? result.Message
                 : ReasonPhrases.GetReasonPhrase(statusCode);
@@ -299,12 +316,16 @@ public class IndexModel : PageModel
 
             if (statusCode is 201 or 202)
             {
-                var action = statusCode == 202 ? "Queued module scan for" : "Added";
-                var tone = statusCode == 202 ? UserActivityTone.Update : UserActivityTone.Success;
+                var action = hasDiscrepancy
+                    ? "Added (pending confirmation)"
+                    : statusCode == 202 ? "Queued module scan for" : "Added";
+                var tone = hasDiscrepancy
+                    ? UserActivityTone.Warning
+                    : statusCode == 202 ? UserActivityTone.Update : UserActivityTone.Success;
                 _userActivityService.Record(User, action, module.ModuleName, "plus", tone, moduleUrl);
             }
 
-            return new CreationResult(statusCode, ReasonPhrases.GetReasonPhrase(statusCode), description, moduleUrl);
+            return new CreationResult(statusCode, title, description, moduleUrl, result.DiscrepancyReport);
         }
         catch (HttpRequestException exception)
         {
@@ -352,8 +373,16 @@ public class IndexModel : PageModel
 
         try
         {
+            var moduleQuery = new ModuleQueryDto
+            {
+                Status = Enum.TryParse<ModuleStatus>(StatusFilter, ignoreCase: true, out var parsedStatus)
+                    ? parsedStatus
+                    : null
+            };
+
             using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
-                new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
+                query: moduleQuery,
+                pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)
@@ -389,10 +418,7 @@ public class IndexModel : PageModel
 
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
-                    .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (StatusFilter.Length == 0
-                    || module.Status.ToString() == StatusFilter
-                    || (StatusFilter == nameof(ModuleStatus.PendingConfirmation) && module.Status == ModuleStatus.QueuedForScan)));
+                    .Contains(Query, StringComparison.OrdinalIgnoreCase));
 
             Modules = (SortBy switch
             {
@@ -411,7 +437,12 @@ public class IndexModel : PageModel
     /// <summary>
     /// Represents the result of a module creation attempt.
     /// </summary>
-    public sealed record CreationResult(int StatusCode, string Title, string Description, string? ModuleUrl)
+    public sealed record CreationResult(
+        int StatusCode,
+        string Title,
+        string Description,
+        string? ModuleUrl,
+        SubEndpointDiscrepancyReportDto? DiscrepancyReport = null)
     {
         /// <summary>
         /// Indicates whether the creation attempt was successful.

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 using Modulix.Database.Entities;
 using Modulix.ReverseProxy.Models;
@@ -108,9 +109,9 @@ public partial class ModuleServiceTests : ServiceTestBase
         await _context.SaveChangesAsync();
 
         // Act
-        var page1 = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 1, PageSize = 2 });
-        var page2 = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 2, PageSize = 2 });
-        var outOfRangePage = await _sut.GetAllModulesAsync(new PaginationQueryDto { Page = 5, PageSize = 2 });
+        var page1 = await _sut.GetAllModulesAsync(pagination: new PaginationQueryDto { Page = 1, PageSize = 2 });
+        var page2 = await _sut.GetAllModulesAsync(pagination: new PaginationQueryDto { Page = 2, PageSize = 2 });
+        var outOfRangePage = await _sut.GetAllModulesAsync(pagination: new PaginationQueryDto { Page = 5, PageSize = 2 });
 
         // Assert
         Assert.Equal(3, page1.TotalCount);
@@ -157,8 +158,9 @@ public partial class ModuleServiceTests : ServiceTestBase
 
         var returned = Assert.Single(pagedResult.Items);
         Assert.Equal(ModuleStatus.Failed, returned.Status);
-        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        var persisted = await _context.Modules.AsNoTracking().Include(m => m.SubEndpoints).SingleAsync(m => m.Id == module.Id);
         Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(persisted.SubEndpoints).Status);
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
 
@@ -195,8 +197,10 @@ public partial class ModuleServiceTests : ServiceTestBase
         var result = await _sut.GetModuleByIdAsync(module.Id);
 
         Assert.Equal(ModuleStatus.Failed, result.Status);
-        var persisted = await _context.Modules.AsNoTracking().SingleAsync(m => m.Id == module.Id);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(result.Endpoints).Status);
+        var persisted = await _context.Modules.AsNoTracking().Include(m => m.SubEndpoints).SingleAsync(m => m.Id == module.Id);
         Assert.Equal(ModuleStatus.Failed, persisted.Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(persisted.SubEndpoints).Status);
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
 
@@ -242,74 +246,6 @@ public partial class ModuleServiceTests : ServiceTestBase
         Assert.Equal("Metrics", result.ModuleName);
         Assert.Single(result.Endpoints);
         Assert.Equal("/prometheus", result.Endpoints.First().EndpointPath);
-    }
-
-    #endregion
-
-    #region GetModuleContainerLogs Tests
-
-    [Fact]
-    [Trait("Feature", "GetModuleContainerLogs")]
-    public async Task GetModuleContainerLogsAsync_ModuleNotFound_ThrowsKeyNotFoundException()
-    {
-        var nonExistentId = Guid.NewGuid();
-
-        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _sut.GetModuleContainerLogsAsync(nonExistentId));
-
-        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    [Trait("Feature", "GetModuleContainerLogs")]
-    public async Task GetModuleContainerLogsAsync_NoContainerAssigned_ThrowsInvalidOperationException(string? containerId)
-    {
-        var module = CreateTestModuleEntity("NoContainer", "api/v1/nocontainer", 8110);
-        module.ContainerId = containerId;
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _sut.GetModuleContainerLogsAsync(module.Id));
-
-        Assert.Equal($"Module with ID '{module.Id}' does not have an associated container.", exception.Message);
-        Assert.Empty(_dockerService.Calls);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-10)]
-    [Trait("Feature", "GetModuleContainerLogs")]
-    public async Task GetModuleContainerLogsAsync_InvalidTail_ThrowsArgumentException(int invalidTail)
-    {
-        var module = CreateTestModuleEntity("InvalidTail", "api/v1/invalidtail", 8111);
-        module.ContainerId = "container-123";
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            _sut.GetModuleContainerLogsAsync(module.Id, invalidTail));
-
-        Assert.Empty(_dockerService.Calls);
-    }
-
-    [Fact]
-    [Trait("Feature", "GetModuleContainerLogs")]
-    public async Task GetModuleContainerLogsAsync_ValidContainer_ReturnsLogsFromDockerService()
-    {
-        var module = CreateTestModuleEntity("WithLogs", "api/v1/withlogs", 8112);
-        module.ContainerId = "container-abc";
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-        _dockerService.ContainerLogsResult = "2026-10-22T08:00:00Z info: Started";
-
-        var logs = await _sut.GetModuleContainerLogsAsync(module.Id, tail: 250);
-
-        Assert.Equal("2026-10-22T08:00:00Z info: Started", logs);
-        Assert.Equal(["logs:container-abc:250"], _dockerService.Calls);
     }
 
     #endregion

@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
-using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
+
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 using Modulix.Services.Interfaces;
 
@@ -105,6 +107,7 @@ public class ModulesManagementController : ControllerBase
     /// <summary>
     /// Retrieves all modules.
     /// </summary>
+    /// <param name="moduleQuery">The query parameters for filtering modules.</param>
     /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
@@ -112,9 +115,9 @@ public class ModulesManagementController : ControllerBase
     /// </returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResultDto<ModuleDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResultDto<ModuleDto>>> GetAllModulesAsync([FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResultDto<ModuleDto>>> GetAllModulesAsync([FromQuery] ModuleQueryDto moduleQuery, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
-        var result = await _moduleService.GetAllModulesAsync(pagination, ct);
+        var result = await _moduleService.GetAllModulesAsync(moduleQuery, pagination, ct);
         return Ok(result);
     }
 
@@ -134,32 +137,6 @@ public class ModulesManagementController : ControllerBase
     {
         var result = await _moduleService.GetModuleByIdAsync(moduleId, ct);
         return Ok(result);
-    }
-
-    /// <summary>
-    /// Retrieves the container logs of a specific module by its ID.
-    /// </summary>
-    /// <param name="moduleId">The ID of the module.</param>
-    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>
-    /// A 200 OK response with the container logs of the specified module.
-    /// A 400 Bad Request response if the tail parameter is invalid.
-    /// A 404 Not Found response if the module or container could not be found.
-    /// A 409 Conflict response if the module does not have an associated container.
-    /// </returns>
-    [HttpGet("{moduleId}/logs")]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetModuleContainerLogsAsync(
-        [FromRoute] Guid moduleId,
-        [FromQuery] int? tail = null,
-        CancellationToken ct = default)
-    {
-        var logs = await _moduleService.GetModuleContainerLogsAsync(moduleId, tail, ct);
-        return Content(logs, "text/plain; charset=utf-8");
     }
 
     /// <summary>

@@ -93,6 +93,8 @@ public partial class ModuleServiceTests
 
         var module = CreateTestModuleEntity("To Delete", "api/v1/delete", 8009);
         module.Versions.Single().StoragePath = moduleDir;
+        var dataDir = _directoryExtension.EnsureModuleDataDirectory(module.Id);
+        File.WriteAllText(Path.Combine(dataDir, "app.db"), "sqlite-bytes");
         module.ContainerId = hasContainer ? "existing-container" : null;
 
         var endpoint = new ModuleEndpoint
@@ -112,6 +114,7 @@ public partial class ModuleServiceTests
         await _sut.DeleteModuleAsync(module.Id);
 
         Assert.False(Directory.Exists(moduleDir));
+        Assert.False(Directory.Exists(dataDir));
         Assert.Null(await _context.Modules.FindAsync(module.Id));
         Assert.Null(await _context.ModuleEndpoints.FindAsync(endpoint.Id));
         Assert.Equal(hasContainer ? ["existing-container"] : Array.Empty<string>(), _dockerService.RemovedContainerIds);
@@ -186,7 +189,7 @@ public partial class ModuleServiceTests
             ModuleVersion = module.Versions.Single(),
             HttpMethod = "GET",
             EndpointPath = "/ping",
-            Status = ModuleEndpointsStatus.Active
+            Status = ModuleEndpointsStatus.Inactive
         });
         _context.Modules.Add(module);
         await _context.SaveChangesAsync();
@@ -195,6 +198,7 @@ public partial class ModuleServiceTests
 
         Assert.Equal(ModuleStatus.Running, result.Status);
         Assert.Equal("existing-container", result.ContainerId);
+        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(result.Endpoints).Status);
         Assert.Equal(["start", "ready"], _dockerService.Calls);
         Assert.Contains(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
@@ -295,6 +299,7 @@ public partial class ModuleServiceTests
         var result = await _sut.StopModuleAsync(module.Id);
 
         Assert.Equal(ModuleStatus.Stopped, result.Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(result.Endpoints).Status);
         Assert.Equal(["stop:running-container"], _dockerService.Calls);
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }

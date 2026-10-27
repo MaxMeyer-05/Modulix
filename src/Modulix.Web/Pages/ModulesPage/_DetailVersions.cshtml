@@ -1,0 +1,64 @@
+@model DetailModel
+@using System.Globalization
+@{
+    var module = Model.Module!;
+    var versions = Model.OrderedVersions;
+}
+<section class="module-info-section" id="module-version-history" aria-labelledby="module-versions-heading">
+    <div class="module-section-heading">
+        <h2 id="module-versions-heading">Version history</h2>
+        <div class="module-section-heading-actions">
+            <span>@versions.Count @(versions.Count == 1 ? "version" : "versions")</span>
+        </div>
+    </div>
+    @if (versions.Count == 0)
+    {
+        <p class="module-section-empty">No versions registered.</p>
+    }
+    else
+    {
+        <ul class="module-endpoint-list module-version-list">
+            @foreach (var ver in versions)
+            {
+                var isActiveVersion = string.Equals(ver.Version, module.CurrentVersion, StringComparison.Ordinal);
+                <li>
+                    <div class="endpoint-route">
+                        <span class="module-code">@ver.Version</span>
+                        @if (isActiveVersion)
+                        {
+                            <span class="module-badge badge-running"><span aria-hidden="true"></span>Active</span>
+                        }
+                    </div>
+                    <div class="endpoint-status-actions">
+                        <button class="module-button module-button-compact"
+                                type="button"
+                                popovertarget="edit-version-dialog"
+                                data-edit-version="@ver.Version"
+                                data-edit-changelog="@(ver.Changelog ?? string.Empty)"
+                                title="Edit metadata for version @ver.Version">
+                            <i data-lucide="pencil" aria-hidden="true"></i><span>Edit</span>
+                        </button>
+                        @if (!isActiveVersion)
+                        {
+                            <button class="module-button module-button-compact module-button-danger"
+                                    type="button"
+                                    popovertarget="delete-version-dialog"
+                                    data-delete-version="@ver.Version"
+                                    title="Delete inactive version @ver.Version">
+                                <i data-lucide="trash-2" aria-hidden="true"></i><span>Delete</span>
+                            </button>
+                        }
+                    </div>
+                    <p class="module-version-changelog @(string.IsNullOrWhiteSpace(ver.Changelog) ? "module-description-empty" : "")">@(string.IsNullOrWhiteSpace(ver.Changelog) ? "No changelog provided." : ver.Changelog)</p>
+                    <div class="endpoint-metadata">
+                        <span>Released @ver.ReleasedAtUtc.ToString("MMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture)</span>
+                        @if (!string.IsNullOrWhiteSpace(ver.StoragePath))
+                        {
+                            <span>Storage <span class="module-code">@ver.StoragePath</span></span>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</section>

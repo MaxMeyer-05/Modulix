@@ -243,7 +243,7 @@ public partial class SubEndpointServiceTests
         });
 
         Assert.Equal(ModuleStatus.Failed, result.Status);
-        Assert.Equal(ModuleEndpointsStatus.Active, Assert.Single(result.Endpoints).Status);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, Assert.Single(result.Endpoints).Status);
         var persisted = await _context.Modules.AsNoTracking().SingleAsync();
         Assert.Equal(ModuleStatus.Failed, persisted.Status);
         Assert.Equal(failBuild ? null : "replacement-container", persisted.ContainerId);

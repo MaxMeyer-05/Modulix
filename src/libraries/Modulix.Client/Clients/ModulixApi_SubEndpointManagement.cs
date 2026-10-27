@@ -1,5 +1,7 @@
 using Modulix.Client.Clients;
+
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Client;
 
@@ -19,36 +21,52 @@ internal partial class ModulixApi : ISubEndpointManagementClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetAllEndpointsDetailAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllEndpointsDetailAsync(SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{SubEndpointManagementEndpoint}";
         if (pagination != null)
         {
-            var query = new List<string>
+            var queryParams = new List<string>();
+            if (query != null)
             {
-                $"page={pagination.Page}",
-                $"pageSize={pagination.PageSize}"
-            };
-            if (query.Count > 0)
-                requestUri += "?" + string.Join("&", query);
+                if (query.HttpMethod is not null)
+                    queryParams.Add($"httpMethod={query.HttpMethod}");
+                if (query.Status is not null)
+                    queryParams.Add($"status={query.Status}");
+            }
+            if (pagination != null)
+            {
+                queryParams.Add($"page={pagination.Page}");
+                queryParams.Add($"pageSize={pagination.PageSize}");
+            }
+            if (queryParams.Count > 0)
+                requestUri += "?" + string.Join("&", queryParams);
         }
 
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         if (pagination != null)
         {
-            var query = new List<string>
+            var queryParams = new List<string>();
+            if (query != null)
             {
-                $"page={pagination.Page}",
-                $"pageSize={pagination.PageSize}"
-            };
-            if (query.Count > 0)
-                requestUri += "?" + string.Join("&", query);
+                if (query.HttpMethod is not null)
+                    queryParams.Add($"httpMethod={query.HttpMethod}");
+                if (query.Status is not null)
+                    queryParams.Add($"status={query.Status}");
+            }
+            if (pagination != null)
+            {
+                queryParams.Add($"page={pagination.Page}");
+                queryParams.Add($"pageSize={pagination.PageSize}");
+            }
+            if (queryParams.Count > 0)
+                requestUri += "?" + string.Join("&", queryParams);
         }
 
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);

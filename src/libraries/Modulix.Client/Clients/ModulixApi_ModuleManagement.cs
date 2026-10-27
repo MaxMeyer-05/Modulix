@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Net.Http.Headers;
 
 using Modulix.Client.Clients;
+
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Client;
 
@@ -64,18 +66,26 @@ internal partial class ModulixApi : IModuleManagementClient
     }
 
     /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
+    public async Task<HttpResponseMessage> GetAllModulesAsync(ModuleQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}";
         if (pagination != null)
         {
-            var query = new List<string>
+            var queryParams = new List<string>();
+            if (query is not null)
             {
-                $"page={pagination.Page}",
-                $"pageSize={pagination.PageSize}"
-            };
-            if (query.Count > 0)
-                requestUri += "?" + string.Join("&", query);
+                if (query.Status is not null)
+                    queryParams.Add($"status={query.Status}");
+            }
+
+            if (pagination != null)
+            {
+                queryParams.Add($"page={pagination.Page}");
+                queryParams.Add($"pageSize={pagination.PageSize}");
+            }
+
+            if (queryParams.Count > 0)
+                requestUri += "?" + string.Join("&", queryParams);
         }
         
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
@@ -85,16 +95,6 @@ internal partial class ModulixApi : IModuleManagementClient
     public async Task<HttpResponseMessage> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
-        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
-    }
-
-    /// <inheritdoc/>
-    public async Task<HttpResponseMessage> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default, string? authToken = null)
-    {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/logs";
-        if (tail.HasValue)
-            requestUri += $"?tail={tail.Value.ToString(CultureInfo.InvariantCulture)}";
-
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 

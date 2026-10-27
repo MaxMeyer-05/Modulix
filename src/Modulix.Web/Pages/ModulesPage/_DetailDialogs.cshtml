@@ -1,5 +1,6 @@
 @model DetailModel
 @using System.Globalization
+@using Modulix.Web.Services
 @{
     var module = Model.Module!;
     var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
@@ -147,7 +148,10 @@
             {
                 <button class="module-button" type="button" popovertarget="rollback-module-dialog" popovertargetaction="hide">Cancel</button>
             }
-            <button class="module-button module-button-primary" type="submit" disabled="@(rollbackVersions.Count == 0)"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+            @if (rollbackVersions.Count > 0)
+            {
+                <button class="module-button module-button-primary" type="submit"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+            }
         </div>
     </form>
 </div>
@@ -174,7 +178,7 @@
         }
         <input type="hidden" name="moduleName" value="@module.ModuleName" />
         <fieldset class="module-form-fields" id="module-confirm-endpoints-fields">
-            <p class="module-dialog-description" id="confirm-endpoints-description">Review the pending endpoints for <strong>@module.ModuleName</strong>. Choose whether to activate each endpoint or remove it. Once all pending endpoints are resolved, the module container will be built and started automatically.</p>
+            <p class="module-dialog-description" id="confirm-endpoints-description">Review the pending discrepancy endpoints for <strong>@module.ModuleName</strong>. Extra endpoints discovered by the scanner default to <strong>Confirm (Activate)</strong>, while missing endpoints default to <strong>Remove endpoint</strong>. Once all pending endpoints are resolved, the module container will be built and started automatically.</p>
             @if (pendingEndpoints.Count == 0)
             {
                 <p class="module-section-empty">No pending endpoints require confirmation.</p>
@@ -194,16 +198,42 @@
                             "DELETE" => "method-delete",
                             _ => "method-other"
                         };
-                        <div class="confirm-endpoint-item">
+                        var discrepancyKind = Model.GetEndpointDiscrepancyKind(
+                            pendingEp.HttpMethod,
+                            pendingEp.EndpointPath,
+                            pendingEp.DiscoveredInVersion);
+                        var discrepancyKindAttr = discrepancyKind switch
+                        {
+                            EndpointDiscrepancyKind.Extra => "extra",
+                            EndpointDiscrepancyKind.Missing => "missing",
+                            _ => "pending"
+                        };
+                        <div class="confirm-endpoint-item" data-discrepancy-kind="@discrepancyKindAttr">
                             <input type="hidden" name="decisions[@i].HttpMethod" value="@pendingEp.HttpMethod" />
                             <input type="hidden" name="decisions[@i].EndpointPath" value="@pendingEp.EndpointPath" />
-                            <div class="endpoint-route">
-                                <span class="endpoint-method @methodClass">@methodUpper</span>
-                                <span class="module-code">/@module.BaseUrlPath.Trim('/')@pendingEp.EndpointPath</span>
+                            <div class="confirm-endpoint-info">
+                                <div class="endpoint-route">
+                                    <span class="endpoint-method @methodClass">@methodUpper</span>
+                                    <span class="module-code">/@module.BaseUrlPath.Trim('/')@pendingEp.EndpointPath</span>
+                                </div>
+                                @if (discrepancyKind == EndpointDiscrepancyKind.Extra)
+                                {
+                                    <div class="confirm-endpoint-reason">
+                                        <span class="module-badge badge-pending"><span aria-hidden="true"></span>Extra endpoint</span>
+                                        <span>Discovered by scanner, not specified by user</span>
+                                    </div>
+                                }
+                                else if (discrepancyKind == EndpointDiscrepancyKind.Missing)
+                                {
+                                    <div class="confirm-endpoint-reason">
+                                        <span class="module-badge badge-failed"><span aria-hidden="true"></span>Missing endpoint</span>
+                                        <span>Specified by user, not found by scanner</span>
+                                    </div>
+                                }
                             </div>
                             <select name="decisions[@i].Action" aria-label="Action for @methodUpper @pendingEp.EndpointPath">
-                                <option value="activate" selected>Confirm (Activate)</option>
-                                <option value="remove">Remove endpoint</option>
+                                <option value="activate" selected="@(discrepancyKind == EndpointDiscrepancyKind.Extra)">Confirm (Activate)</option>
+                                <option value="remove" selected="@(discrepancyKind != EndpointDiscrepancyKind.Extra)">Remove endpoint</option>
                             </select>
                         </div>
                     }
@@ -219,7 +249,10 @@
             {
                 <button class="module-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide">Cancel</button>
             }
-            <button class="module-button module-button-primary" type="submit" disabled="@(pendingEndpoints.Count == 0)"><i data-lucide="check" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+            @if (pendingEndpoints.Count > 0)
+            {
+                <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+            }
         </div>
     </form>
 </div>
@@ -258,6 +291,91 @@
                 <button class="module-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide">Cancel</button>
             }
             <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenEditVersion ? "module-dialog-open" : "")" id="edit-version-dialog" popover="@(Model.ReopenEditVersion ? null : "auto")" role="dialog" aria-labelledby="edit-version-heading">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="edit-version-heading">Edit version metadata</h2></div>
+        @if (Model.ReopenEditVersion)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="edit-version-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="edit-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="EditVersion" asp-route-id="@module.Id">
+        @if (Model.EditVersionError is { } editVersionError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@editVersionError.Title</strong> <span class="module-code">HTTP @editVersionError.StatusCode</span>
+                <p>@editVersionError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <input type="hidden" name="originalVersion" id="edit-version-original" value="@Model.EditVersionTarget" />
+        <fieldset class="module-form-fields" id="module-edit-version-fields">
+            <label>
+                <span>Version <span class="required-mark">*</span></span>
+                <input name="Version" id="edit-version-name" value="@(Model.EditVersionInput?.Version ?? Model.EditVersionTarget)" required maxlength="50" placeholder="v1.0.0" />
+            </label>
+            <label>
+                <span>Changelog</span>
+                <textarea name="Changelog" id="edit-version-changelog" rows="3" maxlength="500" placeholder="Optional changelog for this version">@Model.EditVersionInput?.Changelog</textarea>
+            </label>
+        </fieldset>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenEditVersion)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="edit-version-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
+        </div>
+    </form>
+</div>
+
+<div class="module-dialog @(Model.ReopenDeleteVersion ? "module-dialog-open" : "")" id="delete-version-dialog" popover="@(Model.ReopenDeleteVersion ? null : "auto")" role="dialog" aria-labelledby="delete-version-heading" aria-describedby="delete-version-description">
+    <div class="module-dialog-heading">
+        <div class="modules-title"><h2 id="delete-version-heading">Delete module version?</h2></div>
+        @if (Model.ReopenDeleteVersion)
+        {
+            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
+        }
+        else
+        {
+            <button class="module-icon-button" type="button" popovertarget="delete-version-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        }
+    </div>
+    <form id="delete-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="DeleteVersion" asp-route-id="@module.Id">
+        @if (Model.DeleteVersionError is { } deleteVersionError)
+        {
+            <div class="module-form-error" role="alert">
+                <strong>@deleteVersionError.Title</strong> <span class="module-code">HTTP @deleteVersionError.StatusCode</span>
+                <p>@deleteVersionError.Description</p>
+            </div>
+        }
+        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+        <input type="hidden" name="version" id="delete-version-target" value="@Model.DeleteVersionTarget" />
+        <div class="module-result-body">
+            <p id="delete-version-description">Permanently delete version <strong class="module-code" id="delete-version-label">@Model.DeleteVersionTarget</strong> of <strong>@module.ModuleName</strong>? This will remove the stored files for this version. This cannot be undone.</p>
+        </div>
+        <div class="module-dialog-footer">
+            @if (Model.ReopenDeleteVersion)
+            {
+                <a class="module-button" href="@detailUrl">Cancel</a>
+            }
+            else
+            {
+                <button class="module-button" type="button" popovertarget="delete-version-dialog" popovertargetaction="hide">Cancel</button>
+            }
+            <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete version</span></button>
         </div>
     </form>
 </div>

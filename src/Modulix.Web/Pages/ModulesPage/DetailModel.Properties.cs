@@ -1,5 +1,7 @@
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
+using Modulix.Web.Services;
 
 namespace Modulix.Web.Pages.ModulesPage;
 
@@ -14,14 +16,14 @@ public partial class DetailModel
     public const string FeedbackKey = "ModuleActionFeedback";
 
     /// <summary>
+    /// TempData key used for preserving the endpoint discrepancy report across redirects.
+    /// </summary>
+    public const string DiscrepancyReportKey = "ModuleDiscrepancyReport";
+
+    /// <summary>
     /// Default page size for the module endpoints list on the detail page.
     /// </summary>
     public const int DefaultEndpointsPageSize = 10;
-
-    /// <summary>
-    /// Default number of tail lines fetched for module container logs.
-    /// </summary>
-    public const int DefaultContainerLogsTail = 500;
 
     /// <summary>
     /// Allowed page size options for the module endpoints list.
@@ -29,14 +31,14 @@ public partial class DetailModel
     public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
 
     /// <summary>
-    /// Allowed tail line count options for the module container logs viewer.
-    /// </summary>
-    public static readonly int[] AllowedLogsTailSizes = [100, 250, 500, 1000];
-
-    /// <summary>
     /// Gets the module detail.
     /// </summary>
     public ModuleDetailDto? Module { get; private set; }
+
+    /// <summary>
+    /// Gets the endpoint discrepancy report associated with the module's pending confirmation state, if available.
+    /// </summary>
+    public SubEndpointDiscrepancyReportDto? DiscrepancyReport { get; private set; }
 
     /// <summary>
     /// Gets the paged sub-endpoints for the current page of the module detail view.
@@ -114,29 +116,34 @@ public partial class DetailModel
     public ActionError? DeleteError { get; private set; }
 
     /// <summary>
+    /// Gets the original version string targeted by a failed version edit attempt.
+    /// </summary>
+    public string? EditVersionTarget { get; private set; }
+
+    /// <summary>
+    /// Gets the submitted version metadata when a version edit attempt failed.
+    /// </summary>
+    public ModuleVersionUpdateDto? EditVersionInput { get; private set; }
+
+    /// <summary>
+    /// Gets the error from a failed version metadata update attempt.
+    /// </summary>
+    public ActionError? EditVersionError { get; private set; }
+
+    /// <summary>
+    /// Gets the target version string when a version deletion attempt failed.
+    /// </summary>
+    public string? DeleteVersionTarget { get; private set; }
+
+    /// <summary>
+    /// Gets the error from a failed version deletion attempt.
+    /// </summary>
+    public ActionError? DeleteVersionError { get; private set; }
+
+    /// <summary>
     /// Gets the feedback from the most recent completed module action.
     /// </summary>
     public ActionFeedback? Feedback { get; private set; }
-
-    /// <summary>
-    /// Gets the raw container log output for the module's current container.
-    /// </summary>
-    public string? ContainerLogs { get; private set; }
-
-    /// <summary>
-    /// Gets the error message when retrieving container logs fails.
-    /// </summary>
-    public string? ContainerLogsError { get; private set; }
-
-    /// <summary>
-    /// Gets the selected tail line limit for container logs.
-    /// </summary>
-    public int LogsTail { get; private set; } = DefaultContainerLogsTail;
-
-    /// <summary>
-    /// Gets the number of non-empty log lines currently loaded.
-    /// </summary>
-    public int ContainerLogLineCount { get; private set; }
 
     /// <summary>
     /// Indicates whether the edit dialog should be reopened due to an error.
@@ -162,6 +169,16 @@ public partial class DetailModel
     /// Indicates whether the delete dialog should be reopened due to an error.
     /// </summary>
     public bool ReopenDelete => DeleteError is not null;
+
+    /// <summary>
+    /// Indicates whether the edit version dialog should be reopened due to an error.
+    /// </summary>
+    public bool ReopenEditVersion => EditVersionError is not null;
+
+    /// <summary>
+    /// Indicates whether the delete version dialog should be reopened due to an error.
+    /// </summary>
+    public bool ReopenDeleteVersion => DeleteVersionError is not null;
 
     /// <summary>
     /// Indicates whether the module can currently be started.
@@ -217,6 +234,99 @@ public partial class DetailModel
         && PendingEndpoints.Count > 0;
 
     /// <summary>
+    /// Indicates whether a discrepancy report with active discrepancies is available for this module.
+    /// </summary>
+    public bool HasDiscrepancyReport => DiscrepancyReport?.HasDiscrepancy == true
+        && (ExtraDiscrepancyEndpoints.Count > 0 || MissingDiscrepancyEndpoints.Count > 0);
+
+    /// <summary>
+    /// Gets the endpoints from <see cref="DiscrepancyReport"/> that matched the expected configuration.
+    /// </summary>
+    public IReadOnlyList<DiscoveredSubEndpointDto> MatchedDiscrepancyEndpoints =>
+        DiscrepancyReport?.MatchedEndpoints ?? [];
+
+    /// <summary>
+    /// Gets the extra endpoints from <see cref="DiscrepancyReport"/> that were discovered by the scanner but not specified by the user.
+    /// </summary>
+    public IReadOnlyList<DiscoveredSubEndpointDto> ExtraDiscrepancyEndpoints =>
+        FilterPendingDiscrepancyEndpoints(DiscrepancyReport?.ExtraEndpoints);
+
+    /// <summary>
+    /// Gets the missing endpoints from <see cref="DiscrepancyReport"/> that were specified by the user but not found by the scanner.
+    /// </summary>
+    public IReadOnlyList<DiscoveredSubEndpointDto> MissingDiscrepancyEndpoints =>
+        FilterPendingDiscrepancyEndpoints(DiscrepancyReport?.MissingEndpoints);
+
+    /// <summary>
+    /// Determines the discrepancy category (<see cref="EndpointDiscrepancyKind"/>) for a sub-endpoint.
+    /// </summary>
+    /// <param name="httpMethod">The HTTP method of the endpoint.</param>
+    /// <param name="endpointPath">The relative route path of the endpoint.</param>
+    /// <param name="discoveredInVersion">Optional version string in which the endpoint was registered or discovered.</param>
+    public EndpointDiscrepancyKind GetEndpointDiscrepancyKind(
+        string httpMethod,
+        string endpointPath,
+        string? discoveredInVersion = null)
+    {
+        var method = httpMethod;
+        if (string.IsNullOrWhiteSpace(method) || string.IsNullOrWhiteSpace(endpointPath))
+            return EndpointDiscrepancyKind.None;
+
+        if (DiscrepancyReport is not null)
+        {
+            if (DiscrepancyReport.ExtraEndpoints?.Any(ep =>
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod, ep.EndpointPath, method, endpointPath)) == true)
+            {
+                return EndpointDiscrepancyKind.Extra;
+            }
+
+            if (DiscrepancyReport.MissingEndpoints?.Any(ep =>
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod, ep.EndpointPath, method, endpointPath)) == true)
+            {
+                return EndpointDiscrepancyKind.Missing;
+            }
+
+            if (DiscrepancyReport.MatchedEndpoints?.Any(ep =>
+                EndpointDiscrepancyService.EndpointsMatch(ep.HttpMethod, ep.EndpointPath, method, endpointPath)) == true)
+            {
+                return EndpointDiscrepancyKind.Matched;
+            }
+        }
+
+        if (Module is not null &&
+            !string.IsNullOrWhiteSpace(discoveredInVersion) &&
+            !string.IsNullOrWhiteSpace(Module.CurrentVersion))
+        {
+            if (!string.Equals(discoveredInVersion, Module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+                return EndpointDiscrepancyKind.Missing;
+
+            if (OrderedVersions.Count > 1 &&
+                string.Equals(discoveredInVersion, Module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                return EndpointDiscrepancyKind.Extra;
+            }
+        }
+
+        return EndpointDiscrepancyKind.None;
+    }
+
+    private IReadOnlyList<DiscoveredSubEndpointDto> FilterPendingDiscrepancyEndpoints(
+        IReadOnlyList<DiscoveredSubEndpointDto>? candidates)
+    {
+        if (candidates is null || candidates.Count == 0)
+            return [];
+
+        var pending = PendingEndpoints;
+        if (pending.Count == 0)
+            return candidates;
+
+        return candidates
+            .Where(c => pending.Any(p =>
+                EndpointDiscrepancyService.EndpointsMatch(c.HttpMethod, c.EndpointPath, p.HttpMethod, p.EndpointPath)))
+            .ToList();
+    }
+
+    /// <summary>
     /// Indicates whether the module can currently be rolled back to an earlier version.
     /// </summary>
     public bool CanRollback => Module is not null
@@ -263,8 +373,9 @@ public partial class DetailModel
         public string EndpointPath { get; set; } = string.Empty;
 
         /// <summary>
-        /// The chosen action ("activate" to keep and activate, or "remove" to delete).
+        /// The chosen action ("remove" to delete, or "activate" to keep and activate).
+        /// Defaults to "remove" so discrepancy endpoints are not activated unintentionally.
         /// </summary>
-        public string Action { get; set; } = "activate";
+        public string Action { get; set; } = "remove";
     }
 }

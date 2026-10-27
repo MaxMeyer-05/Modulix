@@ -1,4 +1,5 @@
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Services.Interfaces;
 
@@ -37,22 +38,11 @@ public interface IModuleService
     /// <summary>
     /// Retrieves all modules.
     /// </summary>
+    /// <param name="moduleQuery">The query parameters for filtering modules.</param>
     /// <param name="pagination">The pagination query parameters.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A collection of all module details, paged according to the provided pagination parameters.</returns>
-    Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default);
-
-    /// <summary>
-    /// Retrieves the container logs of a specific module by its unique identifier.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="tail">Optional - The number of lines from the end of the logs to return.</param>
-    /// <param name="ct">The cancellation token.</param>
-    /// <returns>The container logs of the specified module.</returns>
-    /// <exception cref="ArgumentException">Thrown if the tail value is less than or equal to zero.</exception>
-    /// <exception cref="KeyNotFoundException">Thrown if the module or container with the specified ID does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if the module does not have an associated container.</exception>
-    Task<string> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default);
+    Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(ModuleQueryDto? moduleQuery = null, PaginationQueryDto? pagination = null, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves the details of a specific module by its unique identifier.

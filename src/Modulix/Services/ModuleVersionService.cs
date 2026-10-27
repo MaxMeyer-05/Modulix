@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Modulix.Mappers;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Dtos.Query;
+
 using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
@@ -72,7 +74,7 @@ public class ModuleVersionService : IModuleVersionService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleVersionDto>> GetAllModuleVersionsAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleVersionDto>> GetAllModuleVersionsAsync(ModuleVersionQueryDto? moduleVersionQuery = null, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         pagination ??= new PaginationQueryDto();
         var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
@@ -80,11 +82,19 @@ public class ModuleVersionService : IModuleVersionService
             ? PaginationQueryDto.DefaultPageSize
             : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
 
-        var totalCount = await _context.ModuleVersions.CountAsync(ct);
-        var versions = await _context.ModuleVersions
-            .AsNoTracking()
-            .OrderByDescending(v => v.ReleasedAtUtc)
-            .ThenByDescending(v => v.Id)
+        var query = _context.ModuleVersions.AsNoTracking();
+        if (moduleVersionQuery is not null)
+        {
+            if (moduleVersionQuery.Version is not null)
+            {
+                query = query.Where(v => v.Version == moduleVersionQuery.Version);
+            }
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var versions = await query
+            .OrderByDescending(v => v.Version)
+            .ThenByDescending(v => v.ReleasedAtUtc) 
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -169,6 +179,9 @@ public class ModuleVersionService : IModuleVersionService
         }
 
         var previousState = (module.ContainerId, module.CurrentVersion, module.Status);
+        var previousEndpointStatuses = module.SubEndpoints
+            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
+            .ToList();
         var versionDirectory = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
         var newVersion = dto.ToVersionEntity();
         newVersion.ModuleId = module.Id;
@@ -188,6 +201,7 @@ public class ModuleVersionService : IModuleVersionService
                 newVersion.ModuleEntryAssemblyFileName = string.Empty;
                 _logger.LogInformation("Module scan for module with ID '{ModuleId}' was queued.", moduleId);
                 module.Status = ModuleStatus.QueuedForScan;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
                 await _context.SaveChangesAsync(ct);
                 _moduleEndpointExtension.SynchronizeReverseProxy(module);
 
@@ -216,6 +230,12 @@ public class ModuleVersionService : IModuleVersionService
                 module.Versions.Remove(newVersion);
                 _context.Entry(newVersion).State = EntityState.Detached;
                 _context.Entry(module).State = EntityState.Unchanged;
+
+                foreach (var previousEndpoint in previousEndpointStatuses)
+                {
+                    previousEndpoint.Endpoint.Status = previousEndpoint.Status;
+                    _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
+                }
             }
             finally
             {
@@ -299,6 +319,7 @@ public class ModuleVersionService : IModuleVersionService
 
         try
         {
+            _directoryExtension.EnsureModuleDataDirectory(module.Id);
             module.CurrentVersion = targetVersion.Version;
             module.Status = ModuleStatus.Starting;
 
@@ -313,11 +334,13 @@ public class ModuleVersionService : IModuleVersionService
             await _dockerService.RunContainerAsync(builtContainerId, ct);
             await _dockerService.WaitUntilReadyAsync(builtContainerId, ct);
             module.Status = ModuleStatus.Running;
+            ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogError(ex, "Failed to start rolled back container for module '{ModuleId}' (Version: '{Version}').", module.Id, targetVersion.Version);
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         }
 
         try
@@ -389,13 +412,6 @@ public class ModuleVersionService : IModuleVersionService
         }
 
         moduleVersion.UpdateVersionEntity(dto);
-
-        _context.ChangeTracker.DetectChanges();
-        if (_context.Entry(moduleVersion).State == EntityState.Unchanged &&
-            _context.Entry(module).State == EntityState.Unchanged)
-        {
-            return;
-        }
 
         await _context.SaveChangesAsync(ct);
         _logger.LogInformation("Updated version '{Version}' for module with ID '{ModuleId}'.", moduleVersion.Version, moduleId);

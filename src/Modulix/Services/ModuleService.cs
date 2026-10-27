@@ -4,9 +4,9 @@ using Microsoft.Extensions.Options;
 using Modulix.Mappers;
 
 using Modulix.Client.Models.Dtos;
-using Modulix.Client.Models.Enums;
+using Modulix.Client.Models.Dtos.Query;
 
-using Modulix.Models.Options;
+using Modulix.Client.Models.Enums;
 
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
@@ -45,7 +45,7 @@ public class ModuleService : IModuleService
     /// <summary>
     /// The shared module settings.
     /// </summary>
-    private readonly ModulixOptions _options;
+    private readonly ModuleSettings _options;
 
     /// <summary>
     /// The directory extension for handling module directories and archives.
@@ -76,7 +76,7 @@ public class ModuleService : IModuleService
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
-        IOptions<ModulixOptions> options,
+        IOptions<ModuleSettings> options,
         IDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         DirectoryExtension directoryExtension,
@@ -113,6 +113,7 @@ public class ModuleService : IModuleService
             }
 
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
             _reverseProxyService.RemoveModule(module.Id);
         }
 
@@ -129,10 +130,14 @@ public class ModuleService : IModuleService
         }
 
         var previousState = (module.ContainerId, module.Status);
+        var previousEndpointStatuses = module.SubEndpoints
+            .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
+            .ToList();
         string? builtContainerId = null;
 
         try
         {
+            _directoryExtension.EnsureModuleDataDirectory(module.Id);
             module.Status = ModuleStatus.Starting;
 
             if (string.IsNullOrWhiteSpace(module.ContainerId))
@@ -152,11 +157,13 @@ public class ModuleService : IModuleService
             await _dockerService.RunContainerAsync(module.ContainerId, ct);
             await _dockerService.WaitUntilReadyAsync(module.ContainerId, ct);
             module.Status = ModuleStatus.Running;
+            ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogError(ex, "Failed to start module container for module '{ModuleId}'.", module.Id);
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         }
 
         try
@@ -170,6 +177,13 @@ public class ModuleService : IModuleService
 
             (module.ContainerId, module.Status) = previousState;
             _context.Entry(module).State = EntityState.Unchanged;
+
+            foreach (var previousEndpoint in previousEndpointStatuses)
+            {
+                previousEndpoint.Endpoint.Status = previousEndpoint.Status;
+                _context.Entry(previousEndpoint.Endpoint).State = EntityState.Unchanged;
+            }
+
             throw;
         }
 
@@ -201,6 +215,7 @@ public class ModuleService : IModuleService
         }
 
         module.Status = ModuleStatus.Stopped;
+        ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
         await _context.SaveChangesAsync(ct);
 
         _moduleEndpointExtension.SynchronizeReverseProxy(module);
@@ -248,7 +263,23 @@ public class ModuleService : IModuleService
         module.Versions.Add(initialVersion);
 
         // Add initial sub-endpoints for the module
-        var manualRoutes = dto.InitialEndpoints?.ToList() ?? [];
+        var manualRoutes = dto.InitialEndpoints?
+            .Where(ep => ep.HttpMethod is not null && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+            .Select(ep =>
+            {
+                var path = ep.EndpointPath.Trim();
+                if (!path.StartsWith('/'))
+                    path = "/" + path;
+
+                return new CreateModuleSubEndpointDto
+                {
+                    HttpMethod = ep.HttpMethod,
+                    EndpointPath = path
+                };
+            })
+            .DistinctBy(ep => (ep.HttpMethod, ep.EndpointPath))
+            .ToList() ?? [];
+
         foreach (var ep in manualRoutes)
         {
             module.SubEndpoints.Add(new ModuleEndpoint
@@ -273,6 +304,7 @@ public class ModuleService : IModuleService
         catch
         {
             _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
+            _directoryExtension.DeleteModuleDataDirectory(module.Id);
             throw;
         }
 
@@ -284,6 +316,7 @@ public class ModuleService : IModuleService
             if (scanResponse.WasQueued)
             {
                 module.Status = ModuleStatus.QueuedForScan;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
                 await _context.SaveChangesAsync(ct);
             }
             else
@@ -299,6 +332,7 @@ public class ModuleService : IModuleService
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
                 _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
+                _directoryExtension.DeleteModuleDataDirectory(module.Id);
             }
 
             _context.Entry(module).State = EntityState.Detached;
@@ -359,6 +393,8 @@ public class ModuleService : IModuleService
             _directoryExtension.DeleteModuleDirectory(version.StoragePath, moduleId);
         }
 
+        _directoryExtension.DeleteModuleDataDirectory(moduleId);
+
         var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, moduleId.ToString());
         _directoryExtension.DeleteModuleDirectory(moduleBaseDirectory, moduleId);
 
@@ -372,7 +408,7 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(PaginationQueryDto? pagination = null, CancellationToken ct = default)
+    public async Task<PagedResultDto<ModuleDto>> GetAllModulesAsync(ModuleQueryDto? moduleQuery = null, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         pagination ??= new PaginationQueryDto();
         var page = pagination.Page < 1 ? PaginationQueryDto.DefaultPage : pagination.Page;
@@ -380,11 +416,17 @@ public class ModuleService : IModuleService
             ? PaginationQueryDto.DefaultPageSize
             : Math.Min(pagination.PageSize, PaginationQueryDto.MaxPageSize);
 
-        var totalCount = await _context.Modules.CountAsync(ct);
-        var modules = await _context.Modules
-            .AsNoTracking()
-            .OrderByDescending(m => m.CreatedAtUtc)
-            .ThenBy(m => m.Id)
+        IQueryable<Module> query = _context.Modules.AsNoTracking();
+        if (moduleQuery is not null)
+        {
+            if (moduleQuery.Status.HasValue)
+                query = query.Where(m => m.Status == moduleQuery.Status.Value);
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var modules = await query
+            .OrderByDescending(m => m.ModuleName)
+            .ThenBy(m => m.CreatedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -420,24 +462,6 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
-    public async Task<string> GetModuleContainerLogsAsync(Guid moduleId, int? tail = null, CancellationToken ct = default)
-    {
-        if (tail is <= 0)
-            throw new ArgumentException("Tail line count must be greater than zero.", nameof(tail));
-
-        var module = await _context.Modules
-            .AsNoTracking()
-            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
-        if (module is null)
-            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
-
-        if (string.IsNullOrWhiteSpace(module.ContainerId))
-            throw new InvalidOperationException($"Module with ID '{moduleId}' does not have an associated container.");
-
-        return await _dockerService.GetContainerLogsAsync(module.ContainerId, tail, ct);
-    }
-
-    /// <inheritdoc/>
     public async Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default)
     {
         var module = await _context.Modules
@@ -447,11 +471,7 @@ public class ModuleService : IModuleService
             throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
 
         module.UpdateModuleDto(dto);
-
-        _context.ChangeTracker.DetectChanges();
-        if (_context.Entry(module).State == EntityState.Unchanged)
-            return;
-
+        
         await _context.SaveChangesAsync(ct);
         _moduleEndpointExtension.SynchronizeReverseProxy(module);
         _logger.LogInformation("Updated module with ID '{ModuleId}' in the database.", moduleId);
@@ -473,6 +493,7 @@ public class ModuleService : IModuleService
                     module.ContainerId,
                     module.Id);
                 module.Status = ModuleStatus.Failed;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
                 _reverseProxyService.RemoveModule(module.Id);
                 crashedModules.Add(module);
             }
@@ -488,13 +509,20 @@ public class ModuleService : IModuleService
 
             if (tracked is not null)
             {
+                await _context.Entry(tracked).Collection(m => m.SubEndpoints).LoadAsync(ct);
                 tracked.Status = ModuleStatus.Failed;
+                ModuleEndpointExtension.DeactivateActiveSubEndpoints(tracked);
             }
             else
             {
-                var dbModule = await _context.Modules.FindAsync([crashed.Id], ct);
+                var dbModule = await _context.Modules
+                    .Include(m => m.SubEndpoints)
+                    .SingleOrDefaultAsync(m => m.Id == crashed.Id, ct);
                 if (dbModule is not null)
+                {
                     dbModule.Status = ModuleStatus.Failed;
+                    ModuleEndpointExtension.DeactivateActiveSubEndpoints(dbModule);
+                }
             }
         }
 

@@ -267,12 +267,6 @@
                         <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
                     </a>
                 }
-                else
-                {
-                    <button class="module-button module-button-compact" type="button" disabled aria-label="Previous page">
-                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
-                    </button>
-                }
                 @for (var p = startPage; p <= endPage; p++)
                 {
                     if (p == Model.CurrentPage)
@@ -289,12 +283,6 @@
                     <a class="module-button module-button-compact" href="@Model.GetPageUrl(Model.CurrentPage + 1)" aria-label="Next page">
                         <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
                     </a>
-                }
-                else
-                {
-                    <button class="module-button module-button-compact" type="button" disabled aria-label="Next page">
-                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
-                    </button>
                 }
             </nav>
         </footer>

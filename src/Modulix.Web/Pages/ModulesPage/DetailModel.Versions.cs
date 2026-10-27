@@ -63,6 +63,12 @@ public partial class DetailModel
                 cancellationToken: HttpContext.RequestAborted)
                 ?? throw new JsonException("The API returned an empty response.");
 
+            _endpointDiscrepancyService?.SaveReport(id, result.DiscrepancyReport);
+            if (result.DiscrepancyReport is { HasDiscrepancy: true } discrepancyReport)
+            {
+                TempData[DiscrepancyReportKey] = JsonSerializer.Serialize(discrepancyReport, WebJsonOptions);
+            }
+
             var updatedModule = result.Module;
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
 
@@ -181,6 +187,7 @@ public partial class DetailModel
 
             var updatedModule = await response.Content.ReadFromJsonAsync<ModuleDetailDto>(
                 cancellationToken: HttpContext.RequestAborted);
+            _endpointDiscrepancyService?.ClearReport(id);
             var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
             var resolvedVersion = updatedModule?.CurrentVersion ?? trimmedVersion;
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
@@ -308,6 +315,15 @@ public partial class DetailModel
             var targetName = updatedModule?.ModuleName ?? (!string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString());
             var detailUrl = Url.Page("/ModulesPage/Detail", new { id });
 
+            if (updatedModule?.Status == ModuleStatus.PendingConfirmation)
+            {
+                _endpointDiscrepancyService?.RemoveEndpoints(id, activateEndpoints.Concat(removeEndpoints));
+            }
+            else
+            {
+                _endpointDiscrepancyService?.ClearReport(id);
+            }
+
             if (updatedModule?.Status == ModuleStatus.Failed)
             {
                 _userActivityService.Record(User, "Failed starting confirmed", targetName, "triangle-alert", UserActivityTone.Danger, detailUrl);
@@ -352,6 +368,181 @@ public partial class DetailModel
         {
             _logger.LogError(exception, "Invalid response while confirming endpoints for module {ModuleId}.", id);
             ConfirmEndpointsError = Failure(502, "The API returned an invalid response. Check the module status before retrying.");
+        }
+
+        await LoadModuleAsync(id);
+        return Page();
+    }
+
+    /// <summary>
+    /// Updates the version name and changelog of an existing module version.
+    /// </summary>
+    /// <param name="id">The ID of the module.</param>
+    /// <param name="originalVersion">The current version string of the version being edited.</param>
+    /// <param name="input">The updated version name and changelog.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostEditVersionAsync(
+        Guid id,
+        [FromForm] string? originalVersion,
+        [FromForm] ModuleVersionUpdateDto input,
+        [FromForm] string? moduleName)
+    {
+        if (string.IsNullOrWhiteSpace(originalVersion))
+        {
+            ModelState.Clear();
+            EditVersionInput = input;
+            EditVersionError = Failure(400, "Select a module version to edit.");
+            await LoadModuleAsync(id);
+            return Page();
+        }
+
+        var trimmedOriginalVersion = originalVersion.Trim();
+        EditVersionTarget = trimmedOriginalVersion;
+
+        if (string.IsNullOrWhiteSpace(input.Version))
+            ModelState.AddModelError(nameof(input.Version), "Version is required.");
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(value => value.Errors)
+                .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? "A form field has an invalid value." : error.ErrorMessage);
+            ModelState.Clear();
+            EditVersionInput = input;
+            EditVersionError = Failure(400, string.Join(" ", errors));
+            await LoadModuleAsync(id);
+            return Page();
+        }
+
+        var trimmedNewVersion = input.Version!.Trim();
+        var request = new ModuleVersionUpdateDto
+        {
+            Version = trimmedNewVersion,
+            Changelog = input.Changelog?.Trim() ?? string.Empty
+        };
+
+        try
+        {
+            var sanitizedOriginal = trimmedOriginalVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
+            var sanitizedNew = trimmedNewVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
+            _logger.LogInformation("Updating version {OriginalVersion} to {NewVersion} for module {ModuleId}.", sanitizedOriginal, sanitizedNew, id);
+
+            using var response = await _modulixApiClient.ModuleVersionManagement.UpdateModuleVersionAsync(
+                id,
+                trimmedOriginalVersion,
+                request,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                EditVersionInput = input;
+                EditVersionError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
+            var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
+            _userActivityService.Record(
+                User,
+                "Updated version",
+                $"{targetName} ({trimmedNewVersion})",
+                "pencil",
+                UserActivityTone.Update,
+                Url.Page("/ModulesPage/Detail", new { id }));
+
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                (int)response.StatusCode,
+                "Version updated",
+                $"Saved updated metadata for version {trimmedNewVersion}.",
+                IsSuccess: true));
+
+            return RedirectToPage(new { id });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error updating version for module {ModuleId}.", id);
+            EditVersionInput = input;
+            EditVersionError = Failure(503, "The API could not be reached. Please try again later.");
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Updating version for module {ModuleId} timed out.", id);
+            EditVersionInput = input;
+            EditVersionError = Failure(504, "The API did not respond in time. Please try again.");
+        }
+
+        await LoadModuleAsync(id);
+        return Page();
+    }
+
+    /// <summary>
+    /// Deletes an inactive module version and removes its stored files.
+    /// </summary>
+    /// <param name="id">The ID of the module.</param>
+    /// <param name="version">The version string of the inactive version to delete.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostDeleteVersionAsync(
+        Guid id,
+        [FromForm] string? version,
+        [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            DeleteVersionError = Failure(400, "Select an inactive version to delete.");
+            await LoadModuleAsync(id);
+            return Page();
+        }
+
+        var trimmedVersion = version.Trim();
+        DeleteVersionTarget = trimmedVersion;
+
+        try
+        {
+            var sanitizedVersion = trimmedVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
+            _logger.LogInformation("Deleting version {Version} for module {ModuleId}.", sanitizedVersion, id);
+
+            using var response = await _modulixApiClient.ModuleVersionManagement.DeleteModuleVersionAsync(
+                id,
+                trimmedVersion,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                DeleteVersionError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
+            var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
+            _userActivityService.Record(
+                User,
+                "Deleted version",
+                $"{targetName} ({trimmedVersion})",
+                "trash-2",
+                UserActivityTone.Danger,
+                Url.Page("/ModulesPage/Detail", new { id }));
+
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                (int)response.StatusCode,
+                "Version deleted",
+                $"Deleted version {trimmedVersion} and removed its stored files.",
+                IsSuccess: true));
+
+            return RedirectToPage(new { id });
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error deleting version for module {ModuleId}.", id);
+            DeleteVersionError = Failure(503, "The API could not be reached. Please try again later.");
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Deleting version for module {ModuleId} timed out.", id);
+            DeleteVersionError = Failure(504, "The API did not respond in time. Please try again.");
         }
 
         await LoadModuleAsync(id);

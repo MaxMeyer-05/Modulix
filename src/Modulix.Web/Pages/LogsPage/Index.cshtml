@@ -51,10 +51,6 @@
                     {
                         <a class="log-icon-button" href="@Url.Page("/LogsPage/Index", clearDateValues)" title="Clear date filter" aria-label="Clear date filter"><i data-lucide="x" aria-hidden="true"></i></a>
                     }
-                    else
-                    {
-                        <button class="log-icon-button" type="button" title="Clear date filter" aria-label="Clear date filter" disabled><i data-lucide="x" aria-hidden="true"></i></button>
-                    }
                 </div>
                 <button class="log-dialog-button log-apply-button" type="submit" form="log-filters">Apply filters</button>
             </div>
@@ -114,11 +110,10 @@
                     {
                         <a class="log-icon-button" href="@Url.Page("/LogsPage/Index", "Download", new { name = selectedName })" download="@selectedName" title="Download selected file" aria-label="Download selected file"><i data-lucide="download" aria-hidden="true"></i></a>
                     }
-                    else
+                    @if (selected is not null)
                     {
-                        <button class="log-icon-button" type="button" title="Download selected file" aria-label="Download selected file" disabled><i data-lucide="download" aria-hidden="true"></i></button>
+                        <button class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" popovertarget="log-delete-dialog"><i data-lucide="trash-2" aria-hidden="true"></i></button>
                     }
-                    <button class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" popovertarget="log-delete-dialog" disabled="@(selected is null)"><i data-lucide="trash-2" aria-hidden="true"></i></button>
                 </div>
             </header>
 
@@ -186,10 +181,6 @@
                 @if (Model.Entries.Count > 0)
                 {
                     <a class="log-text-button" href="#log-end"><i data-lucide="arrow-down-to-line" aria-hidden="true"></i>Go to bottom</a>
-                }
-                else
-                {
-                    <button class="log-text-button" type="button" disabled><i data-lucide="arrow-down-to-line" aria-hidden="true"></i>Go to bottom</button>
                 }
             </footer>
         </section>

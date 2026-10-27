@@ -22,7 +22,6 @@ using Modulix.Mappers;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
 
-using Modulix.Models.Options;
 using Modulix.Database.DbContexts;
 
 using Modulix.ReverseProxy;
@@ -35,8 +34,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration));
 
-builder.Services.AddOptions<ModulixOptions>()
-    .Bind(builder.Configuration.GetSection(ModulixOptions.SectionName))
+builder.Services.AddOptions<ModuleSettings>()
+    .Bind(builder.Configuration.GetSection(ModuleSettings.SectionName))
     .ValidateDataAnnotations()
     .PostConfigure<IHostEnvironment>((options, env) =>
     {
@@ -190,6 +189,7 @@ using (var scope = app.Services.CreateScope())
         else
         {
             module.Status = ModuleStatus.Failed;
+            ModuleEndpointExtension.DeactivateActiveSubEndpoints(module);
             statusChanged = true;
         }
     }

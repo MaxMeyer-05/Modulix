@@ -189,12 +189,6 @@
                         <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
                     </a>
                 }
-                else
-                {
-                    <button class="module-button module-button-compact" type="button" disabled aria-label="Previous page">
-                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
-                    </button>
-                }
                 @for (var p = startPage; p <= endPage; p++)
                 {
                     if (p == Model.CurrentPage)
@@ -211,12 +205,6 @@
                     <a class="module-button module-button-compact" href="@Model.GetPageUrl(Model.CurrentPage + 1)" aria-label="Next page">
                         <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
                     </a>
-                }
-                else
-                {
-                    <button class="module-button module-button-compact" type="button" disabled aria-label="Next page">
-                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
-                    </button>
                 }
             </nav>
         </footer>
@@ -277,7 +265,7 @@
                                             <option value="@httpMethod" selected="@(currentMethod == httpMethod)">@httpMethod</option>
                                         }
                                     </select>
-                                    <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" pattern="/.*" placeholder="/api/v1/items" aria-label="Endpoint path" />
+                                    <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" placeholder="/api/v1/items" aria-label="Endpoint path" />
                                     <button class="module-icon-button module-subendpoint-remove" type="button" data-remove-subendpoint aria-label="Remove endpoint" title="Remove endpoint">
                                         <i data-lucide="trash-2" aria-hidden="true"></i>
                                     </button>
@@ -322,6 +310,62 @@
                 <div class="module-result-body">
                     <span class="module-result-code module-code" id="module-result-code">HTTP @success.StatusCode</span>
                     <p id="module-result-description">@success.Description</p>
+                    @if (success.DiscrepancyReport is { HasDiscrepancy: true } discrepancy)
+                    {
+                        var extraRoutes = discrepancy.ExtraEndpoints ?? [];
+                        var missingRoutes = discrepancy.MissingEndpoints ?? [];
+                        var matchedRoutes = discrepancy.MatchedEndpoints ?? [];
+                        <div class="module-discrepancy-summary" id="creation-discrepancy-report">
+                            @if (extraRoutes.Count > 0)
+                            {
+                                <div class="module-discrepancy-group" data-discrepancy-group="extra">
+                                    <div class="module-discrepancy-group-header">
+                                        <span class="module-badge badge-pending"><span aria-hidden="true"></span>Extra endpoints (@extraRoutes.Count)</span>
+                                        <span class="module-discrepancy-hint">Discovered by scanner, not specified</span>
+                                    </div>
+                                    <ul class="module-discrepancy-routes">
+                                        @foreach (var ep in extraRoutes)
+                                        {
+                                            var m = ep.HttpMethod.ToUpperInvariant();
+                                            <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                            @if (missingRoutes.Count > 0)
+                            {
+                                <div class="module-discrepancy-group" data-discrepancy-group="missing">
+                                    <div class="module-discrepancy-group-header">
+                                        <span class="module-badge badge-failed"><span aria-hidden="true"></span>Missing endpoints (@missingRoutes.Count)</span>
+                                        <span class="module-discrepancy-hint">Specified by user, not found by scanner</span>
+                                    </div>
+                                    <ul class="module-discrepancy-routes">
+                                        @foreach (var ep in missingRoutes)
+                                        {
+                                            var m = ep.HttpMethod.ToUpperInvariant();
+                                            <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                            @if (matchedRoutes.Count > 0)
+                            {
+                                <div class="module-discrepancy-group" data-discrepancy-group="matched">
+                                    <div class="module-discrepancy-group-header">
+                                        <span class="module-badge badge-running"><span aria-hidden="true"></span>Matched endpoints (@matchedRoutes.Count)</span>
+                                        <span class="module-discrepancy-hint">Specified and verified by scanner</span>
+                                    </div>
+                                    <ul class="module-discrepancy-routes">
+                                        @foreach (var ep in matchedRoutes)
+                                        {
+                                            var m = ep.HttpMethod.ToUpperInvariant();
+                                            <li><span class="endpoint-method">@m</span><span class="module-code">@ep.EndpointPath</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
                 <div class="module-dialog-footer">
                     <button class="module-button" type="submit" autofocus>Close</button>

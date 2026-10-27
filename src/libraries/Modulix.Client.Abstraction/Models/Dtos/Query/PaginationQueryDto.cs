@@ -1,4 +1,4 @@
-namespace Modulix.Client.Models.Dtos;
+namespace Modulix.Client.Models.Dtos.Query;
 
 /// <summary>
 /// Represents a query for pagination, including page number and page size.

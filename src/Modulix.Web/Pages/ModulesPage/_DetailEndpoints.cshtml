@@ -1,5 +1,6 @@
 @model DetailModel
 @using System.Globalization
+@using Modulix.Web.Services
 @{
     var module = Model.Module!;
     var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
@@ -36,9 +37,31 @@
                     _ => "method-other"
                 };
                 var isPendingEndpoint = endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.PendingConfirmation;
+                var discrepancyKind = Model.GetEndpointDiscrepancyKind(
+                    endpoint.HttpMethod,
+                    endpoint.EndpointPath,
+                    endpoint.DiscoveredInVersion);
                 <li>
                     <div class="endpoint-route"><span class="endpoint-method @methodClass">@methodUpper</span><span class="module-code">/@module.BaseUrlPath.Trim('/')@endpoint.EndpointPath</span></div>
                     <div class="endpoint-status-actions">
+                        @if (isPendingEndpoint && discrepancyKind == EndpointDiscrepancyKind.Extra)
+                        {
+                            <span class="module-badge badge-pending" data-discrepancy-kind="extra" title="Discovered by the scanner, but not specified by the user">
+                                <span aria-hidden="true"></span>Extra · Discovered by scanner
+                            </span>
+                        }
+                        else if (isPendingEndpoint && discrepancyKind == EndpointDiscrepancyKind.Missing)
+                        {
+                            <span class="module-badge badge-failed" data-discrepancy-kind="missing" title="Specified by the user, but not found by the scanner">
+                                <span aria-hidden="true"></span>Missing · Not found by scanner
+                            </span>
+                        }
+                        else if (!isPendingEndpoint && discrepancyKind == EndpointDiscrepancyKind.Matched && Model.HasDiscrepancyReport)
+                        {
+                            <span class="module-badge badge-running" data-discrepancy-kind="matched" title="Specified by the user and verified by the scanner">
+                                <span aria-hidden="true"></span>Matched
+                            </span>
+                        }
                         <span class="endpoint-state @(isPendingEndpoint ? "endpoint-state-pending" : "")">@(isPendingEndpoint ? "Pending confirmation" : endpoint.Status.ToString())</span>
                         @if (isPendingEndpoint && Model.CanConfirmEndpoints)
                         {
@@ -75,10 +98,6 @@
         <div class="module-pagination-bar module-pagination-bar-inline" aria-label="Module endpoints pagination">
             <form class="module-pagination-size" method="get" action="@detailUrl">
                 <input type="hidden" name="page" value="1" />
-                @if (Model.LogsTail != DetailModel.DefaultContainerLogsTail)
-                {
-                    <input type="hidden" name="logsTail" value="@Model.LogsTail" />
-                }
                 <label class="module-pagination-size-label" for="detail-endpoints-page-size">
                     <span>Rows per page</span>
                     <select id="detail-endpoints-page-size" name="pageSize" data-page-size-select>
@@ -97,12 +116,6 @@
                         <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
                     </a>
                 }
-                else
-                {
-                    <button class="module-button module-button-compact" type="button" disabled aria-label="Previous page">
-                        <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
-                    </button>
-                }
                 @for (var p = startPage; p <= endPage; p++)
                 {
                     if (p == Model.CurrentPage)
@@ -119,12 +132,6 @@
                     <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, Model.CurrentPage + 1)" aria-label="Next page">
                         <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
                     </a>
-                }
-                else
-                {
-                    <button class="module-button module-button-compact" type="button" disabled aria-label="Next page">
-                        <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
-                    </button>
                 }
             </nav>
         </div>

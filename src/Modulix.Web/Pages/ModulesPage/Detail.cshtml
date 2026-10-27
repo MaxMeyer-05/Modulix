@@ -48,13 +48,116 @@
                 <div class="module-failed-banner-content">
                     <div>
                         <strong>Module container failed</strong>
-                        <p>The container for <strong>@module.ModuleName</strong> failed to start or exited unexpectedly. Inspect the container logs below to diagnose the failure, then restart the module or upload a patched archive.</p>
+                        <p>The container for <strong>@module.ModuleName</strong> failed to start or exited unexpectedly. Restart the module or upload a patched archive.</p>
                     </div>
-                    <a class="module-button module-button-compact" href="#module-container-logs">
-                        <i data-lucide="terminal" aria-hidden="true"></i><span>View container logs</span>
-                    </a>
                 </div>
             </div>
+        }
+        @if (Model.HasPendingEndpoints)
+        {
+            <section class="module-discrepancy-banner" id="module-discrepancy-report" role="status" aria-labelledby="discrepancy-report-heading">
+                <div class="module-discrepancy-banner-header">
+                    <div class="module-discrepancy-banner-title">
+                        <i data-lucide="clock-3" aria-hidden="true"></i>
+                        <div>
+                            <strong id="discrepancy-report-heading">Endpoint discrepancy report</strong>
+                            <p>The scanner detected differences between the expected and discovered sub-endpoints for <strong>@module.ModuleName</strong>. Review each pending endpoint before the container is built and started.</p>
+                        </div>
+                    </div>
+                    @if (Model.CanConfirmEndpoints)
+                    {
+                        <button class="module-button module-button-compact module-button-primary" type="button" popovertarget="confirm-endpoints-dialog">
+                            <i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints (@Model.PendingEndpoints.Count)</span>
+                        </button>
+                    }
+                </div>
+                @if (Model.HasDiscrepancyReport)
+                {
+                    <div class="module-discrepancy-summary">
+                        @if (Model.ExtraDiscrepancyEndpoints.Count > 0)
+                        {
+                            <div class="module-discrepancy-group" data-discrepancy-group="extra">
+                                <div class="module-discrepancy-group-header">
+                                    <span class="module-badge badge-pending"><span aria-hidden="true"></span>Extra endpoints (@Model.ExtraDiscrepancyEndpoints.Count)</span>
+                                    <span class="module-discrepancy-hint">Discovered by scanner, not specified by user (Pending confirmation)</span>
+                                </div>
+                                <ul class="module-discrepancy-routes">
+                                    @foreach (var ep in Model.ExtraDiscrepancyEndpoints)
+                                    {
+                                        var methodUpper = ep.HttpMethod.ToUpperInvariant();
+                                        var methodClass = methodUpper switch
+                                        {
+                                            "GET" => "method-get",
+                                            "POST" => "method-post",
+                                            "PUT" or "PATCH" => "method-put",
+                                            "DELETE" => "method-delete",
+                                            _ => "method-other"
+                                        };
+                                        <li>
+                                            <span class="endpoint-method @methodClass">@methodUpper</span>
+                                            <span class="module-code">/@module.BaseUrlPath.Trim('/')@ep.EndpointPath</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        @if (Model.MissingDiscrepancyEndpoints.Count > 0)
+                        {
+                            <div class="module-discrepancy-group" data-discrepancy-group="missing">
+                                <div class="module-discrepancy-group-header">
+                                    <span class="module-badge badge-failed"><span aria-hidden="true"></span>Missing endpoints (@Model.MissingDiscrepancyEndpoints.Count)</span>
+                                    <span class="module-discrepancy-hint">Specified by user, not found by scanner (Pending confirmation)</span>
+                                </div>
+                                <ul class="module-discrepancy-routes">
+                                    @foreach (var ep in Model.MissingDiscrepancyEndpoints)
+                                    {
+                                        var methodUpper = ep.HttpMethod.ToUpperInvariant();
+                                        var methodClass = methodUpper switch
+                                        {
+                                            "GET" => "method-get",
+                                            "POST" => "method-post",
+                                            "PUT" or "PATCH" => "method-put",
+                                            "DELETE" => "method-delete",
+                                            _ => "method-other"
+                                        };
+                                        <li>
+                                            <span class="endpoint-method @methodClass">@methodUpper</span>
+                                            <span class="module-code">/@module.BaseUrlPath.Trim('/')@ep.EndpointPath</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        @if (Model.MatchedDiscrepancyEndpoints.Count > 0)
+                        {
+                            <div class="module-discrepancy-group" data-discrepancy-group="matched">
+                                <div class="module-discrepancy-group-header">
+                                    <span class="module-badge badge-running"><span aria-hidden="true"></span>Matched endpoints (@Model.MatchedDiscrepancyEndpoints.Count)</span>
+                                    <span class="module-discrepancy-hint">Specified by user and verified by scanner (Active)</span>
+                                </div>
+                                <ul class="module-discrepancy-routes">
+                                    @foreach (var ep in Model.MatchedDiscrepancyEndpoints)
+                                    {
+                                        var methodUpper = ep.HttpMethod.ToUpperInvariant();
+                                        var methodClass = methodUpper switch
+                                        {
+                                            "GET" => "method-get",
+                                            "POST" => "method-post",
+                                            "PUT" or "PATCH" => "method-put",
+                                            "DELETE" => "method-delete",
+                                            _ => "method-other"
+                                        };
+                                        <li>
+                                            <span class="endpoint-method @methodClass">@methodUpper</span>
+                                            <span class="module-code">/@module.BaseUrlPath.Trim('/')@ep.EndpointPath</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
         }
         <header class="module-detail-header">
             <div class="module-detail-title">
@@ -76,7 +179,7 @@
                     </dl>
                 </section>
                 <partial name="_DetailEndpoints" model="Model" />
-                <partial name="_DetailContainerLogs" model="Model" />
+                <partial name="_DetailVersions" model="Model" />
             </div>
             <aside class="module-detail-aside">
                 <section class="module-info-section" aria-labelledby="module-runtime-heading">
@@ -86,18 +189,30 @@
                 <section class="module-info-section" aria-labelledby="module-actions-heading">
                     <h2 id="module-actions-heading">Module actions</h2>
                     <div class="module-detail-actions">
-                        <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
-                            <input type="hidden" name="moduleName" value="@module.ModuleName" />
-                            <button class="module-button" type="submit" id="start-module-button" disabled="@(!Model.CanStart)" title="@(Model.CanStart ? "Start the module container" : $"Cannot start module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
-                        </form>
-                        <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
-                            <input type="hidden" name="moduleName" value="@module.ModuleName" />
-                            <button class="module-button" type="submit" id="stop-module-button" disabled="@(!Model.CanStop)" title="@(Model.CanStop ? "Stop the module container" : $"Cannot stop module while status is {ModuleStatusDisplay.StatusLabel(module.Status)}")"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
-                        </form>
-                        <button class="module-button @(Model.CanConfirmEndpoints ? "module-button-primary" : "")" type="button" id="confirm-endpoints-button" popovertarget="confirm-endpoints-dialog" disabled="@(!Model.CanConfirmEndpoints)" title="@(Model.CanConfirmEndpoints ? $"Review and confirm {Model.PendingEndpoints.Count} pending endpoint(s)" : "No pending endpoints require confirmation")"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+                        @if (Model.CanStart)
+                        {
+                            <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
+                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                <button class="module-button" type="submit" id="start-module-button" title="Start the module container"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
+                            </form>
+                        }
+                        @if (Model.CanStop)
+                        {
+                            <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
+                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                <button class="module-button" type="submit" id="stop-module-button" title="Stop the module container"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
+                            </form>
+                        }
+                        @if (Model.CanConfirmEndpoints)
+                        {
+                            <button class="module-button module-button-primary" type="button" id="confirm-endpoints-button" popovertarget="confirm-endpoints-dialog" title="Review and confirm @Model.PendingEndpoints.Count pending endpoint(s)"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+                        }
                         <button class="module-button" type="button" id="edit-module-button" popovertarget="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
                         <button class="module-button" type="button" id="update-files-button" popovertarget="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
-                        <button class="module-button" type="button" id="rollback-module-button" popovertarget="rollback-module-dialog" disabled="@(!Model.CanRollback)" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                        @if (Model.CanRollback)
+                        {
+                            <button class="module-button" type="button" id="rollback-module-button" popovertarget="rollback-module-dialog" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                        }
                         <button class="module-button module-button-danger" type="button" id="delete-module-button" popovertarget="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
                     </div>
                 </section>
