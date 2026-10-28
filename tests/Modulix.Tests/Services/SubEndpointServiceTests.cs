@@ -125,16 +125,16 @@ public partial class SubEndpointServiceTests : ServiceTestBase
 
         var updatedEp1 = await _context.ModuleEndpoints.FindAsync(ep1.Id);
         Assert.Equal(ModuleEndpointsStatus.Inactive, updatedEp1!.Status);
-        Assert.True(_reverseProxyService.UpsertedModules.TryGetValue(module.Id, out var proxyAfterDeactivate));
-        Assert.Single(proxyAfterDeactivate!.Endpoints);
-        Assert.Equal("/two", proxyAfterDeactivate.Endpoints[0].EndpointPath);
+        var routesAfterDeactivate = _reverseProxyService.GetConfig().Routes;
+        Assert.Single(routesAfterDeactivate);
+        Assert.EndsWith("/two", routesAfterDeactivate[0].Match.Path);
 
         await _sut.UpdateSubEndpointStatusAsync(module.Id, ep1.Id, new UpdateSubEndpointStatusDto { Status = ModuleEndpointsStatus.Active });
 
         updatedEp1 = await _context.ModuleEndpoints.FindAsync(ep1.Id);
         Assert.Equal(ModuleEndpointsStatus.Active, updatedEp1!.Status);
-        Assert.True(_reverseProxyService.UpsertedModules.TryGetValue(module.Id, out var proxyAfterActivate));
-        Assert.Equal(2, proxyAfterActivate!.Endpoints.Count);
+        var routesAfterActivate = _reverseProxyService.GetConfig().Routes;
+        Assert.Equal(2, routesAfterActivate.Count);
     }
 
     [Theory]
@@ -196,9 +196,9 @@ public partial class SubEndpointServiceTests : ServiceTestBase
 
         Assert.Null(await _context.ModuleEndpoints.FindAsync(epDelete.Id));
         Assert.NotNull(await _context.ModuleEndpoints.FindAsync(epKeep.Id));
-        Assert.True(_reverseProxyService.UpsertedModules.TryGetValue(module.Id, out var proxyDefinition));
-        Assert.Single(proxyDefinition!.Endpoints);
-        Assert.Equal("/keep", proxyDefinition.Endpoints[0].EndpointPath);
+        var routes = _reverseProxyService.GetConfig().Routes;
+        Assert.Single(routes);
+        Assert.EndsWith("/keep", routes[0].Match.Path);
     }
 
     #endregion
