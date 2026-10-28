@@ -208,7 +208,7 @@ public class ModuleVersionService : IModuleVersionService
                 return new ModuleCreationResultDto
                 {
                     Module = module.ToModuleDetailDto(),
-                    Message = "Alle Scanner-Container sind besetzt. Das Update wurde in die Warteschlange aufgenommen."
+                    Message = "All scanner containers are busy. The update has been queued."
                 };
             }
 
