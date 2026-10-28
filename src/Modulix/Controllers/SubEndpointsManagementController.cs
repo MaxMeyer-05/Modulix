@@ -104,6 +104,7 @@ public class SubEndpointsManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, [FromBody] UpdateSubEndpointStatusDto dto, CancellationToken ct = default)
     {
+        await _subEndpointService.UpdateSubEndpointStatusAsync(moduleId, subEndpointId, dto, ct);
         return NoContent();
     }
 
@@ -120,6 +121,7 @@ public class SubEndpointsManagementController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteSubEndpointAsync(Guid moduleId, Guid subEndpointId, CancellationToken ct = default)
     {
+        await _subEndpointService.DeleteSubEndpointAsync(moduleId, subEndpointId, ct);
         return NoContent();
     }
 }

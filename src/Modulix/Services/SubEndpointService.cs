@@ -168,6 +168,20 @@ public class SubEndpointService : ISubEndpointService
     }
 
     /// <inheritdoc/>
+    public async Task DeleteSubEndpointAsync(Guid moduleId, Guid subEndpointId, CancellationToken ct = default)
+    {
+        var subEndpoint = await _context.ModuleEndpoints
+            .Include(se => se.Module)
+            .FirstOrDefaultAsync(se => se.Id == subEndpointId && se.Module.Id == moduleId, ct);
+
+        if (subEndpoint is null)
+            throw new KeyNotFoundException("Sub-endpoint not found.");
+
+        _context.ModuleEndpoints.Remove(subEndpoint);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    /// <inheritdoc/>
     public async Task<PagedResultDto<ModuleSubEndpointsDetailDto>> GetAllSubEndpointsDetailAsync(SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default)
     {
         pagination ??= new PaginationQueryDto();
@@ -254,5 +268,19 @@ public class SubEndpointService : ISubEndpointService
             PageSize = pageSize,
             TotalCount = totalCount
         };
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, UpdateSubEndpointStatusDto dto, CancellationToken ct = default)
+    {
+        var subEndpoint = await _context.ModuleEndpoints
+            .Include(se => se.Module)
+            .FirstOrDefaultAsync(se => se.Id == subEndpointId && se.Module.Id == moduleId, ct);
+
+        if (subEndpoint is null)
+            throw new KeyNotFoundException("Sub-endpoint not found.");
+
+        subEndpoint.Status = dto.Status;
+        await _context.SaveChangesAsync(ct);
     }
 }
