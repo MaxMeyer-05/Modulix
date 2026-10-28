@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Dtos.Query;
+using Modulix.Client.Models.Enums;
 using Modulix.Database.Entities;
 using Modulix.Services;
 using Modulix.Tests.TestData;
@@ -85,6 +86,119 @@ public partial class SubEndpointServiceTests : ServiceTestBase
         Assert.Single(page2.Items);
         Assert.True(page2.HasPreviousPage);
         Assert.NotEqual(page1.Items[0].EndpointPath, page2.Items[0].EndpointPath);
+    }
+
+    #endregion
+
+    #region UpdateSubEndpointStatus & DeleteSubEndpoint Tests
+
+    [Fact]
+    [Trait("Feature", "UpdateSubEndpointStatus")]
+    public async Task UpdateSubEndpointStatusAsync_RunningModule_TogglesStatusAndSynchronizesProxy()
+    {
+        var module = CreateTestModuleEntity("ToggleModule", "api/v1/toggle", 8010);
+        module.Status = ModuleStatus.Running;
+        var ep1 = new ModuleEndpoint
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "GET",
+            EndpointPath = "/one",
+            Status = ModuleEndpointsStatus.Active
+        };
+        var ep2 = new ModuleEndpoint
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "POST",
+            EndpointPath = "/two",
+            Status = ModuleEndpointsStatus.Active
+        };
+        module.SubEndpoints.Add(ep1);
+        module.SubEndpoints.Add(ep2);
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await _sut.UpdateSubEndpointStatusAsync(module.Id, ep1.Id, new UpdateSubEndpointStatusDto { Status = ModuleEndpointsStatus.Inactive });
+
+        var updatedEp1 = await _context.ModuleEndpoints.FindAsync(ep1.Id);
+        Assert.Equal(ModuleEndpointsStatus.Inactive, updatedEp1!.Status);
+        var routesAfterDeactivate = _reverseProxyService.GetConfig().Routes;
+        Assert.Single(routesAfterDeactivate);
+        Assert.EndsWith("/two", routesAfterDeactivate[0].Match.Path);
+
+        await _sut.UpdateSubEndpointStatusAsync(module.Id, ep1.Id, new UpdateSubEndpointStatusDto { Status = ModuleEndpointsStatus.Active });
+
+        updatedEp1 = await _context.ModuleEndpoints.FindAsync(ep1.Id);
+        Assert.Equal(ModuleEndpointsStatus.Active, updatedEp1!.Status);
+        var routesAfterActivate = _reverseProxyService.GetConfig().Routes;
+        Assert.Equal(2, routesAfterActivate.Count);
+    }
+
+    [Theory]
+    [InlineData(ModuleStatus.Stopped)]
+    [InlineData(ModuleStatus.Failed)]
+    [InlineData(ModuleStatus.Created)]
+    [Trait("Feature", "UpdateSubEndpointStatus")]
+    public async Task UpdateSubEndpointStatusAsync_ActivateWhenModuleNotRunning_ThrowsInvalidOperationException(ModuleStatus status)
+    {
+        var module = CreateTestModuleEntity("StoppedModule", "api/v1/stopped", 8011);
+        module.Status = status;
+        var ep = new ModuleEndpoint
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "GET",
+            EndpointPath = "/health",
+            Status = ModuleEndpointsStatus.Inactive
+        };
+        module.SubEndpoints.Add(ep);
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.UpdateSubEndpointStatusAsync(module.Id, ep.Id, new UpdateSubEndpointStatusDto { Status = ModuleEndpointsStatus.Active }));
+    }
+
+    [Fact]
+    [Trait("Feature", "DeleteSubEndpoint")]
+    public async Task DeleteSubEndpointAsync_ExistingEndpoint_RemovesEndpointAndPreservesRemainingProxyRoutes()
+    {
+        var module = CreateTestModuleEntity("DeleteEpModule", "api/v1/delete-ep", 8012);
+        module.Status = ModuleStatus.Running;
+        var epKeep = new ModuleEndpoint
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "GET",
+            EndpointPath = "/keep",
+            Status = ModuleEndpointsStatus.Active
+        };
+        var epDelete = new ModuleEndpoint
+        {
+            Id = Guid.NewGuid(),
+            ModuleId = module.Id,
+            ModuleVersion = module.Versions.Single(),
+            HttpMethod = "DELETE",
+            EndpointPath = "/remove",
+            Status = ModuleEndpointsStatus.Active
+        };
+        module.SubEndpoints.Add(epKeep);
+        module.SubEndpoints.Add(epDelete);
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        await _sut.DeleteSubEndpointAsync(module.Id, epDelete.Id);
+
+        Assert.Null(await _context.ModuleEndpoints.FindAsync(epDelete.Id));
+        Assert.NotNull(await _context.ModuleEndpoints.FindAsync(epKeep.Id));
+        var routes = _reverseProxyService.GetConfig().Routes;
+        Assert.Single(routes);
+        Assert.EndsWith("/keep", routes[0].Match.Path);
     }
 
     #endregion

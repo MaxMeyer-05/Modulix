@@ -77,6 +77,42 @@
                                 </button>
                             </form>
                         }
+                        else if (!isPendingEndpoint)
+                        {
+                            var endpointRouteLabel = $"{methodUpper} /{module.BaseUrlPath.Trim('/')}{endpoint.EndpointPath}";
+                            @if (endpoint.Status == Modulix.Client.Models.Enums.ModuleEndpointsStatus.Active)
+                            {
+                                <form class="inline-action-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="UpdateEndpointStatus" asp-route-id="@module.Id">
+                                    <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                    <input type="hidden" name="endpointId" value="@endpoint.Id" />
+                                    <input type="hidden" name="endpointRoute" value="@endpointRouteLabel" />
+                                    <input type="hidden" name="status" value="@Modulix.Client.Models.Enums.ModuleEndpointsStatus.Inactive" />
+                                    <button class="module-button module-button-compact" type="submit" title="Deactivate @endpointRouteLabel">
+                                        <i data-lucide="pause" aria-hidden="true"></i><span>Deactivate</span>
+                                    </button>
+                                </form>
+                            }
+                            else if (Model.CanActivateEndpoint(endpoint))
+                            {
+                                <form class="inline-action-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="UpdateEndpointStatus" asp-route-id="@module.Id">
+                                    <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                    <input type="hidden" name="endpointId" value="@endpoint.Id" />
+                                    <input type="hidden" name="endpointRoute" value="@endpointRouteLabel" />
+                                    <input type="hidden" name="status" value="@Modulix.Client.Models.Enums.ModuleEndpointsStatus.Active" />
+                                    <button class="module-button module-button-compact module-button-primary" type="submit" title="Activate @endpointRouteLabel">
+                                        <i data-lucide="play" aria-hidden="true"></i><span>Activate</span>
+                                    </button>
+                                </form>
+                            }
+                            <form class="inline-action-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="DeleteEndpoint" asp-route-id="@module.Id">
+                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                                <input type="hidden" name="endpointId" value="@endpoint.Id" />
+                                <input type="hidden" name="endpointRoute" value="@endpointRouteLabel" />
+                                <button class="module-button module-button-compact module-button-danger" type="submit" title="Delete @endpointRouteLabel">
+                                    <i data-lucide="trash-2" aria-hidden="true"></i><span>Delete</span>
+                                </button>
+                            </form>
+                        }
                     </div>
                     <div class="endpoint-metadata">
                         @if (!string.IsNullOrWhiteSpace(endpoint.DiscoveredInVersion))

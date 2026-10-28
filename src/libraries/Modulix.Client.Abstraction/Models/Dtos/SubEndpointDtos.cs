@@ -161,3 +161,16 @@ public class ConfirmEndpointsDto
     [Required]
     public List<SubEndpointDiscrepancyReportDto> ConfirmedEndpoints { get; set; } = [];
 }
+
+/// <summary>
+/// Payload sent to update the status of a sub-endpoint.
+/// </summary>
+public class UpdateSubEndpointStatusDto
+{
+    /// <summary>
+    /// The updated status of the sub-endpoint.
+    /// </summary>
+    /// <value>e.g., PendingConfirmation, Confirmed</value>
+    /// <example>PendingConfirmation</example>
+    public ModuleEndpointsStatus Status { get; set; }
+}

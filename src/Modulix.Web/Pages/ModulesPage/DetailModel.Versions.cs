@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
@@ -547,5 +548,183 @@ public partial class DetailModel
 
         await LoadModuleAsync(id);
         return Page();
+    }
+
+    /// <summary>
+    /// Activates or deactivates a registered sub-endpoint of the module.
+    /// </summary>
+    /// <param name="id">The ID of the module.</param>
+    /// <param name="endpointId">The ID of the sub-endpoint to update.</param>
+    /// <param name="status">The target status (<see cref="ModuleEndpointsStatus.Active"/> or <see cref="ModuleEndpointsStatus.Inactive"/>).</param>
+    /// <param name="endpointRoute">The display route of the sub-endpoint.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostUpdateEndpointStatusAsync(
+        Guid id,
+        [FromForm] Guid endpointId,
+        [FromForm] ModuleEndpointsStatus status,
+        [FromForm] string? endpointRoute,
+        [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        if (endpointId == Guid.Empty)
+        {
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                400,
+                ReasonPhrases.GetReasonPhrase(400),
+                "Select a valid sub-endpoint to update.",
+                IsSuccess: false));
+            return RedirectToPage(new { id });
+        }
+
+        var targetModuleName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
+        var targetRoute = !string.IsNullOrWhiteSpace(endpointRoute) ? endpointRoute.Trim() : endpointId.ToString();
+
+        try
+        {
+            _logger.LogInformation(
+                "Updating status of sub-endpoint {SubEndpointId} on module {ModuleId} to {Status}.",
+                endpointId,
+                id,
+                status);
+
+            using var response = await _modulixApiClient.SubEndpointManagement.UpdateSubEndpointStatusAsync(
+                id,
+                endpointId,
+                new UpdateSubEndpointStatusDto { Status = status },
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    error.StatusCode,
+                    error.Title,
+                    error.Detail,
+                    IsSuccess: false));
+                return RedirectToPage(new { id });
+            }
+
+            var isActivated = status == ModuleEndpointsStatus.Active;
+            _userActivityService.Record(
+                User,
+                isActivated ? "Activated endpoint" : "Deactivated endpoint",
+                $"{targetRoute} ({targetModuleName})",
+                isActivated ? "play" : "pause",
+                isActivated ? UserActivityTone.Success : UserActivityTone.Warning,
+                Url.Page("/ModulesPage/Detail", new { id }));
+
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                (int)response.StatusCode,
+                isActivated ? "Endpoint activated" : "Endpoint deactivated",
+                isActivated
+                    ? $"Activated endpoint {targetRoute} on {targetModuleName}."
+                    : $"Deactivated endpoint {targetRoute} on {targetModuleName}.",
+                IsSuccess: true));
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error updating status of sub-endpoint {SubEndpointId} on module {ModuleId}.", endpointId, id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                503,
+                ReasonPhrases.GetReasonPhrase(503),
+                "The API could not be reached. Please try again later.",
+                IsSuccess: false));
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Updating status of sub-endpoint {SubEndpointId} on module {ModuleId} timed out.", endpointId, id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                504,
+                ReasonPhrases.GetReasonPhrase(504),
+                "The API did not respond in time. Please try again.",
+                IsSuccess: false));
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>
+    /// Permanently deletes a sub-endpoint from the module.
+    /// </summary>
+    /// <param name="id">The ID of the module.</param>
+    /// <param name="endpointId">The ID of the sub-endpoint to delete.</param>
+    /// <param name="endpointRoute">The display route of the sub-endpoint.</param>
+    /// <param name="moduleName">The display name of the module.</param>
+    public async Task<IActionResult> OnPostDeleteEndpointAsync(
+        Guid id,
+        [FromForm] Guid endpointId,
+        [FromForm] string? endpointRoute,
+        [FromForm] string? moduleName)
+    {
+        ModelState.Clear();
+
+        if (endpointId == Guid.Empty)
+        {
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                400,
+                ReasonPhrases.GetReasonPhrase(400),
+                "Select a valid sub-endpoint to delete.",
+                IsSuccess: false));
+            return RedirectToPage(new { id });
+        }
+
+        var targetModuleName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
+        var targetRoute = !string.IsNullOrWhiteSpace(endpointRoute) ? endpointRoute.Trim() : endpointId.ToString();
+
+        try
+        {
+            _logger.LogInformation("Deleting sub-endpoint {SubEndpointId} from module {ModuleId}.", endpointId, id);
+
+            using var response = await _modulixApiClient.SubEndpointManagement.DeleteSubEndpointAsync(
+                id,
+                endpointId,
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    error.StatusCode,
+                    error.Title,
+                    error.Detail,
+                    IsSuccess: false));
+                return RedirectToPage(new { id });
+            }
+
+            _userActivityService.Record(
+                User,
+                "Deleted endpoint",
+                $"{targetRoute} ({targetModuleName})",
+                "trash-2",
+                UserActivityTone.Danger,
+                Url.Page("/ModulesPage/Detail", new { id }));
+
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                (int)response.StatusCode,
+                "Endpoint deleted",
+                $"Deleted endpoint {targetRoute} from {targetModuleName}.",
+                IsSuccess: true));
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error deleting sub-endpoint {SubEndpointId} from module {ModuleId}.", endpointId, id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                503,
+                ReasonPhrases.GetReasonPhrase(503),
+                "The API could not be reached. Please try again later.",
+                IsSuccess: false));
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Deleting sub-endpoint {SubEndpointId} from module {ModuleId} timed out.", endpointId, id);
+            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                504,
+                ReasonPhrases.GetReasonPhrase(504),
+                "The API did not respond in time. Please try again.",
+                IsSuccess: false));
+        }
+
+        return RedirectToPage(new { id });
     }
 }

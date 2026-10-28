@@ -115,6 +115,31 @@ public class ModuleEndpointExtension
     }
 
     /// <summary>
+    /// Determines whether the specified sub-endpoint existed in the module's <see cref="Module.CurrentVersion"/>.
+    /// </summary>
+    /// <param name="module">The parent module entity.</param>
+    /// <param name="endpoint">The sub-endpoint entity to evaluate.</param>
+    /// <returns><c>true</c> if the endpoint belongs to the current or an earlier version; otherwise, <c>false</c>.</returns>
+    public static bool ExistedInCurrentVersion(Module module, ModuleEndpoint endpoint)
+    {
+        var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion);
+        if (currentVersion is null)
+            return true;
+
+        var endpointVersion = endpoint.ModuleVersion
+            ?? module.Versions.FirstOrDefault(v => v.Id == endpoint.ModuleVersionId);
+
+        var isSameVersion = ReferenceEquals(endpointVersion, currentVersion) ||
+            string.Equals(endpointVersion?.Version, currentVersion.Version, StringComparison.Ordinal) ||
+            (endpointVersion is not null && currentVersion.Id != 0 && endpointVersion.Id == currentVersion.Id);
+
+        return endpointVersion is null ||
+            isSameVersion ||
+            endpointVersion.ReleasedAtUtc < currentVersion.ReleasedAtUtc ||
+            (endpointVersion.ReleasedAtUtc == currentVersion.ReleasedAtUtc && endpointVersion.Id <= currentVersion.Id);
+    }
+
+    /// <summary>
     /// Restores confirmed sub-endpoints belonging to the module's <see cref="Module.CurrentVersion"/>
     /// to <see cref="ModuleEndpointsStatus.Active"/>, while marking endpoints from newer versions as
     /// <see cref="ModuleEndpointsStatus.Inactive"/> and leaving <see cref="ModuleEndpointsStatus.PendingConfirmation"/> endpoints untouched.
@@ -122,29 +147,9 @@ public class ModuleEndpointExtension
     /// <param name="module">The module entity whose sub-endpoints should be activated.</param>
     public static void ActivateCurrentVersionSubEndpoints(Module module)
     {
-        var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion);
-
         foreach (var endpoint in module.SubEndpoints.Where(e => e.Status != ModuleEndpointsStatus.PendingConfirmation))
         {
-            if (currentVersion is null)
-            {
-                endpoint.Status = ModuleEndpointsStatus.Active;
-                continue;
-            }
-
-            var endpointVersion = endpoint.ModuleVersion
-                ?? module.Versions.FirstOrDefault(v => v.Id == endpoint.ModuleVersionId);
-
-            var isSameVersion = ReferenceEquals(endpointVersion, currentVersion) ||
-                string.Equals(endpointVersion?.Version, currentVersion.Version, StringComparison.Ordinal) ||
-                (endpointVersion is not null && currentVersion.Id != 0 && endpointVersion.Id == currentVersion.Id);
-
-            var existedInCurrentVersion = endpointVersion is null ||
-                isSameVersion ||
-                endpointVersion.ReleasedAtUtc < currentVersion.ReleasedAtUtc ||
-                (endpointVersion.ReleasedAtUtc == currentVersion.ReleasedAtUtc && endpointVersion.Id <= currentVersion.Id);
-
-            endpoint.Status = existedInCurrentVersion
+            endpoint.Status = ExistedInCurrentVersion(module, endpoint)
                 ? ModuleEndpointsStatus.Active
                 : ModuleEndpointsStatus.Inactive;
         }

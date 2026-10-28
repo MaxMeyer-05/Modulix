@@ -234,6 +234,29 @@ public partial class DetailModel
         && PendingEndpoints.Count > 0;
 
     /// <summary>
+    /// Determines whether the specified inactive sub-endpoint can currently be activated.
+    /// </summary>
+    /// <param name="endpoint">The sub-endpoint to evaluate.</param>
+    public bool CanActivateEndpoint(ModuleSubEndpointDto endpoint)
+    {
+        if (Module?.Status != ModuleStatus.Running || endpoint.Status != ModuleEndpointsStatus.Inactive)
+            return false;
+
+        if (CurrentVersion is null || string.IsNullOrWhiteSpace(endpoint.DiscoveredInVersion))
+            return true;
+
+        if (string.Equals(endpoint.DiscoveredInVersion, CurrentVersion.Version, StringComparison.Ordinal))
+            return true;
+
+        var endpointVersion = OrderedVersions.FirstOrDefault(v =>
+            string.Equals(v.Version, endpoint.DiscoveredInVersion, StringComparison.Ordinal));
+
+        return endpointVersion is null ||
+            endpointVersion.ReleasedAtUtc < CurrentVersion.ReleasedAtUtc ||
+            (endpointVersion.ReleasedAtUtc == CurrentVersion.ReleasedAtUtc && endpointVersion.Id <= CurrentVersion.Id);
+    }
+
+    /// <summary>
     /// Indicates whether a discrepancy report with active discrepancies is available for this module.
     /// </summary>
     public bool HasDiscrepancyReport => DiscrepancyReport?.HasDiscrepancy == true
