@@ -16,7 +16,7 @@ internal partial class ModulixApi : ISubEndpointManagementClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/confirm";
+        var requestUri = $"{SubEndpointManagementEndpoint}/module/{Uri.EscapeDataString(moduleId.ToString())}/confirm";
         return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
     }
 
@@ -49,7 +49,7 @@ internal partial class ModulixApi : ISubEndpointManagementClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
+        var requestUri = $"{SubEndpointManagementEndpoint}/module/{Uri.EscapeDataString(moduleId.ToString())}";
         if (pagination != null)
         {
             var queryParams = new List<string>();
