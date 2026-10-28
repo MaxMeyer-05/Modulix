@@ -17,7 +17,14 @@ internal partial class ModulixApi : ISubEndpointManagementClient
     public async Task<HttpResponseMessage> ConfirmEndpointAsync(Guid moduleId, ConfirmEndpointsDto request, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{SubEndpointManagementEndpoint}/module/{Uri.EscapeDataString(moduleId.ToString())}/confirm";
-        return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken: authToken, ct: ct);
+        return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, request, authToken, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<HttpResponseMessage> DeleteSubEndpointAsync(Guid moduleId, Guid subEndpointId, CancellationToken ct = default, string? authToken = null)
+    {
+        var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(subEndpointId.ToString())}/module/{Uri.EscapeDataString(moduleId.ToString())}";
+        return await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken, ct);
     }
 
     /// <inheritdoc/>
@@ -43,7 +50,7 @@ internal partial class ModulixApi : ISubEndpointManagementClient
                 requestUri += "?" + string.Join("&", queryParams);
         }
 
-        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
+        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken, ct);
     }
 
     /// <inheritdoc/>
@@ -69,6 +76,12 @@ internal partial class ModulixApi : ISubEndpointManagementClient
                 requestUri += "?" + string.Join("&", queryParams);
         }
 
-        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
+        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken, ct);
+    }
+
+    public async Task<HttpResponseMessage> UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, UpdateSubEndpointStatusDto request, CancellationToken ct = default, string? authToken = null)
+    {
+        var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(subEndpointId.ToString())}/module/{Uri.EscapeDataString(moduleId.ToString())}/status";
+        return await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken, ct);
     }
 }

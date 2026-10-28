@@ -53,4 +53,35 @@ public interface ISubEndpointManagementClient
     /// when the HTTP response indicates a failure.
     /// </exception>
     Task<HttpResponseMessage> GetModuleEndpointsAsync(Guid moduleId, SubEndpointQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null);
+
+    /// <summary>
+    /// Updates the status of a specific sub-endpoint for a module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="subEndpointId">The unique identifier of the sub-endpoint.</param>
+    /// <param name="request">The updated status payload.</param>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>The HTTP response message resulting from the request to update the sub-endpoint status.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<HttpResponseMessage> UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, UpdateSubEndpointStatusDto request, CancellationToken ct = default, string? authToken = null);
+
+    /// <summary>
+    /// Deletes a specific sub-endpoint for a module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="subEndpointId">The unique identifier of the sub-endpoint.</param>
+    /// <param name="ct">Optional - The cancellation token.</param>
+    /// <param name="authToken">Optional - The authentication token.</param>
+    /// <returns>The HTTP response message resulting from the request to delete the sub-endpoint.</returns>
+    /// <exception cref="HttpRequestException">
+    /// Thrown when the request fails due to an underlying issue
+    /// or
+    /// when the HTTP response indicates a failure.
+    /// </exception>
+    Task<HttpResponseMessage> DeleteSubEndpointAsync(Guid moduleId, Guid subEndpointId, CancellationToken ct = default, string? authToken = null);
 }
