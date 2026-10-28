@@ -172,13 +172,17 @@ public class SubEndpointService : ISubEndpointService
     {
         var subEndpoint = await _context.ModuleEndpoints
             .Include(se => se.Module)
+                .ThenInclude(m => m.SubEndpoints)
             .FirstOrDefaultAsync(se => se.Id == subEndpointId && se.Module.Id == moduleId, ct);
 
         if (subEndpoint is null)
             throw new KeyNotFoundException("Sub-endpoint not found.");
 
+        var module = subEndpoint.Module;
         _context.ModuleEndpoints.Remove(subEndpoint);
         await _context.SaveChangesAsync(ct);
+
+        _moduleEndpointExtension.SynchronizeReverseProxy(module);
     }
 
     /// <inheritdoc/>
@@ -273,14 +277,35 @@ public class SubEndpointService : ISubEndpointService
     /// <inheritdoc/>
     public async Task UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, UpdateSubEndpointStatusDto dto, CancellationToken ct = default)
     {
+        if (dto.Status == ModuleEndpointsStatus.PendingConfirmation)
+            throw new ArgumentException("Sub-endpoint status can only be updated to Active or Inactive.", nameof(dto));
+
         var subEndpoint = await _context.ModuleEndpoints
             .Include(se => se.Module)
+                .ThenInclude(m => m.SubEndpoints)
+            .Include(se => se.Module)
+                .ThenInclude(m => m.Versions)
+            .Include(se => se.ModuleVersion)
             .FirstOrDefaultAsync(se => se.Id == subEndpointId && se.Module.Id == moduleId, ct);
 
         if (subEndpoint is null)
             throw new KeyNotFoundException("Sub-endpoint not found.");
 
+        if (subEndpoint.Status == ModuleEndpointsStatus.PendingConfirmation)
+            throw new InvalidOperationException("Pending confirmation sub-endpoints must be confirmed before changing their status.");
+
+        if (dto.Status == ModuleEndpointsStatus.Active)
+        {
+            if (subEndpoint.Module.Status != ModuleStatus.Running)
+                throw new InvalidOperationException($"Cannot activate sub-endpoint '{subEndpointId}' while module '{moduleId}' is in '{subEndpoint.Module.Status}' status.");
+
+            if (!ModuleEndpointExtension.ExistedInCurrentVersion(subEndpoint.Module, subEndpoint))
+                throw new InvalidOperationException($"Cannot activate sub-endpoint '{subEndpointId}' because it does not belong to current version '{subEndpoint.Module.CurrentVersion}'.");
+        }
+
         subEndpoint.Status = dto.Status;
         await _context.SaveChangesAsync(ct);
+
+        _moduleEndpointExtension.SynchronizeReverseProxy(subEndpoint.Module);
     }
 }

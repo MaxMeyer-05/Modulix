@@ -79,9 +79,10 @@ internal partial class ModulixApi : ISubEndpointManagementClient
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken, ct);
     }
 
+    /// <inheritdoc/>
     public async Task<HttpResponseMessage> UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, UpdateSubEndpointStatusDto request, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{SubEndpointManagementEndpoint}/{Uri.EscapeDataString(subEndpointId.ToString())}/module/{Uri.EscapeDataString(moduleId.ToString())}/status";
-        return await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken, ct);
+        return await _httpClient.SendRequestAsync(HttpMethod.Patch, requestUri, request, authToken, ct);
     }
 }
