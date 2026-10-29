@@ -546,7 +546,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
 
         Assert.Equal(ModuleStatus.Running, result.Module.Status);
         Assert.Equal("v1.2.0", result.Module.CurrentVersion);
-        Assert.Equal(2, result.Module.Versions.Count);
+        Assert.Equal(2, result.Module.Versions.Count());
         Assert.DoesNotContain(result.Module.Versions, v => v.Version == "v1.0.0");
         Assert.Contains(result.Module.Versions, v => v.Version == "v1.1.0");
         Assert.Contains(result.Module.Versions, v => v.Version == "v1.2.0");
@@ -577,7 +577,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
             module.Id,
             new ModuleVersionCreateDto { Version = "v1.1.0", ModuleFile = CreateDummyZipFile() });
 
-        Assert.Equal(2, result.Module.Versions.Count);
+        Assert.Equal(2, result.Module.Versions.Count());
         Assert.True(Directory.Exists(v1.StoragePath));
     }
 }
