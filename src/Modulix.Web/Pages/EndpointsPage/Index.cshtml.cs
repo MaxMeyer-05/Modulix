@@ -63,21 +63,6 @@ public class IndexModel : PageModel
     public int TotalEndpoints { get; private set; }
 
     /// <summary>
-    /// Number of active endpoints.
-    /// </summary>
-    public int ActiveCount { get; private set; }
-
-    /// <summary>
-    /// Number of endpoints pending confirmation.
-    /// </summary>
-    public int PendingCount { get; private set; }
-
-    /// <summary>
-    /// Number of inactive endpoints.
-    /// </summary>
-    public int InactiveCount { get; private set; }
-
-    /// <summary>
     /// The current search query.
     /// </summary>
     public string Query { get; private set; } = "";
@@ -130,18 +115,17 @@ public class IndexModel : PageModel
     /// <summary>
     /// Builds a URL for the endpoints page preserving current filter, sort, and pagination parameters.
     /// </summary>
-    public string GetPageUrl(int targetPage, string? statusOverride = null)
+    public string GetPageUrl(int targetPage)
     {
         var baseUrl = Url.Page("/EndpointsPage/Index") ?? "/endpoints";
-        var effectiveStatus = statusOverride ?? StatusFilter;
         var queryParams = new Dictionary<string, string?>();
 
         if (!string.IsNullOrWhiteSpace(Query))
             queryParams["q"] = Query;
         if (!string.IsNullOrWhiteSpace(MethodFilter))
             queryParams["method"] = MethodFilter;
-        if (!string.IsNullOrWhiteSpace(effectiveStatus))
-            queryParams["status"] = effectiveStatus;
+        if (!string.IsNullOrWhiteSpace(StatusFilter))
+            queryParams["status"] = StatusFilter;
         if (!string.IsNullOrWhiteSpace(ModuleFilter))
             queryParams["module"] = ModuleFilter;
         if (!string.IsNullOrWhiteSpace(SortBy) && SortBy != "newest")
@@ -222,10 +206,6 @@ public class IndexModel : PageModel
             TotalPages = Math.Max(1, pagedResult.TotalPages);
             HasPreviousPage = pagedResult.HasPreviousPage;
             HasNextPage = pagedResult.HasNextPage;
-
-            ActiveCount = allEndpoints.Count(e => e.Status == ModuleEndpointsStatus.Active);
-            PendingCount = allEndpoints.Count(e => e.Status == ModuleEndpointsStatus.PendingConfirmation);
-            InactiveCount = allEndpoints.Count(e => e.Status == ModuleEndpointsStatus.Inactive);
 
             AvailableModules = allEndpoints
                 .Select(e => e.ModuleName)

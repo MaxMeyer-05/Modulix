@@ -62,21 +62,6 @@ public class IndexModel : PageModel
     public int TotalCount { get; private set; }
 
     /// <summary>
-    /// Number of currently running scans.
-    /// </summary>
-    public int RunningCount { get; private set; }
-
-    /// <summary>
-    /// Number of scans waiting for an available scanner slot.
-    /// </summary>
-    public int WaitingCount { get; private set; }
-
-    /// <summary>
-    /// Number of high-priority (Patch) scans in the queue.
-    /// </summary>
-    public int PatchPriorityCount { get; private set; }
-
-    /// <summary>
     /// The current search query.
     /// </summary>
     public string Query { get; private set; } = "";
@@ -192,9 +177,6 @@ public class IndexModel : PageModel
             _logger.LogDebug("Successfully loaded {QueueCount} scan queue entries.", items.Count);
 
             TotalCount = items.Count;
-            RunningCount = items.Count(item => item.IsRunning);
-            WaitingCount = items.Count(item => !item.IsRunning);
-            PatchPriorityCount = items.Count(item => item.Priority == ScanPriority.Patch);
 
             var indexed = items.Select((item, index) => new QueueEntryView(index + 1, item));
 

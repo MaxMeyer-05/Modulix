@@ -10,6 +10,12 @@
         (nameof(ScanPriority.Patch), "Patch (High)"),
         (nameof(ScanPriority.Create), "Create (Normal)")
     };
+    var states = new (string Value, string Label)[]
+    {
+        ("", "All states"),
+        ("running", "Scanning"),
+        ("waiting", "Waiting")
+    };
     var resetUrl = Url.Page("/ScanQueuePage/Index");
 }
 @section Styles {
@@ -54,54 +60,19 @@
         </div>
     }
 
-    <section class="queue-metrics" aria-label="Scan queue overview">
-        <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StateFilter) && string.IsNullOrEmpty(Model.PriorityFilter) ? "is-selected" : "")"
-           href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = "", state = "" })">
-            <div class="queue-metric-heading">
-                <h2>Total in queue</h2>
-                <span class="queue-metric-icon"><i data-lucide="list-checks" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.TotalCount</p>
-            <span class="queue-metric-sub">@Model.RunningCount scanning · @Model.WaitingCount waiting</span>
-        </a>
-        <a class="queue-metric queue-metric-running queue-metric-link @(Model.StateFilter == "running" ? "is-selected" : "")"
-           href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = "", state = "running" })">
-            <div class="queue-metric-heading">
-                <h2>Currently scanning</h2>
-                <span class="queue-metric-icon"><i data-lucide="loader" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.RunningCount</p>
-            <span class="queue-metric-sub">Active scanner containers</span>
-        </a>
-        <a class="queue-metric queue-metric-waiting queue-metric-link @(Model.StateFilter == "waiting" ? "is-selected" : "")"
-           href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = "", state = "waiting" })">
-            <div class="queue-metric-heading">
-                <h2>Waiting for slot</h2>
-                <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.WaitingCount</p>
-            <span class="queue-metric-sub">Queued for next available slot</span>
-        </a>
-        <a class="queue-metric queue-metric-priority queue-metric-link @(Model.PriorityFilter == nameof(ScanPriority.Patch) && string.IsNullOrEmpty(Model.StateFilter) ? "is-selected" : "")"
-           href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = nameof(ScanPriority.Patch), state = "" })">
-            <div class="queue-metric-heading">
-                <h2>High priority (Patch)</h2>
-                <span class="queue-metric-icon"><i data-lucide="zap" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.PatchPriorityCount</p>
-            <span class="queue-metric-sub">Prioritized module updates</span>
-        </a>
-    </section>
-
     <form class="modules-toolbar" method="get" action="@resetUrl">
-        @if (!string.IsNullOrEmpty(Model.StateFilter))
-        {
-            <input type="hidden" name="state" value="@Model.StateFilter" />
-        }
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="queue-search" name="q" type="search" value="@Model.Query" placeholder="Search by module name or ID..." aria-label="Search scan queue" autocomplete="off" />
         </div>
+        <label class="module-select-label"><span>State</span>
+            <select id="queue-state-filter" name="state">
+                @foreach (var (value, label) in states)
+                {
+                    <option value="@value" selected="@(Model.StateFilter == value)">@label</option>
+                }
+            </select>
+        </label>
         <label class="module-select-label"><span>Priority</span>
             <select id="queue-priority-filter" name="priority">
                 @foreach (var (value, label) in priorities)

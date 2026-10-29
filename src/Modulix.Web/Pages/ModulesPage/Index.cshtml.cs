@@ -77,36 +77,6 @@ public class IndexModel : PageModel
     public int TotalModules { get; private set; }
 
     /// <summary>
-    /// The number of currently running modules.
-    /// </summary>
-    public int RunningCount { get; private set; }
-
-    /// <summary>
-    /// The number of stopped modules.
-    /// </summary>
-    public int StoppedCount { get; private set; }
-
-    /// <summary>
-    /// The number of modules awaiting endpoint confirmation.
-    /// </summary>
-    public int PendingConfirmationCount { get; private set; }
-
-    /// <summary>
-    /// The number of modules queued for scanning.
-    /// </summary>
-    public int QueuedForScanCount { get; private set; }
-
-    /// <summary>
-    /// The number of modules currently starting or created.
-    /// </summary>
-    public int StartingCount { get; private set; }
-
-    /// <summary>
-    /// The number of modules in a failed state.
-    /// </summary>
-    public int FailedCount { get; private set; }
-
-    /// <summary>
     /// The current search query.
     /// </summary>
     public string Query { get; private set; } = "";
@@ -200,16 +170,15 @@ public class IndexModel : PageModel
     /// <summary>
     /// Builds a URL for the modules page preserving current filter, sort, and pagination parameters.
     /// </summary>
-    public string GetPageUrl(int targetPage, string? statusOverride = null)
+    public string GetPageUrl(int targetPage)
     {
         var baseUrl = Url.Page("/ModulesPage/Index") ?? "/modules";
-        var effectiveStatus = statusOverride ?? StatusFilter;
         var queryParams = new Dictionary<string, string?>();
 
         if (!string.IsNullOrWhiteSpace(Query))
             queryParams["q"] = Query;
-        if (!string.IsNullOrWhiteSpace(effectiveStatus))
-            queryParams["status"] = effectiveStatus;
+        if (!string.IsNullOrWhiteSpace(StatusFilter))
+            queryParams["status"] = StatusFilter;
         if (!string.IsNullOrWhiteSpace(SortBy) && SortBy != "newest")
             queryParams["sort"] = SortBy;
         if (targetPage > 1)
@@ -408,13 +377,6 @@ public class IndexModel : PageModel
             TotalPages = Math.Max(1, pagedResult.TotalPages);
             HasPreviousPage = pagedResult.HasPreviousPage;
             HasNextPage = pagedResult.HasNextPage;
-
-            RunningCount = modules.Count(m => m.Status == ModuleStatus.Running);
-            StoppedCount = modules.Count(m => m.Status == ModuleStatus.Stopped);
-            PendingConfirmationCount = modules.Count(m => m.Status == ModuleStatus.PendingConfirmation);
-            QueuedForScanCount = modules.Count(m => m.Status == ModuleStatus.QueuedForScan);
-            StartingCount = modules.Count(m => m.Status is ModuleStatus.Starting or ModuleStatus.Created);
-            FailedCount = modules.Count(m => m.Status == ModuleStatus.Failed);
 
             var filtered = modules.Where(module =>
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"

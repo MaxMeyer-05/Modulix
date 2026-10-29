@@ -9,6 +9,17 @@
     {
         ("newest", "Newest first"), ("name", "Name A-Z"), ("name-desc", "Name Z-A")
     };
+    var statuses = new (string Value, string Label)[]
+    {
+        ("", "All statuses"),
+        ("Running", "Running"),
+        ("Starting", "Starting"),
+        ("Created", "Created"),
+        ("PendingConfirmation", "Pending confirmation"),
+        ("QueuedForScan", "Queued for scan"),
+        ("Stopped", "Stopped"),
+        ("Failed", "Failed")
+    };
     var closeUrl = Url.Page("/ModulesPage/Index");
 }
 @section Styles {
@@ -54,64 +65,20 @@
         </div>
     }
 
-    <section class="module-metrics" aria-label="Module status overview">
-        <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, "")">
-            <div class="queue-metric-heading">
-                <h2>Total modules</h2>
-                <span class="queue-metric-icon"><i data-lucide="layers" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.TotalModules</p>
-            <span class="queue-metric-sub">@Model.StartingCount starting / created</span>
-        </a>
-        <a class="queue-metric queue-metric-active queue-metric-link @(Model.StatusFilter == "Running" ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, "Running")">
-            <div class="queue-metric-heading">
-                <h2>Active (Running)</h2>
-                <span class="queue-metric-icon"><i data-lucide="activity" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.RunningCount</p>
-            <span class="queue-metric-sub">Routing traffic via proxy</span>
-        </a>
-        <a class="queue-metric queue-metric-priority queue-metric-link @(Model.StatusFilter == "PendingConfirmation" ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, "PendingConfirmation")">
-            <div class="queue-metric-heading">
-                <h2>Pending &amp; queued</h2>
-                <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@(Model.PendingConfirmationCount + Model.QueuedForScanCount)</p>
-            <span class="queue-metric-sub">@Model.PendingConfirmationCount pending · @Model.QueuedForScanCount queued</span>
-        </a>
-        <a class="queue-metric queue-metric-inactive queue-metric-link @(Model.StatusFilter == "Stopped" ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, "Stopped")">
-            <div class="queue-metric-heading">
-                <h2>Stopped</h2>
-                <span class="queue-metric-icon"><i data-lucide="square" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.StoppedCount</p>
-            <span class="queue-metric-sub">Container not running</span>
-        </a>
-        <a class="queue-metric queue-metric-failed queue-metric-link @(Model.StatusFilter == "Failed" ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, "Failed")">
-            <div class="queue-metric-heading">
-                <h2>Failed</h2>
-                <span class="queue-metric-icon"><i data-lucide="triangle-alert" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.FailedCount</p>
-            <span class="queue-metric-sub">Requires attention</span>
-        </a>
-    </section>
-
     <form class="modules-toolbar" method="get" action="@closeUrl">
-        @if (!string.IsNullOrEmpty(Model.StatusFilter))
-        {
-            <input type="hidden" name="status" value="@Model.StatusFilter" />
-        }
         <input type="hidden" name="pageSize" value="@Model.PageSize" />
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="module-search" name="q" type="search" value="@Model.Query" placeholder="Search modules..." aria-label="Search modules" autocomplete="off" />
         </div>
+        <label class="module-select-label"><span>Status</span>
+            <select id="module-status-filter" name="status">
+                @foreach (var (value, label) in statuses)
+                {
+                    <option value="@value" selected="@(Model.StatusFilter.Equals(value, StringComparison.OrdinalIgnoreCase))">@label</option>
+                }
+            </select>
+        </label>
         <label class="module-select-label"><span>Sort by</span>
             <select id="module-sort" name="sort">
                 @foreach (var (value, label) in sorts)
