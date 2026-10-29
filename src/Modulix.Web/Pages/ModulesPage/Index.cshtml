@@ -205,7 +205,7 @@
                 <label>Description<textarea name="Description" rows="2" maxlength="500" placeholder="Optional description">@Model.Input?.Description</textarea></label>
                 <label>Changelog<textarea name="Changelog" rows="2" maxlength="500" placeholder="Optional changelog for the initial version">@Model.Input?.Changelog</textarea></label>
                 <div class="module-form-row">
-                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" value="@Model.Input?.BaseUrlPath" required maxlength="200" pattern="/.*" placeholder="/module/analytics" /></label>
+                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" value="@Model.Input?.BaseUrlPath" required maxlength="200" placeholder="module/analytics" /></label>
                     <label>Container port<input name="ContainerPort" value="@Model.Input?.ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
                 </div>
                 <div class="module-subendpoints-group">
