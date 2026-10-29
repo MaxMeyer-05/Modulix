@@ -267,7 +267,7 @@ public class ModuleVersionService : IModuleVersionService
             if (oldestVersion != null)
             {
                 var oldestVersionDirectory = await _moduleVersionExtension.GetModuleVersionDirectory(module.Id, oldestVersion.Version);
-                _directoryExtension.DeleteModuleDirectory(oldestVersionDirectory, module.Id);
+                await DeleteModuleVersionAsync(module.Id, oldestVersion.Version, ct);
             }
         }
 
