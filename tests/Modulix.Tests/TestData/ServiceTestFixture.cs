@@ -34,6 +34,7 @@ public abstract class ServiceTestBase : IDisposable
     protected readonly FailingSaveInterceptor _saveInterceptor = new();
     protected readonly DirectoryExtension _directoryExtension;
     protected readonly ModuleEndpointExtension _moduleEndpointExtension;
+    protected readonly ModuleVersionExtension _moduleVersionExtension;
     protected readonly IOptions<ModuleSettings> _moduleOptions;
 
     protected ServiceTestBase()
@@ -61,6 +62,7 @@ public abstract class ServiceTestBase : IDisposable
         _dockerService = new FakeDockerService();
         _reverseProxyService = new ReverseProxyService(NullLogger<ReverseProxyService>.Instance);
         _directoryExtension = new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, _moduleOptions);
+        _moduleVersionExtension = new ModuleVersionExtension(_moduleOptions, _context, NullLogger<ModuleVersionExtension>.Instance);
         _moduleEndpointExtension = new ModuleEndpointExtension(
             _context,
             NullLogger<ModuleEndpointExtension>.Instance,

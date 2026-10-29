@@ -29,4 +29,13 @@ public sealed class ModuleSettings
     /// </summary>
     [Range(typeof(long), "1", "9223372036854775807")]
     public long MaximumArchiveUncompressedBytes { get; set; } = 512L * 1024 * 1024;
+
+    /// <summary>
+    /// The maximum number of retained versions per module.
+    /// </summary>
+    /// <remarks>
+    /// 0 means unlimited retention of previous versions.
+    /// </remarks>
+    [Range(0, int.MaxValue)]
+    public int MaxRetainedVersionsPerModule { get; set; } = 5;
 }
