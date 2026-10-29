@@ -1,8 +1,9 @@
+using System.Net;
+using System.Net.Sockets;
+
 using System.Text.Json;
 using System.Formats.Tar;
 using System.Globalization;
-using System.Net;
-using System.Net.Sockets;
 
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
 using Modulix.Docker.Options;
+using Modulix.Docker.Extensions;
 
 namespace Modulix.Docker.Services;
 
@@ -33,6 +35,11 @@ public class DockerService : IDockerService, IDisposable
     private readonly ILogger<DockerService> _logger;
 
     /// <summary>
+    /// The Docker extension instance used for image management and port probing.
+    /// </summary>
+    private readonly DockerExtension _dockerExtension;
+
+    /// <summary>
     /// Delegate used to probe whether a local TCP port is accepting connections.
     /// </summary>
     private readonly Func<int, CancellationToken, Task<bool>> _portProbe;
@@ -43,17 +50,20 @@ public class DockerService : IDockerService, IDisposable
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The shared module settings.</param>
     /// <param name="client">The Docker client owned by this service.</param>
+    /// <param name="dockerExtension">The Docker extension instance used for image management and port probing.</param>
     /// <param name="portProbe">Optional delegate for probing local TCP port readiness.</param>
     public DockerService(
         ILogger<DockerService> logger, 
         IOptions<DockerOptions> options,
         DockerClient client,
+        DockerExtension dockerExtension,
         Func<int, CancellationToken, Task<bool>>? portProbe = null)
     {
         _logger = logger;
         _options = options.Value;
         _client = client;
-        _portProbe = portProbe ?? ProbeTcpPortAsync;
+        _dockerExtension = dockerExtension;
+        _portProbe = portProbe ?? DockerExtension.ProbeTcpPortAsync;
     }
 
     /// <inheritdoc/>
@@ -115,7 +125,7 @@ public class DockerService : IDockerService, IDisposable
             if (progress.ErrorMessage is not null)
                 throw new InvalidOperationException($"Docker image build failed: {progress.ErrorMessage}");
 
-            var hostDataPath = EnsureHostDataDirectory(storagePath);
+            var hostDataPath = DockerExtension.EnsureHostDataDirectory(storagePath);
 
             var createResponse = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
             {
@@ -159,7 +169,7 @@ public class DockerService : IDockerService, IDisposable
                 _logger.LogWarning(ex, "Failed to clean up candidate container '{ContainerName}'.", containerName);
             }
 
-            await TryDeleteImageAsync(imageName, moduleId, cleanupCts.Token);
+            await _dockerExtension.TryDeleteImageAsync(imageName, moduleId, _client, cleanupCts.Token);
 
             throw;
         }
@@ -197,7 +207,7 @@ public class DockerService : IDockerService, IDisposable
             throw;
         }
 
-        await TryDeleteImageAsync(container.Config?.Image, moduleId, ct);
+        await _dockerExtension.TryDeleteImageAsync(container.Config?.Image, moduleId, _client, ct);
     }
 
     /// <inheritdoc/>
@@ -259,7 +269,7 @@ public class DockerService : IDockerService, IDisposable
 
                 if (health is null)
                 {
-                    var hostPort = TryGetBoundHostPort(container);
+                    var hostPort = DockerExtension.TryGetBoundHostPort(container);
                     if (hostPort is null)
                         return;
 
@@ -341,96 +351,6 @@ public class DockerService : IDockerService, IDisposable
     {
         _client.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    private async Task TryDeleteImageAsync(string? imageName, Guid moduleId, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(imageName))
-            return;
-
-        try
-        {
-            await _client.Images.DeleteImageAsync(imageName, new ImageDeleteParameters { Force = true }, ct);
-            _logger.LogInformation("Docker image '{ImageName}' deleted for module '{ModuleId}'.", imageName, moduleId);
-        }
-        catch (DockerImageNotFoundException ex)
-        {
-            _logger.LogWarning(ex, "Docker image '{ImageName}' was not found for module '{ModuleId}'.", imageName, moduleId);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
-        {
-            _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for module '{ModuleId}'.", imageName, moduleId);
-        }
-    }
-
-    private static string EnsureHostDataDirectory(string storagePath)
-    {
-        var fullStoragePath = Path.GetFullPath(storagePath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var parentDir = Directory.GetParent(fullStoragePath);
-
-        var hostDataPath = parentDir is not null &&
-            string.Equals(parentDir.Name, "versions", StringComparison.OrdinalIgnoreCase) &&
-            parentDir.Parent is { } moduleRootDir
-            ? Path.Combine(moduleRootDir.FullName, "data")
-            : Path.Combine(fullStoragePath, "data");
-
-        Directory.CreateDirectory(hostDataPath);
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(
-                hostDataPath,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
-                UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
-                UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
-        }
-
-        return hostDataPath;
-    }
-
-    private static int? TryGetBoundHostPort(ContainerInspectResponse container)
-    {
-        var portBindings = container.HostConfig?.PortBindings ?? container.NetworkSettings?.Ports;
-        if (portBindings is null)
-            return null;
-
-        foreach (var bindings in portBindings.Values)
-        {
-            if (bindings is null)
-                continue;
-
-            foreach (var binding in bindings)
-            {
-                if (int.TryParse(binding?.HostPort, NumberStyles.None, CultureInfo.InvariantCulture, out var port) &&
-                    port is > 0 and <= 65535)
-                {
-                    return port;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static async Task<bool> ProbeTcpPortAsync(int port, CancellationToken ct)
-    {
-        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        connectCts.CancelAfter(TimeSpan.FromSeconds(1));
-
-        using var tcpClient = new TcpClient();
-        try
-        {
-            await tcpClient.ConnectAsync(IPAddress.Loopback, port, connectCts.Token);
-            return true;
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     /// <summary>

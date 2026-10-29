@@ -115,7 +115,10 @@ public class ModulesManagementController : ControllerBase
     /// </returns>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResultDto<ModuleDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResultDto<ModuleDto>>> GetAllModulesAsync([FromQuery] ModuleQueryDto moduleQuery, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResultDto<ModuleDto>>> GetAllModulesAsync(
+        [FromQuery] ModuleQueryDto moduleQuery, 
+        [FromQuery] PaginationQueryDto pagination, 
+        CancellationToken ct = default)
     {
         var result = await _moduleService.GetAllModulesAsync(moduleQuery, pagination, ct);
         return Ok(result);
@@ -137,6 +140,21 @@ public class ModulesManagementController : ControllerBase
     {
         var result = await _moduleService.GetModuleByIdAsync(moduleId, ct);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves the statistics of a specific module by its ID.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// A 200 OK response with the statistics of the specified module.
+    /// </returns>
+    [HttpGet("{moduleId}/stats")]
+    [ProducesResponseType(typeof(ModuleStatsDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ModuleStatsDto>> GetModuleStatsAsync(Guid moduleId, CancellationToken ct = default)
+    {
+        return Ok();
     }
 
     /// <summary>

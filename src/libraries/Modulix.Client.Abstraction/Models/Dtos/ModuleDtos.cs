@@ -205,3 +205,29 @@ public class ModuleCreationResultDto
     /// </summary>
     public string? Message { get; set; }
 }
+
+/// <summary>
+/// Data transfer object representing the statistics of a module.
+/// </summary>
+public class ModuleStatsDto
+{
+    /// <summary>
+    /// The CPU usage of the module.
+    /// </summary>
+    public double CpuUsage { get; set; }
+
+    /// <summary>
+    /// The memory usage of the module.
+    /// </summary>
+    public double MemoryUsage { get; set; }
+
+    /// <summary>
+    /// The uptime of the module in seconds.
+    /// </summary>
+    public double Uptime { get; set; }
+
+    /// <summary>
+    /// The exit code of the module's last run.
+    /// </summary>
+    public int ExitCode { get; set; }
+}
