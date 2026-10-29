@@ -87,7 +87,6 @@ builder.Services.AddSwaggerGen(options =>
             $"{typeof(Program).Assembly.GetName().Name}.xml")
     );
 
-    // Ermöglicht die Token-Eingabe in Swagger UI
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",

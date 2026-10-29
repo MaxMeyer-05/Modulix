@@ -293,7 +293,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
         Assert.Equal(module.Id, result.Module.Id);
         Assert.NotEqual(originalPath, newVersionDto.StoragePath);
         Assert.Equal(_endpointScanner.ScannedDirectory, newVersionDto.StoragePath);
-        Assert.Contains("Warteschlange", result.Message);
+        Assert.Contains("queued", result.Message);
         Assert.Empty(_endpointScanner.CancelledModuleIds);
         Assert.Empty(_dockerService.Calls);
         Assert.True(File.Exists(Path.Combine(newVersionDto.StoragePath!, "service.dll")));
