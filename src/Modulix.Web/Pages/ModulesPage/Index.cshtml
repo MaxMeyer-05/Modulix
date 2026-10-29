@@ -5,10 +5,6 @@
     ViewData["Title"] = "Modules";
     var modules = Model.Modules;
     var reopen = Model.CreationError is not null;
-    var sorts = new (string Value, string Label)[]
-    {
-        ("newest", "Newest first"), ("name", "Name A-Z"), ("name-desc", "Name Z-A")
-    };
     var statuses = new (string Value, string Label)[]
     {
         ("", "All statuses"),
@@ -79,14 +75,6 @@
                 }
             </select>
         </label>
-        <label class="module-select-label"><span>Sort by</span>
-            <select id="module-sort" name="sort">
-                @foreach (var (value, label) in sorts)
-                {
-                    <option value="@value" selected="@(Model.SortBy == value)">@label</option>
-                }
-            </select>
-        </label>
         <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
     </form>
     <p class="module-result-count" id="module-result-count" role="status">@(modules.Count == Model.TotalModules ? $"{modules.Count} modules" : $"{modules.Count} of {Model.TotalModules} modules (page {Model.CurrentPage} of {Model.TotalPages})")</p>
@@ -132,10 +120,6 @@
                 @if (!string.IsNullOrWhiteSpace(Model.StatusFilter))
                 {
                     <input type="hidden" name="status" value="@Model.StatusFilter" />
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.SortBy) && Model.SortBy != "newest")
-                {
-                    <input type="hidden" name="sort" value="@Model.SortBy" />
                 }
                 <input type="hidden" name="page" value="1" />
                 <label class="module-pagination-size-label" for="modules-page-size">

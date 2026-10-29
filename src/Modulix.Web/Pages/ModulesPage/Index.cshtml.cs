@@ -92,11 +92,6 @@ public class IndexModel : PageModel
     public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
 
     /// <summary>
-    /// The current sort order.
-    /// </summary>
-    public string SortBy { get; private set; } = "newest";
-
-    /// <summary>
     /// The current 1-based page number.
     /// </summary>
     public int CurrentPage { get; private set; } = PaginationQueryDto.DefaultPage;
@@ -146,14 +141,12 @@ public class IndexModel : PageModel
     /// </summary>
     /// <param name="q">The search text.</param>
     /// <param name="status">The status to filter by.</param>
-    /// <param name="sort">The sort order.</param>
     /// <param name="pageNumber">The 1-based page number.</param>
     /// <param name="pageSize">The number of items per page.</param>
     /// <returns>An <see cref="IActionResult"/> representing the result of the request.</returns>
     public async Task<IActionResult> OnGetAsync(
         string? q,
         string? status,
-        string? sort,
         [FromQuery(Name = "page")] int pageNumber = PaginationQueryDto.DefaultPage,
         [FromQuery(Name = "pageSize")] int pageSize = PaginationQueryDto.DefaultPageSize)
     {
@@ -163,12 +156,12 @@ public class IndexModel : PageModel
         if (TempData[DetailModel.FeedbackKey] is string feedbackJson)
             Feedback = JsonSerializer.Deserialize<DetailModel.ActionFeedback>(feedbackJson);
 
-        await LoadModulesAsync(q, status, sort, pageNumber, pageSize);
+        await LoadModulesAsync(q, status, pageNumber, pageSize);
         return Page();
     }
 
     /// <summary>
-    /// Builds a URL for the modules page preserving current filter, sort, and pagination parameters.
+    /// Builds a URL for the modules page preserving current filter and pagination parameters.
     /// </summary>
     public string GetPageUrl(int targetPage)
     {
@@ -179,8 +172,6 @@ public class IndexModel : PageModel
             queryParams["q"] = Query;
         if (!string.IsNullOrWhiteSpace(StatusFilter))
             queryParams["status"] = StatusFilter;
-        if (!string.IsNullOrWhiteSpace(SortBy) && SortBy != "newest")
-            queryParams["sort"] = SortBy;
         if (targetPage > 1)
             queryParams["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
         if (PageSize != PaginationQueryDto.DefaultPageSize)
@@ -204,7 +195,7 @@ public class IndexModel : PageModel
 
         Input = input;
         CreationError = result;
-        await LoadModulesAsync(null, null, null, PaginationQueryDto.DefaultPage, PaginationQueryDto.DefaultPageSize);
+        await LoadModulesAsync(null, null, PaginationQueryDto.DefaultPage, PaginationQueryDto.DefaultPageSize);
         return Page();
     }
 
@@ -327,14 +318,12 @@ public class IndexModel : PageModel
     /// </summary>
     /// <param name="q">The search text.</param>
     /// <param name="status">The status to filter by.</param>
-    /// <param name="sort">The sort order.</param>
     /// <param name="pageNumber">The 1-based page number.</param>
     /// <param name="pageSize">The number of items per page.</param>
-    private async Task LoadModulesAsync(string? q, string? status, string? sort, int pageNumber, int pageSize)
+    private async Task LoadModulesAsync(string? q, string? status, int pageNumber, int pageSize)
     {
         Query = q?.Trim() ?? "";
         StatusFilter = status ?? "";
-        SortBy = sort is "name" or "name-desc" ? sort : "newest";
         CurrentPage = pageNumber < 1 ? PaginationQueryDto.DefaultPage : pageNumber;
         PageSize = pageSize < 1
             ? PaginationQueryDto.DefaultPageSize
@@ -382,12 +371,7 @@ public class IndexModel : PageModel
                 $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
                     .Contains(Query, StringComparison.OrdinalIgnoreCase));
 
-            Modules = (SortBy switch
-            {
-                "name" => filtered.OrderBy(module => module.ModuleName, StringComparer.Create(CultureInfo.InvariantCulture, false)),
-                "name-desc" => filtered.OrderByDescending(module => module.ModuleName, StringComparer.Create(CultureInfo.InvariantCulture, false)),
-                _ => filtered.OrderByDescending(module => module.CreatedAtUtc)
-            }).ToList();
+            Modules = filtered.ToList();
         }
         catch (HttpRequestException exception)
         {

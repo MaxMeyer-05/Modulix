@@ -4,18 +4,6 @@
 @{
     ViewData["Title"] = "Scan queue";
     var entries = Model.QueueEntries;
-    var priorities = new (string Value, string Label)[]
-    {
-        ("", "All priorities"),
-        (nameof(ScanPriority.Patch), "Patch (High)"),
-        (nameof(ScanPriority.Create), "Create (Normal)")
-    };
-    var states = new (string Value, string Label)[]
-    {
-        ("", "All states"),
-        ("running", "Scanning"),
-        ("waiting", "Waiting")
-    };
     var resetUrl = Url.Page("/ScanQueuePage/Index");
 }
 @section Styles {
@@ -32,7 +20,7 @@
                 <span class="auto-refresh-dot" aria-hidden="true"></span>
                 <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
             </span>
-            <a class="module-button" data-auto-refresh-link href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query, priority = Model.PriorityFilter, state = Model.StateFilter })">
+            <a class="module-button" data-auto-refresh-link href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query })">
                 <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
             </a>
         </div>
@@ -65,23 +53,6 @@
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="queue-search" name="q" type="search" value="@Model.Query" placeholder="Search by module name or ID..." aria-label="Search scan queue" autocomplete="off" />
         </div>
-        <label class="module-select-label"><span>State</span>
-            <select id="queue-state-filter" name="state">
-                @foreach (var (value, label) in states)
-                {
-                    <option value="@value" selected="@(Model.StateFilter == value)">@label</option>
-                }
-            </select>
-        </label>
-        <label class="module-select-label"><span>Priority</span>
-            <select id="queue-priority-filter" name="priority">
-                @foreach (var (value, label) in priorities)
-                {
-                    <option value="@value" selected="@(Model.PriorityFilter == value)">@label</option>
-                }
-            </select>
-        </label>
-        <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
     </form>
 
     <p class="module-result-count" id="queue-result-count" role="status">
@@ -141,8 +112,6 @@
                                     <input type="hidden" name="moduleId" value="@item.ModuleId" />
                                     <input type="hidden" name="moduleName" value="@displayName" />
                                     <input type="hidden" name="q" value="@Model.Query" />
-                                    <input type="hidden" name="priority" value="@Model.PriorityFilter" />
-                                    <input type="hidden" name="state" value="@Model.StateFilter" />
                                     <button class="module-button module-button-danger module-button-compact" type="submit" title="Cancel scan and remove module">
                                         <i data-lucide="x-circle" aria-hidden="true"></i>
                                         <span>Cancel scan</span>
