@@ -48,6 +48,9 @@ public class ModuleVersionService : IModuleVersionService
     /// </summary>
     private readonly ModuleEndpointExtension _moduleEndpointExtension;
 
+    /// <summary>
+    /// The module version extension for enforcing version retention limits.
+    /// </summary>
     private readonly ModuleVersionExtension _moduleVersionExtension;
 
     /// <summary>
@@ -260,14 +263,14 @@ public class ModuleVersionService : IModuleVersionService
             await _dockerService.TryRemoveModuleContainerAsync(previousState.ContainerId, module.Id);
         }
 
-        // Remove previous version directory after successful deployment
-        if (_moduleVersionExtension.HasReachedAllowedVersionLimit(module.Versions.Count))
+        // Remove excess inactive versions after successful activation
+        if (module.Status == ModuleStatus.Running &&
+            _moduleVersionExtension.HasReachedAllowedVersionLimit(module.Versions.Count))
         {
-            var oldestVersion = module.Versions.OrderByDescending(v => v.ReleasedAtUtc).FirstOrDefault();
-            if (oldestVersion != null)
+            var excessVersions = _moduleVersionExtension.GetExcessInactiveVersions(module);
+            foreach (var oldVersion in excessVersions)
             {
-                var oldestVersionDirectory = await _moduleVersionExtension.GetModuleVersionDirectory(module.Id, oldestVersion.Version);
-                await DeleteModuleVersionAsync(module.Id, oldestVersion.Version, ct);
+                await DeleteModuleVersionAsync(module.Id, oldVersion.Version, ct);
             }
         }
 

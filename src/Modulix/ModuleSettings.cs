@@ -36,6 +36,6 @@ public sealed class ModuleSettings
     /// <remarks>
     /// 0 means unlimited retention of previous versions.
     /// </remarks>
-    [Range(1, int.MaxValue)]
+    [Range(0, int.MaxValue)]
     public int MaxRetainedVersionsPerModule { get; set; } = 5;
 }

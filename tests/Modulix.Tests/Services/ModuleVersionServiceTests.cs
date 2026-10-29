@@ -34,7 +34,8 @@ public class ModuleVersionServiceTests : ServiceTestBase
             _dockerService,
             _endpointScanner,
             _directoryExtension,
-            _moduleEndpointExtension);
+            _moduleEndpointExtension,
+            _moduleVersionExtension);
     }
 
     [Fact]
@@ -505,5 +506,78 @@ public class ModuleVersionServiceTests : ServiceTestBase
         Assert.Equal("sqlite-runtime-data", await File.ReadAllTextAsync(dbFile));
         Assert.Equal(ModuleEndpointsStatus.Active, result.Endpoints.Single(e => e.EndpointPath == "/v1").Status);
         Assert.Equal(ModuleEndpointsStatus.Inactive, result.Endpoints.Single(e => e.EndpointPath == "/v2").Status);
+    }
+
+    [Fact]
+    [Trait("Feature", "VersionRetention")]
+    public async Task CreateModuleVersionAsync_ExceedsMaxRetainedVersions_DeletesOldestInactiveVersionsFromDbAndDisk()
+    {
+        _moduleOptions.Value.MaxRetainedVersionsPerModule = 2;
+
+        var module = CreateTestModuleEntity("Retention Module", "api/v1/retention", 8030);
+        var v1 = module.Versions.Single();
+        v1.Version = "v1.0.0";
+        v1.ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-20);
+        v1.StoragePath = Path.Combine(_moduleOptions.Value.StorageBasePath, module.Id.ToString(), "versions", "v1.0.0");
+        Directory.CreateDirectory(v1.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(v1.StoragePath, "v1.dll"), "v1");
+
+        var v2 = new ModuleVersion
+        {
+            ModuleId = module.Id,
+            Version = "v1.1.0",
+            ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            StoragePath = Path.Combine(_moduleOptions.Value.StorageBasePath, module.Id.ToString(), "versions", "v1.1.0"),
+            ModuleEntryAssemblyFileName = "v2.dll"
+        };
+        Directory.CreateDirectory(v2.StoragePath);
+        await File.WriteAllTextAsync(Path.Combine(v2.StoragePath, "v2.dll"), "v2");
+        module.Versions.Add(v2);
+
+        module.CurrentVersion = "v1.1.0";
+        module.ContainerId = "v2-container";
+        module.Status = ModuleStatus.Running;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var result = await _sut.CreateModuleVersionAsync(
+            module.Id,
+            new ModuleVersionCreateDto { Version = "v1.2.0", ModuleFile = CreateDummyZipFile() });
+
+        Assert.Equal(ModuleStatus.Running, result.Module.Status);
+        Assert.Equal("v1.2.0", result.Module.CurrentVersion);
+        Assert.Equal(2, result.Module.Versions.Count);
+        Assert.DoesNotContain(result.Module.Versions, v => v.Version == "v1.0.0");
+        Assert.Contains(result.Module.Versions, v => v.Version == "v1.1.0");
+        Assert.Contains(result.Module.Versions, v => v.Version == "v1.2.0");
+        Assert.False(Directory.Exists(v1.StoragePath));
+        Assert.True(Directory.Exists(v2.StoragePath));
+    }
+
+    [Fact]
+    [Trait("Feature", "VersionRetention")]
+    public async Task CreateModuleVersionAsync_UnlimitedRetention_KeepsAllVersions()
+    {
+        _moduleOptions.Value.MaxRetainedVersionsPerModule = 0;
+
+        var module = CreateTestModuleEntity("Unlimited Module", "api/v1/unlimited", 8031);
+        var v1 = module.Versions.Single();
+        v1.Version = "v1.0.0";
+        v1.ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-20);
+        v1.StoragePath = Path.Combine(_moduleOptions.Value.StorageBasePath, module.Id.ToString(), "versions", "v1.0.0");
+        Directory.CreateDirectory(v1.StoragePath);
+
+        module.CurrentVersion = "v1.0.0";
+        module.ContainerId = "v1-container";
+        module.Status = ModuleStatus.Running;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var result = await _sut.CreateModuleVersionAsync(
+            module.Id,
+            new ModuleVersionCreateDto { Version = "v1.1.0", ModuleFile = CreateDummyZipFile() });
+
+        Assert.Equal(2, result.Module.Versions.Count);
+        Assert.True(Directory.Exists(v1.StoragePath));
     }
 }

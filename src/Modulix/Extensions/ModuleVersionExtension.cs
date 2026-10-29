@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
 using Modulix.Database.DbContexts;
+using Modulix.Database.Entities;
 
 namespace Modulix.Extensions;
 
 /// <summary>
-/// 
+/// Provides helper methods for enforcing module version retention limits and resolving version directories.
 /// </summary>
 public class ModuleVersionExtension
 {
@@ -26,30 +29,49 @@ public class ModuleVersionExtension
     /// <summary>
     /// Initializes a new instance of the <see cref="ModuleVersionExtension"/> class.
     /// </summary>
-    /// <param name="moduleSettings">The module settings to be used by this extension.</param>
+    /// <param name="options">The module settings options to be used by this extension.</param>
     /// <param name="context">The server context to be used by this extension.</param>
     /// <param name="logger">The logger.</param>
     public ModuleVersionExtension(
-        ModuleSettings moduleSettings, 
+        IOptions<ModuleSettings> options, 
         ServerContext context, 
         ILogger<ModuleVersionExtension> logger)
     {
-        _moduleSettings = moduleSettings;
+        _moduleSettings = options.Value;
         _context = context;
         _logger = logger;
     }
 
     /// <summary>
-    /// Determines whether the current version count has reached the allowed version limit.
+    /// Determines whether the current version count exceeds the configured version retention limit.
     /// </summary>
     /// <param name="currentVersionCount">The current version count of the module.</param>
-    /// <returns>True if the allowed version limit has been reached; otherwise, false.</returns>
+    /// <returns><c>true</c> if the version count exceeds <see cref="ModuleSettings.MaxRetainedVersionsPerModule"/>; otherwise, <c>false</c>.</returns>
     public bool HasReachedAllowedVersionLimit(int currentVersionCount)
     {
-        if (_moduleSettings.MaxRetainedVersionsPerModule == 0)
+        if (_moduleSettings.MaxRetainedVersionsPerModule <= 0)
             return false;
         
-        return currentVersionCount >= _moduleSettings.MaxRetainedVersionsPerModule;
+        return currentVersionCount > _moduleSettings.MaxRetainedVersionsPerModule;
+    }
+
+    /// <summary>
+    /// Returns the oldest inactive versions of the module that exceed <see cref="ModuleSettings.MaxRetainedVersionsPerModule"/>.
+    /// </summary>
+    /// <param name="module">The module entity containing all versions.</param>
+    /// <returns>The list of oldest inactive versions to remove, ordered from oldest to newest.</returns>
+    public IReadOnlyList<ModuleVersion> GetExcessInactiveVersions(Module module)
+    {
+        if (!HasReachedAllowedVersionLimit(module.Versions.Count))
+            return [];
+
+        var excessCount = module.Versions.Count - _moduleSettings.MaxRetainedVersionsPerModule;
+        return module.Versions
+            .Where(v => !string.Equals(v.Version, module.CurrentVersion, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(v => v.ReleasedAtUtc)
+            .ThenBy(v => v.Id)
+            .Take(excessCount)
+            .ToList();
     }
 
     /// <summary>
