@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
+using Modulix.Docker.Extensions;
 using Modulix.Docker.Options;
 using Modulix.Docker.Services;
 
@@ -33,6 +34,7 @@ public static class DockerRegistration
             return new DockerClientConfiguration(dockerUri).CreateClient();
         });
 
+        services.TryAddSingleton<DockerExtension>();
         services.AddSingleton<IDockerService, DockerService>();
         return services;
     }

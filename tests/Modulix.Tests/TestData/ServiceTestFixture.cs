@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
-using System.Text;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
@@ -13,6 +12,7 @@ using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
+using Modulix.Docker.Models;
 using Modulix.Docker.Services;
 using Modulix.Extensions;
 using Modulix.ReverseProxy.Services;
@@ -235,6 +235,15 @@ public sealed class FakeDockerService : IDockerService
     public string? BuiltEntryAssembly { get; private set; }
     public bool IsContainerRunning { get; set; } = true;
     public string ContainerLogsResult { get; set; } = string.Empty;
+    public ContainerStats ContainerStatsResult { get; set; } = new()
+    {
+        IsRunning = true,
+        CpuUsagePercent = 12.5,
+        MemoryUsageMiB = 64.0,
+        MemoryLimitMiB = 512.0,
+        UptimeSeconds = 120.0,
+        ExitCode = 0
+    };
     public Exception? BuildException { get; set; }
     public Exception? StartException { get; set; }
     public Exception? ReadinessException { get; set; }
@@ -318,6 +327,13 @@ public sealed class FakeDockerService : IDockerService
         if (LogsException is not null)
             throw LogsException;
         return Task.FromResult(ContainerLogsResult);
+    }
+
+    public Task<ContainerStats> GetContainerStatsAsync(string containerId, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        Calls.Add($"stats:{containerId}");
+        return Task.FromResult(ContainerStatsResult);
     }
 }
 

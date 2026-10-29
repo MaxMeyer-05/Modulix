@@ -11,6 +11,7 @@ using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
+using Modulix.Docker.Models;
 using Modulix.Docker.Options;
 using Modulix.Docker.Extensions;
 
@@ -311,6 +312,96 @@ public class DockerService : IDockerService, IDisposable
     }
 
     /// <inheritdoc/>
+    public async Task<ContainerStats> GetContainerStatsAsync(string containerId, CancellationToken ct = default)
+    {
+        ContainerInspectResponse inspect;
+        try
+        {
+            inspect = await _client.Containers.InspectContainerAsync(containerId, ct);
+        }
+        catch (DockerContainerNotFoundException)
+        {
+            return new ContainerStats();
+        }
+
+        var isRunning = inspect.State?.Running == true && inspect.State.Restarting != true;
+        var exitCode = inspect.State?.ExitCode ?? 0L;
+        var uptimeSeconds = 0.0;
+
+        if (isRunning &&
+            DateTimeOffset.TryParse(
+                inspect.State?.StartedAt,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var startedAt) &&
+            startedAt > DateTimeOffset.UnixEpoch)
+        {
+            uptimeSeconds = Math.Max(0.0, Math.Round((DateTimeOffset.UtcNow - startedAt).TotalSeconds, 2));
+        }
+
+        var result = new ContainerStats
+        {
+            IsRunning = isRunning,
+            UptimeSeconds = uptimeSeconds,
+            ExitCode = exitCode
+        };
+
+        if (!isRunning)
+            return result;
+
+        var statsProgress = new ContainerStatsProgress();
+        try
+        {
+            await _client.Containers.GetContainerStatsAsync(
+                containerId,
+                new ContainerStatsParameters { Stream = false },
+                statsProgress,
+                ct);
+        }
+        catch (DockerContainerNotFoundException)
+        {
+            result.IsRunning = false;
+            return result;
+        }
+
+        var stats = statsProgress.Latest;
+        if (stats is null)
+            return result;
+
+        var rawMemoryBytes = stats.MemoryStats?.Usage ?? 0UL;
+        if (stats.MemoryStats?.Stats is not null &&
+            stats.MemoryStats.Stats.TryGetValue("inactive_file", out var inactiveFile) &&
+            inactiveFile < rawMemoryBytes)
+        {
+            rawMemoryBytes -= inactiveFile;
+        }
+
+        result.MemoryUsageMiB = Math.Round(rawMemoryBytes / (1024.0 * 1024.0), 2);
+        result.MemoryLimitMiB = Math.Round((stats.MemoryStats?.Limit ?? 0UL) / (1024.0 * 1024.0), 2);
+
+        var cpuDelta = (double)(stats.CPUStats?.CPUUsage?.TotalUsage ?? 0UL) -
+                       (double)(stats.PreCPUStats?.CPUUsage?.TotalUsage ?? 0UL);
+        var systemDelta = (double)(stats.CPUStats?.SystemUsage ?? 0UL) -
+                          (double)(stats.PreCPUStats?.SystemUsage ?? 0UL);
+        var onlineCpus = stats.CPUStats?.OnlineCPUs ?? 0U;
+        if (onlineCpus == 0 && stats.CPUStats?.CPUUsage?.PercpuUsage is { Count: > 0 } perCpu)
+        {
+            onlineCpus = (uint)perCpu.Count;
+        }
+        if (onlineCpus == 0)
+        {
+            onlineCpus = 1U;
+        }
+
+        if (cpuDelta > 0 && systemDelta > 0)
+        {
+            result.CpuUsagePercent = Math.Round((cpuDelta / systemDelta) * onlineCpus * 100.0, 2);
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
     public async Task StopContainerAsync(string containerId, CancellationToken ct = default)
     {
         try
@@ -378,5 +469,19 @@ public class DockerService : IDockerService, IDisposable
                 logger.LogError("[Docker Build Error: {ModuleId}] {Message}", moduleId, message.ErrorMessage);
             }
         }
+    }
+
+    /// <summary>
+    /// Captures a single container stats snapshot from the Docker API.
+    /// </summary>
+    private sealed class ContainerStatsProgress : IProgress<ContainerStatsResponse>
+    {
+        /// <summary>
+        /// Gets the most recently reported container stats response.
+        /// </summary>
+        public ContainerStatsResponse? Latest { get; private set; }
+
+        /// <inheritdoc/>
+        public void Report(ContainerStatsResponse value) => Latest = value;
     }
 }

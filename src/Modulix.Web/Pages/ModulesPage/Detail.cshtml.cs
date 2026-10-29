@@ -137,6 +137,19 @@ public partial class DetailModel : PageModel
 
             ResolveDiscrepancyReport(id);
 
+            if (Module.Status == ModuleStatus.Running || !string.IsNullOrWhiteSpace(Module.ContainerId))
+            {
+                using var statsResponse = await _modulixApiClient.ModuleManagement.GetModuleStatsAsync(
+                    moduleId: id,
+                    ct: HttpContext.RequestAborted);
+
+                if (statsResponse.IsSuccessStatusCode)
+                {
+                    ModuleStats = await statsResponse.Content.ReadFromJsonAsync<ModuleStatsDto>(
+                        cancellationToken: HttpContext.RequestAborted);
+                }
+            }
+
             using var endpointsResponse = await _modulixApiClient.SubEndpointManagement.GetModuleEndpointsAsync(
                 moduleId: id,
                 pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },

@@ -149,12 +149,15 @@ public class ModulesManagementController : ControllerBase
     /// <param name="ct">The cancellation token.</param>
     /// <returns>
     /// A 200 OK response with the statistics of the specified module.
+    /// A 404 Not Found response if the module could not be found.
     /// </returns>
     [HttpGet("{moduleId}/stats")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleStatsDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<ModuleStatsDto>> GetModuleStatsAsync(Guid moduleId, CancellationToken ct = default)
     {
-        return Ok();
+        var result = await _moduleService.GetModuleStatsAsync(moduleId, ct);
+        return Ok(result);
     }
 
     /// <summary>
