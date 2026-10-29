@@ -26,9 +26,10 @@ Use [./src/Modulix/appsettings.Template.json](./src/Modulix/appsettings.Template
 | Setting | Template value | Purpose |
 | --- | --- | --- |
 | `ConnectionStrings:ServerDatabase` | `Data Source=modulix.db` | SQLite database connection string. |
-| `Modulix:StorageBasePath` | `storage/modules` | Directory for extracted module artifacts (relative paths resolve against the content root). |
-| `Modulix:MaximumArchiveEntryCount` | `1000` | Maximum number of entries allowed in an uploaded ZIP archive. |
-| `Modulix:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
+| `Module:StorageBasePath` | `storage/modules` | Directory for extracted module artifacts (relative paths resolve against the content root). |
+| `Module:MaximumArchiveEntryCount` | `1000` | Maximum number of entries allowed in an uploaded ZIP archive. |
+| `Module:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
+| `Module:MaxRetainedVersionsPerModule` | `5` | Maximum number of stored versions retained per module (`0` for unlimited); older inactive versions are automatically cleaned up when a new version is activated. |
 | `Docker:SocketUri` | `null` | Optional Docker/Podman daemon socket URI (e.g., `unix:///run/user/1000/podman/podman.sock` for rootless Podman). Defaults to `npipe://./pipe/docker_engine` on Windows or `unix:///var/run/docker.sock` on Linux/macOS when unset. |
 | `Docker:NetworkName` | `modulix-network` | Docker bridge network attached to module containers. |
 | `Docker:BaseImage` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Base runtime image used when building module container images. |
@@ -106,9 +107,9 @@ dotnet test Modulix.slnx
 | [./src/Modulix/Controllers](./src/Modulix/Controllers) | REST API endpoints (`ModulesManagementController`, `ModuleVersionsManagementController`, `SubEndpointsManagementController`, `ScannerManagementController`) for managing modules, versions, sub-endpoints, and the scan queue. |
 | [./src/Modulix/Services](./src/Modulix/Services) | Business logic for module lifecycle (`ModuleService`), versioning and rollbacks (`ModuleVersionService`), sub-endpoints (`SubEndpointService`), and scan queue processing (`ScannerService`). |
 | [./src/Modulix/Scanner](./src/Modulix/Scanner) | Bounded-concurrency scan scheduling and isolated scanner container execution (`ModuleEndpointScanner`). |
-| [./src/Modulix/Extensions](./src/Modulix/Extensions) | ZIP archive extraction and validation, endpoint discrepancy reconciliation, and host port allocation. |
+| [./src/Modulix/Extensions](./src/Modulix/Extensions) | ZIP archive extraction and validation, endpoint discrepancy reconciliation, version retention cleanup, and host port allocation. |
 | [./src/Modulix/Database](./src/Modulix/Database) | Entity Framework Core `ServerContext`, database entities (`Module`, `ModuleVersion`, `ModuleEndpoint`), and SQLite migrations. |
-| [./src/Modulix/Models](./src/Modulix/Models) | Validated configuration option models (`ModulixOptions`). |
+| [./src/Modulix/Models](./src/Modulix/Models) | Validated configuration option models (`ModuleSettings`). |
 | [./src/Modulix/Mappers](./src/Modulix/Mappers) | Mapping extensions between database entities, DTOs, and reverse proxy route definitions. |
 | [./src/Modulix/Infrastructure](./src/Modulix/Infrastructure) | Centralized exception handling (`GlobalExceptionHandler`) producing RFC 7807 Problem Details responses. |
 | [./src/Modulix.Web](./src/Modulix.Web) | ASP.NET Core Razor Pages management UI with OIDC authentication, dashboard, module management, endpoint browser, scan queue monitor, and log viewer. |
@@ -124,7 +125,7 @@ dotnet test Modulix.slnx
 
 ### Module Artifacts, Versioning, and Upload Validation
 
-A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, an allocated host port, a `CurrentVersion`, discovered sub-endpoints (linked to the `ModuleVersion` in which they were discovered), and a `ModuleStatus`. Version artifacts are stored per version under `<StorageBasePath>/<moduleId>/versions/<version>` so previous versions remain available for instant rollbacks without rescanning, while a version-independent directory `<StorageBasePath>/<moduleId>/data` persists runtime data (such as local SQLite databases or generated files) across version updates and rollbacks.
+A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, an allocated host port, a `CurrentVersion`, discovered sub-endpoints (linked to the `ModuleVersion` in which they were discovered), and a `ModuleStatus`. Version artifacts are stored per version under `<StorageBasePath>/<moduleId>/versions/<version>` so previous versions remain available for instant rollbacks without rescanning (automatically pruning the oldest inactive versions beyond `Module:MaxRetainedVersionsPerModule`), while a version-independent directory `<StorageBasePath>/<moduleId>/data` persists runtime data (such as local SQLite databases or generated files) across version updates and rollbacks.
 
 To protect the host during extraction, uploads are capped at 50 MiB and validated against path traversal (ZipSlip), maximum entry counts (`MaximumArchiveEntryCount`), and maximum uncompressed size (`MaximumArchiveUncompressedBytes`).
 
@@ -146,9 +147,10 @@ Concurrent scanner containers are bounded by `Docker:MaxConcurrentScans`. When a
 When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage` (preparing `/app/data` with write permissions for `$APP_UID`), builds a dedicated image for the active `ModuleVersion`, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, mounts `<StorageBasePath>/<moduleId>/data` into `/app/data`, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
 
 Modules support:
-- **Start / Stop:** Starting and stopping module containers (`POST /api/modules-management/modules/{moduleId}/start` and `/stop`).
+- **Start / Stop & Live Metrics:** Starting and stopping module containers (`POST /api/modules-management/modules/{moduleId}/start` and `/stop`), as well as inspecting live container CPU %, memory usage/limit, uptime, and exit code (`GET /api/modules-management/modules/{moduleId}/stats`).
 - **Metadata Updates:** Updating module name and description (`PUT /api/modules-management/modules/{moduleId}`).
-- **Version Releases & Rollbacks:** Deploying new module versions (`POST /api/version-management/module-versions/{moduleId}/version`), rolling back to an earlier version (`POST /api/version-management/module-versions/{moduleId}/rollback/{version}`), and updating or deleting inactive versions.
+- **Version Releases, Rollbacks & Retention:** Deploying new module versions (`POST /api/version-management/module-versions/{moduleId}/version`), rolling back to an earlier version (`POST /api/version-management/module-versions/{moduleId}/rollback/{version}`), updating or deleting inactive versions, and automatically pruning the oldest inactive versions exceeding `Module:MaxRetainedVersionsPerModule`.
+- **Individual Sub-Endpoint Management:** Activating or deactivating individual sub-endpoints on a running module (`PATCH /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/status`) and deleting unneeded sub-endpoints (`DELETE /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/delete`) with immediate YARP routing updates.
 - **Full Teardown:** Deleting a module (`DELETE /api/modules-management/modules/{moduleId}/delete`), which stops and removes the container, image, database records, reverse proxy routes, persistent data directory, and all stored version directories.
 
 ### Dynamic Reverse Proxy Routing
@@ -165,7 +167,7 @@ Modules support:
 `Modulix.Web` provides an interactive administrative UI built with ASP.NET Core Razor Pages. Users authenticate via OpenID Connect (Authorization Code flow with PKCE), while backend requests to `Modulix` use `Modulix.Client` with automated OAuth 2.0 Client Credentials token management (`Duende.AccessTokenManagement`). The portal offers:
 
 - **Dashboard:** High-level system metrics and module status overview.
-- **Modules:** Uploading new ZIP artifacts with initial sub-endpoints, browsing modules with pagination and page-size controls, starting/stopping modules, deploying new versions, rolling back to previous versions, resolving endpoint discrepancies, editing metadata, and deleting modules.
+- **Modules:** Uploading new ZIP artifacts with initial sub-endpoints, browsing modules with pagination and page-size controls, viewing live container CPU %, memory usage, and uptime, starting/stopping modules, deploying new versions, rolling back to previous versions, activating/deactivating or deleting individual sub-endpoints, resolving endpoint discrepancies, editing metadata, and deleting modules.
 - **Endpoints:** Searching, filtering, paginating, and inspecting all active, pending, and inactive sub-endpoints across modules (including `DiscoveredInVersion`).
 - **Scan Queue:** Monitoring queued scans and priorities or cancelling pending scans.
 - **Logs:** Browsing and filtering structured Serilog log files.
@@ -180,6 +182,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | --- | --- | --- |
 | `GET` | `/` | List registered modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleDto>`). |
 | `GET` | `/{moduleId}` | Retrieve module details, sub-endpoints, versions, and lifecycle status. |
+| `GET` | `/{moduleId}/stats` | Retrieve live container resource metrics (CPU %, memory usage/limit, uptime, and exit code) for a module. |
 | `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
 | `POST` | `/{moduleId}/start` | Start a stopped or created module container. |
 | `POST` | `/{moduleId}/stop` | Stop a running module container. |
@@ -205,6 +208,8 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | `GET` | `/` | Retrieve detailed sub-endpoints across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointsDetailDto>`). |
 | `GET` | `/{moduleId}` | Retrieve sub-endpoints for a specific module (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointDto>`). |
 | `POST` | `/{moduleId}/confirm` | Confirm or reject pending endpoint discrepancies. |
+| `PATCH` | `/{moduleId}/{endpointId}/status` | Activate or deactivate an individual sub-endpoint on a running module and synchronize YARP routing. |
+| `DELETE` | `/{moduleId}/{endpointId}/delete` | Delete an individual sub-endpoint from a module and synchronize YARP routing. |
 
 #### Scanner (`ScannerManagementController` — `/api/scanner-management/scanner`)
 

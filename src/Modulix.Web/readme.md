@@ -12,6 +12,11 @@ dotnet run --project src/Modulix.Web
 
 ## changelog
 
+### 1.2.0
+- Displayed live container resource metrics (CPU usage %, memory usage/limit in MiB, container uptime, and last exit code) in the **Runtime & storage** section on `/modules/{id}`.
+- Added inline actions on `/modules/{id}` (`_DetailEndpoints.cshtml`) to activate, deactivate, and delete individual module sub-endpoints.
+- Removed the overview metric cards from the Modules, Scan Queue, and API Endpoints pages and moved status/state filtering into the page toolbars.
+
 ### 1.1.3
 - Surfaced `SubEndpointDiscrepancyReportDto` details (`Extra`, `Missing`, and `Matched` endpoints) on `/modules/{id}` and in the endpoint confirmation dialog, defaulting `Extra` endpoints to confirm and `Missing` endpoints to remove.
 - Hid unavailable/blocked action buttons across module details, dialogs, pagination, and log views instead of rendering them disabled.

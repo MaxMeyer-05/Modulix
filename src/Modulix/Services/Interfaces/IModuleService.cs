@@ -54,6 +54,15 @@ public interface IModuleService
     Task<ModuleDetailDto> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default);
 
     /// <summary>
+    /// Retrieves live container resource metrics and execution state for a specific module.
+    /// </summary>
+    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The live container statistics for the specified module.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if the module with the specified ID does not exist.</exception>
+    Task<ModuleStatsDto> GetModuleStatsAsync(Guid moduleId, CancellationToken ct = default);
+
+    /// <summary>
     /// Updates metadata for an existing module.
     /// </summary>
     /// <param name="moduleId">The unique identifier of the module to update.</param>

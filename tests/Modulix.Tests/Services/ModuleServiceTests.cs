@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 using Modulix.Database.Entities;
-using Modulix.ReverseProxy.Models;
 using Modulix.Services;
 using Modulix.Tests.TestData;
 
@@ -41,7 +39,8 @@ public partial class ModuleServiceTests : ServiceTestBase
             _dockerService,
             _endpointScanner,
             _directoryExtension,
-            _moduleEndpointExtension);
+            _moduleEndpointExtension,
+            _moduleVersionExtension);
 
         _sut = new ModuleService(
             _context,

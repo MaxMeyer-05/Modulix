@@ -62,34 +62,9 @@ public class IndexModel : PageModel
     public int TotalCount { get; private set; }
 
     /// <summary>
-    /// Number of currently running scans.
-    /// </summary>
-    public int RunningCount { get; private set; }
-
-    /// <summary>
-    /// Number of scans waiting for an available scanner slot.
-    /// </summary>
-    public int WaitingCount { get; private set; }
-
-    /// <summary>
-    /// Number of high-priority (Patch) scans in the queue.
-    /// </summary>
-    public int PatchPriorityCount { get; private set; }
-
-    /// <summary>
     /// The current search query.
     /// </summary>
     public string Query { get; private set; } = "";
-
-    /// <summary>
-    /// The current priority filter.
-    /// </summary>
-    public string PriorityFilter { get; private set; } = "";
-
-    /// <summary>
-    /// The current execution state filter.
-    /// </summary>
-    public string StateFilter { get; private set; } = "";
 
     /// <summary>
     /// Feedback from the last scan cancellation action.
@@ -100,14 +75,12 @@ public class IndexModel : PageModel
     /// Handles the GET request for the scan queue page.
     /// </summary>
     /// <param name="q">The search query.</param>
-    /// <param name="priority">The priority filter.</param>
-    /// <param name="state">The execution state filter ("running" or "waiting").</param>
-    public async Task<IActionResult> OnGetAsync(string? q, string? priority, string? state)
+    public async Task<IActionResult> OnGetAsync(string? q)
     {
         if (TempData[FeedbackKey] is string json)
             Feedback = JsonSerializer.Deserialize<ActionFeedback>(json);
 
-        await LoadQueueAsync(q, priority, state);
+        await LoadQueueAsync(q);
         return Page();
     }
 
@@ -117,9 +90,7 @@ public class IndexModel : PageModel
     /// <param name="moduleId">The ID of the module whose scan should be cancelled.</param>
     /// <param name="moduleName">The display name of the module whose scan is cancelled.</param>
     /// <param name="q">Current search filter.</param>
-    /// <param name="priority">Current priority filter.</param>
-    /// <param name="state">Current state filter.</param>
-    public async Task<IActionResult> OnPostCancelAsync(Guid moduleId, string? moduleName, string? q, string? priority, string? state)
+    public async Task<IActionResult> OnPostCancelAsync(Guid moduleId, string? moduleName, string? q)
     {
         try
         {
@@ -165,14 +136,12 @@ public class IndexModel : PageModel
                 IsSuccess: false));
         }
 
-        return RedirectToPage(new { q, priority, state });
+        return RedirectToPage(new { q });
     }
 
-    private async Task LoadQueueAsync(string? q, string? priority, string? state)
+    private async Task LoadQueueAsync(string? q)
     {
         Query = q?.Trim() ?? "";
-        PriorityFilter = priority is nameof(ScanPriority.Patch) or nameof(ScanPriority.Create) ? priority : "";
-        StateFilter = state is "running" or "waiting" ? state : "";
 
         try
         {
@@ -192,19 +161,12 @@ public class IndexModel : PageModel
             _logger.LogDebug("Successfully loaded {QueueCount} scan queue entries.", items.Count);
 
             TotalCount = items.Count;
-            RunningCount = items.Count(item => item.IsRunning);
-            WaitingCount = items.Count(item => !item.IsRunning);
-            PatchPriorityCount = items.Count(item => item.Priority == ScanPriority.Patch);
 
             var indexed = items.Select((item, index) => new QueueEntryView(index + 1, item));
 
             QueueEntries = indexed.Where(entry =>
                 $"{entry.Item.ModuleName} {entry.Item.ModuleId} {entry.Item.Priority}"
-                    .Contains(Query, StringComparison.OrdinalIgnoreCase)
-                && (PriorityFilter.Length == 0 || entry.Item.Priority.ToString().Equals(PriorityFilter, StringComparison.OrdinalIgnoreCase))
-                && (StateFilter.Length == 0
-                    || (StateFilter == "running" && entry.Item.IsRunning)
-                    || (StateFilter == "waiting" && !entry.Item.IsRunning)))
+                    .Contains(Query, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
         catch (HttpRequestException exception)

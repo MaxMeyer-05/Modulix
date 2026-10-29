@@ -7,10 +7,14 @@ HTTP client library for the Modulix framework.
 To use the Modulix HTTP client library, add the following package reference to your project:
 
 ```xml
-<PackageReference Include="Modulix.Client" Version="1.1.3" />
+<PackageReference Include="Modulix.Client" Version="1.2.0" />
 ```
 
 ## changelog
+
+### 1.2.0
+- Added `GetModuleStatsAsync` to `ModulixApi` (`IModuleManagementClient`) for retrieving live container resource statistics.
+- Added `UpdateSubEndpointStatusAsync` and `DeleteSubEndpointAsync` to `ModulixApi` (`ISubEndpointManagementClient`) for toggling and deleting individual module sub-endpoints.
 
 ### 1.1.3
 - Removed `GetModuleContainerLogsAsync` from `ModulixApi`.

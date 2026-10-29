@@ -36,6 +36,11 @@ public partial class DetailModel
     public ModuleDetailDto? Module { get; private set; }
 
     /// <summary>
+    /// Gets the live container resource metrics and execution state for the module, if available.
+    /// </summary>
+    public ModuleStatsDto? ModuleStats { get; private set; }
+
+    /// <summary>
     /// Gets the endpoint discrepancy report associated with the module's pending confirmation state, if available.
     /// </summary>
     public SubEndpointDiscrepancyReportDto? DiscrepancyReport { get; private set; }
@@ -194,6 +199,44 @@ public partial class DetailModel
         or ModuleStatus.Starting;
 
     /// <summary>
+    /// Indicates whether live container resource statistics should be displayed.
+    /// </summary>
+    public bool ShowContainerStats => Module?.Status == ModuleStatus.Running || ModuleStats?.IsRunning == true;
+
+    /// <summary>
+    /// Gets the formatted CPU usage percentage for the running container.
+    /// </summary>
+    public string FormattedCpuUsage => string.Create(
+        System.Globalization.CultureInfo.InvariantCulture,
+        $"{(ModuleStats?.CpuUsagePercent ?? 0):0.00}%");
+
+    /// <summary>
+    /// Gets the formatted memory usage and limit for the running container.
+    /// </summary>
+    public string FormattedMemoryUsage => ModuleStats is { MemoryLimitMiB: > 0 } stats
+        ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{stats.MemoryUsageMiB:0.00} MiB / {stats.MemoryLimitMiB:0.00} MiB")
+        : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(ModuleStats?.MemoryUsageMiB ?? 0):0.00} MiB");
+
+    /// <summary>
+    /// Gets the formatted container uptime for the running container.
+    /// </summary>
+    public string FormattedUptime
+    {
+        get
+        {
+            var span = TimeSpan.FromSeconds(Math.Max(0, ModuleStats?.UptimeSeconds ?? 0));
+            if (span.TotalDays >= 1)
+                return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)span.TotalDays}d {span.Hours}h {span.Minutes}m {span.Seconds}s");
+            if (span.TotalHours >= 1)
+                return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)span.TotalHours}h {span.Minutes}m {span.Seconds}s");
+            if (span.TotalMinutes >= 1)
+                return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)span.TotalMinutes}m {span.Seconds}s");
+
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)Math.Round(span.TotalSeconds)}s");
+        }
+    }
+
+    /// <summary>
     /// Gets the module versions ordered from newest to oldest.
     /// </summary>
     public IReadOnlyList<ModuleVersionDto> OrderedVersions => Module?.Versions
@@ -232,6 +275,29 @@ public partial class DetailModel
     /// </summary>
     public bool CanConfirmEndpoints => Module?.Status == ModuleStatus.PendingConfirmation
         && PendingEndpoints.Count > 0;
+
+    /// <summary>
+    /// Determines whether the specified inactive sub-endpoint can currently be activated.
+    /// </summary>
+    /// <param name="endpoint">The sub-endpoint to evaluate.</param>
+    public bool CanActivateEndpoint(ModuleSubEndpointDto endpoint)
+    {
+        if (Module?.Status != ModuleStatus.Running || endpoint.Status != ModuleEndpointsStatus.Inactive)
+            return false;
+
+        if (CurrentVersion is null || string.IsNullOrWhiteSpace(endpoint.DiscoveredInVersion))
+            return true;
+
+        if (string.Equals(endpoint.DiscoveredInVersion, CurrentVersion.Version, StringComparison.Ordinal))
+            return true;
+
+        var endpointVersion = OrderedVersions.FirstOrDefault(v =>
+            string.Equals(v.Version, endpoint.DiscoveredInVersion, StringComparison.Ordinal));
+
+        return endpointVersion is null ||
+            endpointVersion.ReleasedAtUtc < CurrentVersion.ReleasedAtUtc ||
+            (endpointVersion.ReleasedAtUtc == CurrentVersion.ReleasedAtUtc && endpointVersion.Id <= CurrentVersion.Id);
+    }
 
     /// <summary>
     /// Indicates whether a discrepancy report with active discrepancies is available for this module.

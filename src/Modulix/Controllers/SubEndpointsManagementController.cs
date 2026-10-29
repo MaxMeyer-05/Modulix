@@ -42,7 +42,7 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
-    [HttpPost("{moduleId}/confirm")]
+    [HttpPost("module/{moduleId}/confirm")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -64,7 +64,7 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 200 OK response with a list of sub-endpoints for the specified module.
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
-    [HttpGet("{moduleId}")]
+    [HttpGet("module/{moduleId}")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(PagedResultDto<ModuleSubEndpointDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResultDto<ModuleSubEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, [FromQuery] SubEndpointQueryDto query, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
@@ -88,5 +88,48 @@ public class SubEndpointsManagementController : ControllerBase
     {
         var result = await _subEndpointService.GetAllSubEndpointsDetailAsync(query, pagination, ct);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Updates the status of a specific sub-endpoint for a module.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="subEndpointId">The ID of the sub-endpoint.</param>
+    /// <param name="dto">The updated status payload.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// A 204 No Content response if the update is successful.
+    /// A 400 Bad Request response if the requested status is invalid.
+    /// A 404 Not Found response if the module or sub-endpoint could not be found.
+    /// A 409 Conflict response if the sub-endpoint cannot be activated in the module's current state.
+    /// </returns>
+    [HttpPatch("{subEndpointId}/module/{moduleId}/status")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, [FromBody] UpdateSubEndpointStatusDto dto, CancellationToken ct = default)
+    {
+        await _subEndpointService.UpdateSubEndpointStatusAsync(moduleId, subEndpointId, dto, ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Deletes a specific sub-endpoint for a module.
+    /// </summary>
+    /// <param name="moduleId">The ID of the module.</param>
+    /// <param name="subEndpointId">The ID of the sub-endpoint.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// A 204 No Content response if the deletion is successful.
+    /// A 404 Not Found response if the module or sub-endpoint could not be found.
+    /// </returns>
+    [HttpDelete("{subEndpointId}/module/{moduleId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteSubEndpointAsync(Guid moduleId, Guid subEndpointId, CancellationToken ct = default)
+    {
+        await _subEndpointService.DeleteSubEndpointAsync(moduleId, subEndpointId, ct);
+        return NoContent();
     }
 }

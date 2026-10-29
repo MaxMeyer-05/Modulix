@@ -49,6 +49,11 @@ public class ModuleVersionService : IModuleVersionService
     private readonly ModuleEndpointExtension _moduleEndpointExtension;
 
     /// <summary>
+    /// The module version extension for enforcing version retention limits.
+    /// </summary>
+    private readonly ModuleVersionExtension _moduleVersionExtension;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ModuleVersionService"/> class.
     /// </summary>
     /// <param name="context">The database context used by the service.</param>
@@ -57,13 +62,15 @@ public class ModuleVersionService : IModuleVersionService
     /// <param name="endpointScanner">The module endpoint scanner.</param>
     /// <param name="directoryExtension">The directory extension for handling module directories and archives.</param>
     /// <param name="moduleEndpointExtension">The extension for validating and reconciling module endpoints.</param>
+    /// <param name="moduleVersionExtension">The extension for handling module version limits.</param>
     public ModuleVersionService(
         ServerContext context,
         ILogger<ModuleVersionService> logger,
         IDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         DirectoryExtension directoryExtension,
-        ModuleEndpointExtension moduleEndpointExtension)
+        ModuleEndpointExtension moduleEndpointExtension,
+        ModuleVersionExtension moduleVersionExtension)
     {
         _context = context;
         _logger = logger;
@@ -71,6 +78,7 @@ public class ModuleVersionService : IModuleVersionService
         _endpointScanner = endpointScanner;
         _directoryExtension = directoryExtension;
         _moduleEndpointExtension = moduleEndpointExtension;
+        _moduleVersionExtension = moduleVersionExtension;
     }
 
     /// <inheritdoc/>
@@ -208,7 +216,7 @@ public class ModuleVersionService : IModuleVersionService
                 return new ModuleCreationResultDto
                 {
                     Module = module.ToModuleDetailDto(),
-                    Message = "Alle Scanner-Container sind besetzt. Das Update wurde in die Warteschlange aufgenommen."
+                    Message = "All scanner containers are busy. The update has been queued."
                 };
             }
 
@@ -253,6 +261,17 @@ public class ModuleVersionService : IModuleVersionService
             previousState.ContainerId != module.ContainerId)
         {
             await _dockerService.TryRemoveModuleContainerAsync(previousState.ContainerId, module.Id);
+        }
+
+        // Remove excess inactive versions after successful activation
+        if (module.Status == ModuleStatus.Running &&
+            _moduleVersionExtension.HasReachedAllowedVersionLimit(module.Versions.Count))
+        {
+            var excessVersions = _moduleVersionExtension.GetExcessInactiveVersions(module);
+            foreach (var oldVersion in excessVersions)
+            {
+                await DeleteModuleVersionAsync(module.Id, oldVersion.Version, ct);
+            }
         }
 
         _logger.LogInformation("Created version '{Version}' for module '{ModuleId}' (Status: {Status}).", normalizedVersion, moduleId, module.Status);

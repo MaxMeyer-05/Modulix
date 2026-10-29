@@ -14,11 +14,12 @@
         ("PATCH", "PATCH"),
         ("DELETE", "DELETE")
     };
-    var sorts = new (string Value, string Label)[]
+    var statuses = new (string Value, string Label)[]
     {
-        ("newest", "Newest first"),
-        ("path", "Path A-Z"),
-        ("module", "Module A-Z")
+        ("", "All statuses"),
+        (nameof(ModuleEndpointsStatus.Active), "Active"),
+        (nameof(ModuleEndpointsStatus.PendingConfirmation), "Pending confirmation"),
+        (nameof(ModuleEndpointsStatus.Inactive), "Inactive")
     };
     var resetUrl = Url.Page("/EndpointsPage/Index");
 }
@@ -53,77 +54,25 @@
         </div>
     }
 
-    <section class="queue-metrics" aria-label="API endpoints overview">
-        <a class="queue-metric queue-metric-link @(string.IsNullOrEmpty(Model.StatusFilter) ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, "")">
-            <div class="queue-metric-heading">
-                <h2>Total endpoints</h2>
-                <span class="queue-metric-icon"><i data-lucide="link" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.TotalEndpoints</p>
-            <span class="queue-metric-sub">Across @Model.AvailableModules.Count @(Model.AvailableModules.Count == 1 ? "module" : "modules")</span>
-        </a>
-        <a class="queue-metric queue-metric-active queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.Active), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, nameof(ModuleEndpointsStatus.Active))">
-            <div class="queue-metric-heading">
-                <h2>Active</h2>
-                <span class="queue-metric-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.ActiveCount</p>
-            <span class="queue-metric-sub">Routing traffic via proxy</span>
-        </a>
-        <a class="queue-metric queue-metric-priority queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.PendingConfirmation), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, nameof(ModuleEndpointsStatus.PendingConfirmation))">
-            <div class="queue-metric-heading">
-                <h2>Pending confirmation</h2>
-                <span class="queue-metric-icon"><i data-lucide="clock-3" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.PendingCount</p>
-            <span class="queue-metric-sub">Awaiting review</span>
-        </a>
-        <a class="queue-metric queue-metric-inactive queue-metric-link @(Model.StatusFilter.Equals(nameof(ModuleEndpointsStatus.Inactive), StringComparison.OrdinalIgnoreCase) ? "is-selected" : "")"
-           href="@Model.GetPageUrl(1, nameof(ModuleEndpointsStatus.Inactive))">
-            <div class="queue-metric-heading">
-                <h2>Inactive</h2>
-                <span class="queue-metric-icon"><i data-lucide="pause-circle" aria-hidden="true"></i></span>
-            </div>
-            <p class="queue-metric-value">@Model.InactiveCount</p>
-            <span class="queue-metric-sub">Not currently routed</span>
-        </a>
-    </section>
-
     <form class="modules-toolbar" method="get" action="@resetUrl">
-        @if (!string.IsNullOrEmpty(Model.StatusFilter))
-        {
-            <input type="hidden" name="status" value="@Model.StatusFilter" />
-        }
         <input type="hidden" name="pageSize" value="@Model.PageSize" />
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="endpoint-search" name="q" type="search" value="@Model.Query" placeholder="Search by path, module, method or ID..." aria-label="Search endpoints" autocomplete="off" />
         </div>
+        <label class="module-select-label"><span>Status</span>
+            <select id="endpoint-status-filter" name="status">
+                @foreach (var (value, label) in statuses)
+                {
+                    <option value="@value" selected="@(Model.StatusFilter.Equals(value, StringComparison.OrdinalIgnoreCase))">@label</option>
+                }
+            </select>
+        </label>
         <label class="module-select-label"><span>Method</span>
             <select id="endpoint-method-filter" name="method">
                 @foreach (var (value, label) in methods)
                 {
                     <option value="@value" selected="@(Model.MethodFilter == value)">@label</option>
-                }
-            </select>
-        </label>
-        <label class="module-select-label"><span>Module</span>
-            <select id="endpoint-module-filter" name="module">
-                <option value="">All modules</option>
-                @foreach (var moduleName in Model.AvailableModules)
-                {
-                    <option value="@moduleName" selected="@(Model.ModuleFilter.Equals(moduleName, StringComparison.OrdinalIgnoreCase))">@moduleName</option>
-                }
-            </select>
-        </label>
-        <label class="module-select-label"><span>Sort by</span>
-            <select id="endpoint-sort" name="sort">
-                @foreach (var (value, label) in sorts)
-                {
-                    <option value="@value" selected="@(Model.SortBy == value)">@label</option>
                 }
             </select>
         </label>
@@ -239,14 +188,6 @@
                 @if (!string.IsNullOrWhiteSpace(Model.StatusFilter))
                 {
                     <input type="hidden" name="status" value="@Model.StatusFilter" />
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.ModuleFilter))
-                {
-                    <input type="hidden" name="module" value="@Model.ModuleFilter" />
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.SortBy) && Model.SortBy != "newest")
-                {
-                    <input type="hidden" name="sort" value="@Model.SortBy" />
                 }
                 <input type="hidden" name="page" value="1" />
                 <label class="module-pagination-size-label" for="endpoints-page-size">

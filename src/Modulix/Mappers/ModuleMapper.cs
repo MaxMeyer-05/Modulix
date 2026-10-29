@@ -2,6 +2,7 @@ using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Database.Entities;
+using Modulix.Docker.Models;
 using Modulix.ReverseProxy.Models;
 
 namespace Modulix.Mappers;
@@ -89,5 +90,20 @@ public static class ModuleMapper
                 EndpointPath = e.EndpointPath
             })
             .ToList()
+    };
+
+    /// <summary>
+    /// Maps a <see cref="ContainerStats"/> snapshot to its corresponding <see cref="ModuleStatsDto"/>.
+    /// </summary>
+    /// <param name="stats">The <see cref="ContainerStats"/> snapshot to be mapped.</param>
+    /// <returns>The corresponding <see cref="ModuleStatsDto"/>.</returns>
+    public static ModuleStatsDto ToModuleStatsDto(this ContainerStats stats) => new()
+    {
+        IsRunning = stats.IsRunning,
+        CpuUsagePercent = stats.CpuUsagePercent,
+        MemoryUsageMiB = stats.MemoryUsageMiB,
+        MemoryLimitMiB = stats.MemoryLimitMiB,
+        UptimeSeconds = stats.UptimeSeconds,
+        ExitCode = stats.ExitCode
     };
 }
