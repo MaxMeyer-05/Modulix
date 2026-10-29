@@ -215,3 +215,45 @@ document.querySelectorAll("[data-delete-version]").forEach(button => {
 })();
 
 
+
+(() => {
+    const uptimeEl = document.querySelector('[data-stat="uptime"][data-uptime-seconds]');
+    if (!uptimeEl) {
+        return;
+    }
+
+    const initialSeconds = Number.parseFloat(uptimeEl.dataset.uptimeSeconds);
+    if (!Number.isFinite(initialSeconds) || initialSeconds < 0) {
+        return;
+    }
+
+    const startTimestamp = performance.now();
+
+    const formatUptime = (totalSeconds) => {
+        const total = Math.max(0, Math.floor(totalSeconds));
+        const days = Math.floor(total / 86400);
+        const hours = Math.floor((total % 86400) / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const seconds = total % 60;
+
+        if (days >= 1) {
+            return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+        }
+        if (hours >= 1) {
+            return hours + "h " + minutes + "m " + seconds + "s";
+        }
+        if (minutes >= 1) {
+            return minutes + "m " + seconds + "s";
+        }
+        return seconds + "s";
+    };
+
+    window.setInterval(() => {
+        if (document.hidden) {
+            return;
+        }
+
+        const elapsedSeconds = (performance.now() - startTimestamp) / 1000;
+        uptimeEl.textContent = formatUptime(initialSeconds + elapsedSeconds);
+    }, 1000);
+})();

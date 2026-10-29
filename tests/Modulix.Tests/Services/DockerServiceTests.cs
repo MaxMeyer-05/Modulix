@@ -26,6 +26,8 @@ public partial class DockerServiceTests
     [InlineData("healthy", true, false, true)]
     [InlineData("unhealthy", true, false, false)]
     [InlineData(null, true, false, true)]
+    [InlineData("", true, false, true)]
+    [InlineData("none", true, false, true)]
     [InlineData("healthy", false, false, false)]
     [InlineData("healthy", true, true, false)]
     public async Task WaitUntilReadyAsync_ContainerState_RequiresRunningHealthyContainer(

@@ -262,13 +262,13 @@ public class DockerService : IDockerService, IDisposable
                     throw new InvalidOperationException($"Container '{containerId}' stopped before becoming ready (ExitCode: {container.State.ExitCode}).");
 
                 var health = container.State.Health?.Status;
-                if (health == "unhealthy")
+                if (string.Equals(health, "unhealthy", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException($"Container '{containerId}' failed its health check.");
 
-                if (health == "healthy")
+                if (string.Equals(health, "healthy", StringComparison.OrdinalIgnoreCase))
                     return;
 
-                if (health is null)
+                if (string.IsNullOrWhiteSpace(health) || string.Equals(health, "none", StringComparison.OrdinalIgnoreCase) || string.Equals(health, "unconfigured", StringComparison.OrdinalIgnoreCase))
                 {
                     var hostPort = DockerExtension.TryGetBoundHostPort(container);
                     if (hostPort is null)

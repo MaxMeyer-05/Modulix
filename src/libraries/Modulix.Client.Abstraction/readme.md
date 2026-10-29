@@ -4,6 +4,10 @@ Abstraction library for the Modulix HTTP client.
 
 ## changelog
 
+### 1.2.0
+- Added `ModuleStatsDto` and `IModuleManagementClient.GetModuleStatsAsync` for live module container statistics.
+- Added `UpdateSubEndpointStatusDto` and extended `ISubEndpointManagementClient` with `UpdateSubEndpointStatusAsync` and `DeleteSubEndpointAsync`.
+
 ### 1.1.3
 - Removed `GetModuleContainerLogsAsync` from `IModuleManagementClient`.
 

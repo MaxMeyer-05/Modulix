@@ -93,7 +93,7 @@ public class DockerExtension
     /// <returns>The bound host port if found; otherwise, null.</returns>
     public static int? TryGetBoundHostPort(ContainerInspectResponse container)
     {
-        var portBindings = container.HostConfig?.PortBindings ?? container.NetworkSettings?.Ports;
+        var portBindings = container.NetworkSettings?.Ports ?? container.HostConfig?.PortBindings;
         if (portBindings is null)
             return null;
 
@@ -126,7 +126,7 @@ public class DockerExtension
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         connectCts.CancelAfter(TimeSpan.FromSeconds(1));
 
-        using var tcpClient = new TcpClient();
+        using var tcpClient = new TcpClient(AddressFamily.InterNetwork);
         try
         {
             await tcpClient.ConnectAsync(IPAddress.Loopback, port, connectCts.Token);

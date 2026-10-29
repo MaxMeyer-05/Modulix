@@ -15,7 +15,7 @@
     <PackageTags>Modulix;HttpClient;Abstraction</PackageTags>
     <RepositoryUrl>https://github.com/MaxMeyer-05/Modulix</RepositoryUrl>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
-    <Version>1.1.3</Version>
+    <Version>1.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
