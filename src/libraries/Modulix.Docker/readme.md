@@ -7,10 +7,14 @@ Docker container management library for the Modulix framework.
 To use the Modulix Docker library, add the following package reference to your project:
 
 ```xml
-<PackageReference Include="Modulix.Docker" Version="1.1.3" />
+<PackageReference Include="Modulix.Docker" Version="1.2.0" />
 ```
 
 ## changelog
+
+### 1.2.0
+- Added `ContainerStats` and `IDockerService.GetContainerStatsAsync` / `DockerService.GetContainerStatsAsync` to inspect live container CPU %, memory usage/limit (MiB), uptime, and exit code.
+- Extracted Docker image cleanup, host data directory setup, and port probing helpers into `DockerExtension` and registered it in `DockerRegistration.AddDockerServices`.
 
 ### 1.1.3
 - Mounted a persistent, version-independent host data directory (`<hostDataPath>:/app/data`) into module containers in `DockerService.BuildContainerAsync` and configured write permissions for `APP_UID`.

@@ -12,6 +12,11 @@ dotnet run --project src/Modulix --launch-profile http
 
 ## changelog
 
+### 1.2.0
+- Added `GET /api/modules-management/modules/{moduleId}/stats` (`IModuleService.GetModuleStatsAsync`) to expose live container CPU %, memory usage/limit, uptime, and exit code metrics.
+- Added `PATCH /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/status` and `DELETE /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/delete` to activate, deactivate, or delete individual module sub-endpoints with live YARP route synchronization.
+- Added `Module:MaxRetainedVersionsPerModule` configuration (default `5`) and `ModuleVersionExtension` to automatically clean up the oldest inactive versions from database and disk storage when a new version is activated.
+
 ### 1.1.3
 - Added version-independent persistent module data directories (`<StorageBasePath>/<moduleId>/data`) via `DirectoryExtension`, preserved across version updates and rollbacks and removed upon module deletion.
 - Synchronized sub-endpoint statuses (`Active` / `Inactive`) with the module runtime lifecycle (`Running`, `Stopped`, `Failed`, `QueuedForScan`).
