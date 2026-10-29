@@ -1,12 +1,12 @@
 using System.Net;
 
 using Docker.DotNet;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Modulix.Docker;
+using Modulix.Docker.Extensions;
 using Modulix.Docker.Options;
 using Modulix.Docker.Services;
 using Modulix.Tests.TestData;
@@ -183,6 +183,107 @@ public partial class DockerServiceTests
         Assert.Equal(expectedRunning, actual);
     }
 
+    [Fact]
+    public async Task GetContainerStatsAsync_RunningContainer_CalculatesCpuMemoryAndUptime()
+    {
+        var startedAt = DateTimeOffset.UtcNow.AddSeconds(-90).ToString("O");
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/containers/candidate/json", StringComparison.Ordinal))
+            {
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new
+                {
+                    State = new
+                    {
+                        Running = true,
+                        Restarting = false,
+                        ExitCode = 0,
+                        StartedAt = startedAt
+                    }
+                }));
+            }
+
+            Assert.EndsWith("/containers/candidate/stats", request.RequestUri.AbsolutePath);
+            Assert.Contains("stream=0", request.RequestUri.Query, StringComparison.OrdinalIgnoreCase);
+
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(new
+            {
+                memory_stats = new
+                {
+                    usage = 100UL * 1024 * 1024,
+                    limit = 512UL * 1024 * 1024,
+                    stats = new Dictionary<string, ulong>
+                    {
+                        ["inactive_file"] = 20UL * 1024 * 1024
+                    }
+                },
+                cpu_stats = new
+                {
+                    cpu_usage = new { total_usage = 250_000_000UL },
+                    system_cpu_usage = 2_000_000_000UL,
+                    online_cpus = 2U
+                },
+                precpu_stats = new
+                {
+                    cpu_usage = new { total_usage = 150_000_000UL },
+                    system_cpu_usage = 1_000_000_000UL
+                }
+            }));
+        });
+
+        var stats = await service.GetContainerStatsAsync("candidate");
+
+        Assert.True(stats.IsRunning);
+        Assert.Equal(20.0, stats.CpuUsagePercent);
+        Assert.Equal(80.0, stats.MemoryUsageMiB);
+        Assert.Equal(512.0, stats.MemoryLimitMiB);
+        Assert.True(stats.UptimeSeconds >= 85.0);
+        Assert.Equal(0, stats.ExitCode);
+    }
+
+    [Fact]
+    public async Task GetContainerStatsAsync_StoppedContainer_ReturnsStoppedStateAndExitCodeWithoutQueryingLiveStats()
+    {
+        var statsRequested = false;
+        using var service = CreateService((request, cancellationToken) =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/stats", StringComparison.Ordinal))
+            {
+                statsRequested = true;
+            }
+
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(new
+            {
+                State = new
+                {
+                    Running = false,
+                    Restarting = false,
+                    ExitCode = 137
+                }
+            }));
+        });
+
+        var stats = await service.GetContainerStatsAsync("candidate");
+
+        Assert.False(stats.IsRunning);
+        Assert.Equal(137, stats.ExitCode);
+        Assert.Equal(0.0, stats.CpuUsagePercent);
+        Assert.Equal(0.0, stats.MemoryUsageMiB);
+        Assert.False(statsRequested);
+    }
+
+    [Fact]
+    public async Task GetContainerStatsAsync_MissingContainer_ReturnsDefaultStats()
+    {
+        using var service = CreateService((_, _) =>
+            Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "No such container." }, HttpStatusCode.NotFound)));
+
+        var stats = await service.GetContainerStatsAsync("missing-container");
+
+        Assert.False(stats.IsRunning);
+        Assert.Equal(0, stats.ExitCode);
+    }
+
     #endregion
 
     #region DockerRegistration Tests
@@ -233,6 +334,7 @@ public partial class DockerServiceTests
         Func<int, CancellationToken, Task<bool>>? portProbe = null)
     {
         var client = DockerHttpTestHelper.CreateDockerClient(responder);
-        return new DockerService(NullLogger<DockerService>.Instance, Options.Create(options ?? new DockerOptions()), client, portProbe);
+        var dockerExtension = new DockerExtension(NullLogger<DockerExtension>.Instance);
+        return new DockerService(NullLogger<DockerService>.Instance, Options.Create(options ?? new DockerOptions()), client, dockerExtension, portProbe);
     }
 }

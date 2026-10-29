@@ -304,6 +304,66 @@ public partial class ModuleServiceTests
         Assert.DoesNotContain(_reverseProxyService.GetConfig().Routes, route => route.ClusterId == $"module-cluster-{module.Id:N}");
     }
 
+    [Fact]
+    [Trait("Feature", "GetModuleStats")]
+    public async Task GetModuleStatsAsync_ModuleNotFound_ThrowsKeyNotFoundException()
+    {
+        var nonExistentId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _sut.GetModuleStatsAsync(nonExistentId));
+
+        Assert.Equal($"Module with ID '{nonExistentId}' was not found.", exception.Message);
+    }
+
+    [Fact]
+    [Trait("Feature", "GetModuleStats")]
+    public async Task GetModuleStatsAsync_ModuleWithoutContainer_ReturnsDefaultStoppedStats()
+    {
+        var module = CreateTestModuleEntity("No Container Stats", "api/v1/no-container-stats", 8036);
+        module.ContainerId = null;
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        var stats = await _sut.GetModuleStatsAsync(module.Id);
+
+        Assert.False(stats.IsRunning);
+        Assert.Equal(0.0, stats.CpuUsagePercent);
+        Assert.Equal(0.0, stats.MemoryUsageMiB);
+        Assert.Empty(_dockerService.Calls);
+    }
+
+    [Fact]
+    [Trait("Feature", "GetModuleStats")]
+    public async Task GetModuleStatsAsync_ModuleWithContainer_ReturnsDockerContainerStats()
+    {
+        var module = CreateTestModuleEntity("Container Stats", "api/v1/container-stats", 8037);
+        module.Status = ModuleStatus.Running;
+        module.ContainerId = "stats-container";
+        _context.Modules.Add(module);
+        await _context.SaveChangesAsync();
+
+        _dockerService.ContainerStatsResult = new Modulix.Docker.Models.ContainerStats
+        {
+            IsRunning = true,
+            CpuUsagePercent = 34.5,
+            MemoryUsageMiB = 128.25,
+            MemoryLimitMiB = 1024.0,
+            UptimeSeconds = 3665.0,
+            ExitCode = 0
+        };
+
+        var stats = await _sut.GetModuleStatsAsync(module.Id);
+
+        Assert.True(stats.IsRunning);
+        Assert.Equal(34.5, stats.CpuUsagePercent);
+        Assert.Equal(128.25, stats.MemoryUsageMiB);
+        Assert.Equal(1024.0, stats.MemoryLimitMiB);
+        Assert.Equal(3665.0, stats.UptimeSeconds);
+        Assert.Equal(0, stats.ExitCode);
+        Assert.Equal(["stats:stats-container"], _dockerService.Calls);
+    }
+
     #endregion
 
     #region ReverseProxy Synchronization Tests

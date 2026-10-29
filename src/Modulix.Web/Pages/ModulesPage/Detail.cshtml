@@ -184,7 +184,20 @@
             <aside class="module-detail-aside">
                 <section class="module-info-section" aria-labelledby="module-runtime-heading">
                     <h2 id="module-runtime-heading">Runtime &amp; storage</h2>
-                    <dl class="module-runtime-facts"><div><dt>Container ID</dt><dd class="module-code">@(module.ContainerId ?? "Not assigned")</dd></div><div><dt>Storage path</dt><dd class="module-code">@(Model.CurrentVersion?.StoragePath ?? "Not assigned")</dd></div></dl>
+                    <dl class="module-runtime-facts">
+                        <div><dt>Container ID</dt><dd class="module-code">@(module.ContainerId ?? "Not assigned")</dd></div>
+                        <div><dt>Storage path</dt><dd class="module-code">@(Model.CurrentVersion?.StoragePath ?? "Not assigned")</dd></div>
+                        @if (Model.ShowContainerStats)
+                        {
+                            <div><dt>CPU usage</dt><dd class="module-code" data-stat="cpu">@Model.FormattedCpuUsage</dd></div>
+                            <div><dt>Memory usage</dt><dd class="module-code" data-stat="memory">@Model.FormattedMemoryUsage</dd></div>
+                            <div><dt>Uptime</dt><dd class="module-code" data-stat="uptime">@Model.FormattedUptime</dd></div>
+                        }
+                        @if (Model.ModuleStats is { IsRunning: false } stoppedStats && !string.IsNullOrWhiteSpace(module.ContainerId))
+                        {
+                            <div><dt>Last exit code</dt><dd class="module-code" data-stat="exit-code">@stoppedStats.ExitCode</dd></div>
+                        }
+                    </dl>
                 </section>
                 <section class="module-info-section" aria-labelledby="module-actions-heading">
                     <h2 id="module-actions-heading">Module actions</h2>

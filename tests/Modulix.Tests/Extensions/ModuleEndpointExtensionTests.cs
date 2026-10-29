@@ -7,6 +7,7 @@ using Modulix.Extensions;
 using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
+using Modulix.Docker.Models;
 using Modulix.Docker.Services;
 using Modulix.ReverseProxy.Services;
 
@@ -268,6 +269,7 @@ public class ModuleEndpointExtensionTests : IDisposable
         public Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId) => throw new NotSupportedException();
         public Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default) => Task.FromResult(true);
         public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ContainerStats> GetContainerStatsAsync(string containerId, CancellationToken ct = default) => Task.FromResult(new ContainerStats());
 
         private void Record(string operation, CancellationToken ct)
         {

@@ -462,6 +462,22 @@ public class ModuleService : IModuleService
     }
 
     /// <inheritdoc/>
+    public async Task<ModuleStatsDto> GetModuleStatsAsync(Guid moduleId, CancellationToken ct = default)
+    {
+        var module = await _context.Modules
+            .AsNoTracking()
+            .SingleOrDefaultAsync(m => m.Id == moduleId, ct);
+        if (module is null)
+            throw new KeyNotFoundException($"Module with ID '{moduleId}' was not found.");
+
+        if (string.IsNullOrWhiteSpace(module.ContainerId))
+            return new ModuleStatsDto();
+
+        var stats = await _dockerService.GetContainerStatsAsync(module.ContainerId, ct);
+        return stats.ToModuleStatsDto();
+    }
+
+    /// <inheritdoc/>
     public async Task UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default)
     {
         var module = await _context.Modules

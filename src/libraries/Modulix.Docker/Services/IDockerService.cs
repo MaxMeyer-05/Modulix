@@ -1,3 +1,5 @@
+using Modulix.Docker.Models;
+
 namespace Modulix.Docker.Services;
 
 /// <summary>
@@ -61,4 +63,12 @@ public interface IDockerService
     /// <param name="ct">The cancellation token.</param>
     /// <returns>True if the container exists, is running, is not restarting, and has not exited with an error; otherwise, false.</returns>
     Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves a single snapshot of CPU, memory, uptime, and exit code metrics for the specified container.
+    /// </summary>
+    /// <param name="containerId">The ID of the container to inspect.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The current container resource statistics and live state.</returns>
+    Task<ContainerStats> GetContainerStatsAsync(string containerId, CancellationToken ct = default);
 }

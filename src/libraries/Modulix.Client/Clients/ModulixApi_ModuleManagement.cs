@@ -99,6 +99,13 @@ internal partial class ModulixApi : IModuleManagementClient
     }
 
     /// <inheritdoc/>
+    public async Task<HttpResponseMessage> GetModuleStatsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
+    {
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stats";
+        return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
+    }
+
+    /// <inheritdoc/>
     public async Task<HttpResponseMessage> UpdateModuleAsync(Guid moduleId, UpdateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
         var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
