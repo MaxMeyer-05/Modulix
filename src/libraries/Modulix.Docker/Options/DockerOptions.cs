@@ -21,20 +21,17 @@ public sealed class DockerOptions
     /// <summary>
     /// The name of the Docker network used for module containers.
     /// </summary>
-    [Required]
-    public string NetworkName { get; set; } = "modulix-network";
+    public string NetworkName { get; private set; } = "modulix-network";
 
     /// <summary>
     /// The base Docker image for module containers.
     /// </summary>
-    [Required]
-    public string BaseImage { get; set; } = "mcr.microsoft.com/dotnet/aspnet:10.0";
+    public string BaseImage { get; private set; } = "mcr.microsoft.com/dotnet/aspnet:10.0";
 
     /// <summary>
     /// The Docker image used for scanning modules.
     /// </summary>
-    [Required]
-    public string ScannerImage { get; set; } = "ghcr.io/maxmeyer-05/modulix-scanner:latest";
+    public string ScannerImage { get; private set; } = "ghcr.io/maxmeyer-05/modulix-scanner:latest";
 
     /// <summary>
     /// The maximum number of concurrent scans allowed.
