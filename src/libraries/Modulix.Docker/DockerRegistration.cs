@@ -1,12 +1,13 @@
 using Docker.DotNet;
 
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 
 using Modulix.Docker.Extensions;
-using Modulix.Docker.Options;
+
 using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 
 namespace Modulix.Docker;
 
@@ -24,18 +25,23 @@ public static class DockerRegistration
     {
         services.TryAddSingleton<DockerClient>(sp =>
         {
-            var options = sp.GetService<IOptions<DockerOptions>>()?.Value;
+            var options = sp.GetService<IOptions<DockerSettings>>()?.Value;
             var dockerUri = !string.IsNullOrWhiteSpace(options?.SocketUri)
                 ? new Uri(options.SocketUri.Trim())
                 : OperatingSystem.IsWindows()
                     ? new Uri("npipe://./pipe/docker_engine")
                     : new Uri("unix:///var/run/docker.sock");
-
             return new DockerClientConfiguration(dockerUri).CreateClient();
         });
 
+        services.AddHttpClient();
         services.TryAddSingleton<DockerExtension>();
+
         services.AddSingleton<IDockerService, DockerService>();
+
+        services.AddSingleton<IModuleDockerService, ModuleDockerService>();
+        services.AddSingleton<IKeycloakDockerService, KeycloakDockerService>();
+
         return services;
     }
 }

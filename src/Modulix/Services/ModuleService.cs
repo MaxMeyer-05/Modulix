@@ -12,10 +12,11 @@ using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
 using Modulix.Extensions;
-using Modulix.Docker.Services;
-using Modulix.Scanner.Interfaces;
 using Modulix.ReverseProxy.Services;
+
+using Modulix.Scanner.Interfaces;
 using Modulix.Services.Interfaces;
+using Modulix.Docker.Services.Interfaces;
 
 namespace Modulix.Services;
 
@@ -40,7 +41,7 @@ public class ModuleService : IModuleService
     /// <summary>
     /// The Docker service.
     /// </summary>
-    private readonly IDockerService _dockerService;
+    private readonly IModuleDockerService _dockerService;
 
     /// <summary>
     /// The shared module settings.
@@ -77,7 +78,7 @@ public class ModuleService : IModuleService
         ServerContext context, 
         ILogger<ModuleService> logger,
         IOptions<ModuleSettings> options,
-        IDockerService dockerService,
+        IModuleDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         DirectoryExtension directoryExtension,
         ModuleEndpointExtension moduleEndpointExtension,
@@ -107,7 +108,7 @@ public class ModuleService : IModuleService
         if (module.Status == ModuleStatus.Running)
         {
             if (!string.IsNullOrWhiteSpace(module.ContainerId) &&
-                await _dockerService.IsContainerRunningAsync(module.ContainerId, ct))
+                await _dockerService.IsModuleRunningAsync(module.ContainerId, ct))
             {
                 throw new InvalidOperationException($"Module '{moduleId}' is already running.");
             }
@@ -145,7 +146,7 @@ public class ModuleService : IModuleService
                 var currentVersion = module.Versions.FirstOrDefault(v => v.Version == module.CurrentVersion)
                     ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
 
-                builtContainerId = await _dockerService.BuildContainerAsync(
+                builtContainerId = await _dockerService.BuildModuleContainerAsync(
                     module.Id,
                     currentVersion.StoragePath,
                     currentVersion.ModuleEntryAssemblyFileName,
@@ -154,7 +155,7 @@ public class ModuleService : IModuleService
                 module.ContainerId = builtContainerId;
             }
 
-            await _dockerService.RunContainerAsync(module.ContainerId, ct);
+            await _dockerService.RunModuleContainerAsync(module.ContainerId, ct);
             await _dockerService.WaitUntilReadyAsync(module.ContainerId, ct);
             module.Status = ModuleStatus.Running;
             ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);
@@ -211,7 +212,7 @@ public class ModuleService : IModuleService
 
         if (!string.IsNullOrWhiteSpace(module.ContainerId))
         {
-            await _dockerService.StopContainerAsync(module.ContainerId, ct);
+            await _dockerService.StopModuleContainerAsync(module.ContainerId, ct);
         }
 
         module.Status = ModuleStatus.Stopped;
@@ -385,7 +386,7 @@ public class ModuleService : IModuleService
 
         if (!string.IsNullOrEmpty(module.ContainerId))
         {
-            await _dockerService.RemoveContainerAsync(module.ContainerId, module.Id, ct);
+            await _dockerService.RemoveModuleContainerAsync(module.ContainerId, module.Id, ct);
         }
 
         foreach (var version in module.Versions)
@@ -473,7 +474,7 @@ public class ModuleService : IModuleService
         if (string.IsNullOrWhiteSpace(module.ContainerId))
             return new ModuleStatsDto();
 
-        var stats = await _dockerService.GetContainerStatsAsync(module.ContainerId, ct);
+        var stats = await _dockerService.GetModuleStatsAsync(module.ContainerId, ct);
         return stats.ToModuleStatsDto();
     }
 
@@ -500,7 +501,7 @@ public class ModuleService : IModuleService
         foreach (var module in modules.Where(m => m.Status == ModuleStatus.Running))
         {
             var isRunning = !string.IsNullOrWhiteSpace(module.ContainerId)
-                && await _dockerService.IsContainerRunningAsync(module.ContainerId, ct);
+                && await _dockerService.IsModuleRunningAsync(module.ContainerId, ct);
 
             if (!isRunning)
             {

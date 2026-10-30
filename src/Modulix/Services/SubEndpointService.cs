@@ -8,7 +8,7 @@ using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
-using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 using Modulix.Database.DbContexts;
 using Modulix.Services.Interfaces;
 
@@ -30,7 +30,7 @@ public class SubEndpointService : ISubEndpointService
     /// <summary>
     /// The Docker service.
     /// </summary>
-    private readonly IDockerService _dockerService;
+    private readonly IModuleDockerService _dockerService;
 
     /// <summary>
     /// The module endpoint extension for validating and reconciling endpoints.
@@ -47,7 +47,7 @@ public class SubEndpointService : ISubEndpointService
     public SubEndpointService(
         ServerContext context, 
         ILogger<SubEndpointService> logger,
-        IDockerService dockerService,
+        IModuleDockerService dockerService,
         ModuleEndpointExtension moduleEndpointExtension)
     {
         _context = context;
@@ -120,7 +120,7 @@ public class SubEndpointService : ISubEndpointService
                 ?? throw new InvalidOperationException($"Storage path for module '{module.Id}' version '{module.CurrentVersion}' was not found.");
 
             module.Status = ModuleStatus.Starting;
-            candidateId = await _dockerService.BuildContainerAsync(
+            candidateId = await _dockerService.BuildModuleContainerAsync(
                 module.Id,
                 currentVersion.StoragePath,
                 currentVersion.ModuleEntryAssemblyFileName,
@@ -128,7 +128,7 @@ public class SubEndpointService : ISubEndpointService
                 ct);
             module.ContainerId = candidateId;
 
-            await _dockerService.RunContainerAsync(candidateId, ct);
+            await _dockerService.RunModuleContainerAsync(candidateId, ct);
             await _dockerService.WaitUntilReadyAsync(candidateId, ct);
             module.Status = ModuleStatus.Running;
             ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);

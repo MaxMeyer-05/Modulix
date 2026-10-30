@@ -14,8 +14,7 @@ using Modulix.Services;
 using Modulix.Services.Interfaces;
 
 using Modulix.Docker;
-using Modulix.Docker.Options;
-using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 
 using Modulix;
 using Modulix.Mappers;
@@ -44,8 +43,8 @@ builder.Services.AddOptions<ModuleSettings>()
     })
     .ValidateOnStart();
 
-builder.Services.AddOptions<DockerOptions>()
-    .Bind(builder.Configuration.GetSection(DockerOptions.SectionName))
+builder.Services.AddOptions<DockerSettings>()
+    .Bind(builder.Configuration.GetSection(DockerSettings.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
@@ -171,7 +170,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ServerContext>();
     await dbContext.Database.MigrateAsync();
 
-    var dockerService = scope.ServiceProvider.GetRequiredService<IDockerService>();
+    var moduleDockerService = scope.ServiceProvider.GetRequiredService<IModuleDockerService>();
     var reverseProxyService = scope.ServiceProvider.GetRequiredService<IReverseProxyService>();
     var candidateModules = await dbContext.Modules
         .Include(m => m.SubEndpoints)
@@ -184,7 +183,7 @@ using (var scope = app.Services.CreateScope())
     foreach (var module in candidateModules)
     {
         var isRunning = !string.IsNullOrWhiteSpace(module.ContainerId)
-            && await dockerService.IsContainerRunningAsync(module.ContainerId);
+            && await moduleDockerService.IsModuleRunningAsync(module.ContainerId);
 
         if (isRunning)
         {

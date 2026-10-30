@@ -1,23 +1,42 @@
 using Modulix.Docker.Models;
 
-namespace Modulix.Docker.Services;
+namespace Modulix.Docker.Services.Interfaces;
 
 /// <summary>
 /// Provides orchestration capabilities for building and managing Docker containers for modules.
 /// </summary>
-public interface IDockerService
+internal interface IDockerService
 {
     /// <summary>
-    /// Builds the Docker image from the module directory and creates the container in the internal network.
+    /// Builds a Docker container from the specified build context and Dockerfile, and configures it with the given parameters.
     /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="storagePath">The host directory path where the module files reside.</param>
-    /// <param name="entryDllName">The name of the entry assembly DLL.</param>
-    /// <param name="containerPort">The internal port the module listens on.</param>
+    /// <param name="buildContextPath">The path to the Docker build context.</param>
+    /// <param name="dockerfileName">The name of the Dockerfile to use.</param>
+    /// <param name="imageName">The name of the Docker image to build.</param>
+    /// <param name="containerName">The name of the Docker container to create.</param>
+    /// <param name="networkName">The name of the Docker network to connect the container to.</param>
+    /// <param name="containerPort">The internal port the container will expose.</param>
+    /// <param name="env">Optional environment variables to set in the container.</param>
+    /// <param name="binds">Optional volume bindings for the container.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The ID of the created Docker container.</returns>
-    /// <exception cref="FileNotFoundException">Thrown if the Dockerfile is not found in the specified storage path.</exception>
-    Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default);
+    Task<string> BuildContainerAsync(
+        string buildContextPath, 
+        string dockerfileName, 
+        string imageName, 
+        string containerName, 
+        string networkName,
+        int containerPort, 
+        IList<string>? env = null, 
+        IList<string>? binds = null, 
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Ensures that the specified Docker network exists, creating it if necessary.
+    /// </summary>
+    /// <param name="networkName">The name of the Docker network.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task EnsureNetworkExistsAsync(string networkName, CancellationToken ct = default);
 
     /// <summary>
     /// Starts an existing Docker container.
@@ -44,17 +63,18 @@ public interface IDockerService
     /// Stops, removes the container, and deletes the built image to free disk space.
     /// </summary>
     /// <param name="containerId">The ID of the container to remove.</param>
-    /// <param name="moduleId">The module identifier used to delete tagged images.</param>
+    /// <param name="containerName">The name of the container used to delete tagged images.</param>
     /// <param name="ct">The cancellation token.</param>
-    Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default);
+    Task RemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default);
 
     /// <summary>
     /// Attempts to remove a Docker container associated with a module.
     /// </summary>
     /// <param name="containerId">The ID of the container to remove.</param>
-    /// <param name="moduleId">The ID of the module associated with the container.</param>
+    /// <param name="containerName">The name of the container associated with the module.</param>
+    /// <param name="ct">The cancellation token.</param>
     /// <returns>True if the container was successfully removed; otherwise, false.</returns>
-    Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId);
+    Task<bool> TryRemoveModuleContainerAsync(string containerId, string containerName, CancellationToken ct = default);
 
     /// <summary>
     /// Checks whether the specified Docker container is currently running and healthy.
