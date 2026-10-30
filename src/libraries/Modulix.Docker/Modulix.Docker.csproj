@@ -24,6 +24,9 @@
 
   <ItemGroup>
     <None Include="readme.md" Pack="True" PackagePath="\" />
+    <None Update="Resources\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

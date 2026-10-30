@@ -37,7 +37,6 @@
   <ItemGroup>
     <Content Update="appsettings.*.json" CopyToPublishDirectory="Never" />
     <Content Update="appsettings.Template.json" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="storage\resources\**" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
