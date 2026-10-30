@@ -33,10 +33,10 @@ public class DockerExtension
     /// Tries to delete the specified Docker image for the given module.
     /// </summary>
     /// <param name="imageName">The name of the Docker image to delete.</param>
-    /// <param name="moduleId">The ID of the module associated with the image.</param>
+    /// <param name="containerName">The name of the container associated with the image.</param>
     /// <param name="_client">The Docker client.</param>
     /// <param name="ct">The cancellation token.</param>
-    public async Task TryDeleteImageAsync(string? imageName, Guid moduleId, DockerClient _client, CancellationToken ct)
+    public async Task TryDeleteImageAsync(string? imageName, string containerName, DockerClient _client, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(imageName))
             return;
@@ -44,15 +44,15 @@ public class DockerExtension
         try
         {
             await _client.Images.DeleteImageAsync(imageName, new ImageDeleteParameters { Force = true }, ct);
-            _logger.LogInformation("Docker image '{ImageName}' deleted for module '{ModuleId}'.", imageName, moduleId);
+            _logger.LogInformation("Docker image '{ImageName}' deleted for container '{ContainerName}'.", imageName, containerName);
         }
         catch (DockerImageNotFoundException ex)
         {
-            _logger.LogWarning(ex, "Docker image '{ImageName}' was not found for module '{ModuleId}'.", imageName, moduleId);
+            _logger.LogWarning(ex, "Docker image '{ImageName}' was not found for container '{ContainerName}'.", imageName, containerName);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for module '{ModuleId}'.", imageName, moduleId);
+            _logger.LogWarning(ex, "Failed to delete Docker image '{ImageName}' for container '{ContainerName}'.", imageName, containerName);
         }
     }
 

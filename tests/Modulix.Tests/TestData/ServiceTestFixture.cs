@@ -13,7 +13,7 @@ using Modulix.Client.Models.Enums;
 using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
 using Modulix.Docker.Models;
-using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 using Modulix.Extensions;
 using Modulix.ReverseProxy.Services;
 using Modulix.Scanner.Interfaces;
@@ -225,9 +225,9 @@ public sealed class FakeModuleEndpointScanner : IModuleEndpointScanner
 }
 
 /// <summary>
-/// Configurable in-memory test double for <see cref="IDockerService"/>.
+/// Configurable in-memory test double for <see cref="IModuleDockerService"/>.
 /// </summary>
-public sealed class FakeDockerService : IDockerService
+public sealed class FakeDockerService : IModuleDockerService
 {
     public List<string> RemovedContainerIds { get; } = [];
     public List<string> Calls { get; } = [];
@@ -252,7 +252,7 @@ public sealed class FakeDockerService : IDockerService
     public Func<Task>? BeforeReady { get; set; }
     public Func<string, Task>? BeforeRemove { get; set; }
 
-    public Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
+    public Task<string> BuildModuleContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         Calls.Add("build");
@@ -263,7 +263,7 @@ public sealed class FakeDockerService : IDockerService
         return Task.FromResult("replacement-container");
     }
 
-    public Task RunContainerAsync(string containerId, CancellationToken ct = default)
+    public Task RunModuleContainerAsync(string containerId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         Calls.Add("start");
@@ -282,14 +282,14 @@ public sealed class FakeDockerService : IDockerService
             throw ReadinessException;
     }
 
-    public Task StopContainerAsync(string containerId, CancellationToken ct = default)
+    public Task StopModuleContainerAsync(string containerId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         Calls.Add("stop:" + containerId);
         return Task.CompletedTask;
     }
 
-    public async Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default)
+    public async Task RemoveModuleContainerAsync(string containerId, Guid containerName, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         Calls.Add("remove:" + containerId);
@@ -300,12 +300,12 @@ public sealed class FakeDockerService : IDockerService
             throw RemoveException;
     }
 
-    public async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
+    public async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid containerName, CancellationToken ct = default)
     {
         using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try
         {
-            await RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
+            await RemoveModuleContainerAsync(containerId, containerName, cleanupCts.Token);
             return true;
         }
         catch
@@ -314,22 +314,13 @@ public sealed class FakeDockerService : IDockerService
         }
     }
 
-    public Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default)
+    public Task<bool> IsModuleRunningAsync(string containerId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         return Task.FromResult(IsContainerRunning);
     }
 
-    public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        Calls.Add($"logs:{containerId}:{tail?.ToString() ?? "all"}");
-        if (LogsException is not null)
-            throw LogsException;
-        return Task.FromResult(ContainerLogsResult);
-    }
-
-    public Task<ContainerStats> GetContainerStatsAsync(string containerId, CancellationToken ct = default)
+    public Task<ContainerStats> GetModuleStatsAsync(string containerId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         Calls.Add($"stats:{containerId}");

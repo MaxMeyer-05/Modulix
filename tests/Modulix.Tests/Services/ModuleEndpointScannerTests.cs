@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 using Modulix.Client.Models.Dtos;
 using Modulix.Database.DbContexts;
-using Modulix.Docker.Options;
+using Modulix.Docker;
 using Modulix.Scanner;
 using Modulix.Services.Interfaces;
 using Modulix.Tests.TestData;
@@ -58,7 +58,7 @@ public partial class ModuleEndpointScannerTests : IDisposable
         });
         _sut = new ModuleEndpointScanner(_client, NullLogger<ModuleEndpointScanner>.Instance,
             _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new DockerOptions { MaxConcurrentScans = 1, ScannerImage = "custom-scanner:test" }));
+            Options.Create(new DockerSettings { MaxConcurrentScans = 1 }));
     }
 
     public void Dispose()
@@ -120,7 +120,7 @@ public partial class ModuleEndpointScannerTests : IDisposable
         Assert.Equal("/health", endpoint.EndpointPath);
         Assert.False(_moduleService.Results.Reader.TryRead(out _));
         var container = Assert.Single(_createdContainers);
-        Assert.Equal("custom-scanner:test", container.GetProperty("Image").GetString());
+        Assert.Equal("ghcr.io/maxmeyer-05/modulix-scanner:latest", container.GetProperty("Image").GetString());
         Assert.True(container.GetProperty("NetworkDisabled").GetBoolean());
         Assert.Equal("/scan-target", Assert.Single(container.GetProperty("Cmd").EnumerateArray()).GetString());
         var hostConfig = container.GetProperty("HostConfig");
@@ -140,7 +140,7 @@ public partial class ModuleEndpointScannerTests : IDisposable
         {
             var path = request.RequestUri!.AbsolutePath;
             if (path.EndsWith("/containers/create", StringComparison.Ordinal) && ++createAttempts == 1)
-                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "No such image: custom-scanner:test" }, HttpStatusCode.NotFound));
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new { message = "No such image: ghcr.io/maxmeyer-05/modulix-scanner:latest" }, HttpStatusCode.NotFound));
             if (path.EndsWith("/images/create", StringComparison.Ordinal))
             {
                 imageQuery = request.RequestUri.Query;
@@ -158,8 +158,8 @@ public partial class ModuleEndpointScannerTests : IDisposable
         Assert.NotNull(response.Result);
         Assert.Equal(2, createAttempts);
         Assert.NotNull(imageQuery);
-        Assert.Contains("fromImage=custom-scanner", imageQuery, StringComparison.Ordinal);
-        Assert.Contains("tag=test", imageQuery, StringComparison.Ordinal);
+        Assert.Contains("fromImage=ghcr.io", imageQuery, StringComparison.Ordinal);
+        Assert.Contains("tag=latest", imageQuery, StringComparison.Ordinal);
     }
 
     [Fact]

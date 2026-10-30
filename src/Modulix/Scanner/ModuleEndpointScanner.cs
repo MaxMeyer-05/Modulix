@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Docker.Options;
+using Modulix.Docker;
 using Modulix.ReverseProxy.Services;
 
 using Modulix.Scanner.Interfaces;
@@ -24,7 +24,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// <summary>
     /// The shared Docker settings.
     /// </summary>
-    private readonly DockerOptions _options;
+    private readonly DockerSettings _options;
 
     /// <summary>
     /// Semaphore used to control the concurrency of scan jobs.
@@ -110,7 +110,7 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
         DockerClient dockerClient, 
         ILogger<ModuleEndpointScanner> logger,
         IServiceScopeFactory scopeFactory,
-        IOptions<DockerOptions> options)
+        IOptions<DockerSettings> options)
     {
         _dockerClient = dockerClient;
         _logger = logger;
@@ -318,10 +318,12 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
     /// <exception cref="InvalidOperationException">Thrown if the scanner container fails or the scan result cannot be parsed.</exception>
     private async Task<ModuleScanResultDto> RunDockerScannerAsync(string hostDirectoryPath, CancellationToken ct)
     {
+        const string ScannerImage = "ghcr.io/maxmeyer-05/modulix-scanner:latest";
         var containerName = $"modulix-scanner-{Guid.NewGuid():N}";
+
         var createParameters = new CreateContainerParameters
         {
-            Image = _options.ScannerImage,
+            Image = ScannerImage,
             Name = containerName,
             Cmd = ["/scan-target"],
             NetworkDisabled = true,
@@ -340,8 +342,8 @@ public class ModuleEndpointScanner : IModuleEndpointScanner, IDisposable
         }
         catch (DockerApiException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogInformation("Scanner image '{ScannerImage}' not found locally. Pulling image...", _options.ScannerImage);
-            await PullScannerImageAsync(_options.ScannerImage, ct);
+            _logger.LogInformation("Scanner image '{ScannerImage}' not found locally. Pulling image...", ScannerImage);
+            await PullScannerImageAsync(ScannerImage, ct);
             createResponse = await _dockerClient.Containers.CreateContainerAsync(createParameters, ct);
         }
 

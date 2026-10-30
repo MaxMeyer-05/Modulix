@@ -8,10 +8,11 @@ using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
-using Modulix.Docker.Services;
 using Modulix.Database.DbContexts;
+
 using Modulix.Scanner.Interfaces;
 using Modulix.Services.Interfaces;
+using Modulix.Docker.Services.Interfaces;
 
 namespace Modulix.Services;
 
@@ -36,7 +37,7 @@ public class ModuleVersionService : IModuleVersionService
     /// <summary>
     /// The Docker service.
     /// </summary>
-    private readonly IDockerService _dockerService;
+    private readonly IModuleDockerService _dockerService;
 
     /// <summary>
     /// The directory extension for handling module directories and archives.
@@ -66,7 +67,7 @@ public class ModuleVersionService : IModuleVersionService
     public ModuleVersionService(
         ServerContext context,
         ILogger<ModuleVersionService> logger,
-        IDockerService dockerService,
+        IModuleDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         DirectoryExtension directoryExtension,
         ModuleEndpointExtension moduleEndpointExtension,
@@ -342,7 +343,7 @@ public class ModuleVersionService : IModuleVersionService
             module.CurrentVersion = targetVersion.Version;
             module.Status = ModuleStatus.Starting;
 
-            builtContainerId = await _dockerService.BuildContainerAsync(
+            builtContainerId = await _dockerService.BuildModuleContainerAsync(
                 module.Id,
                 targetVersion.StoragePath,
                 targetVersion.ModuleEntryAssemblyFileName,
@@ -350,7 +351,7 @@ public class ModuleVersionService : IModuleVersionService
                 ct);
             module.ContainerId = builtContainerId;
 
-            await _dockerService.RunContainerAsync(builtContainerId, ct);
+            await _dockerService.RunModuleContainerAsync(builtContainerId, ct);
             await _dockerService.WaitUntilReadyAsync(builtContainerId, ct);
             module.Status = ModuleStatus.Running;
             ModuleEndpointExtension.ActivateCurrentVersionSubEndpoints(module);

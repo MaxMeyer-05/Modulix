@@ -1,30 +1,21 @@
-using System.Net;
-using System.Net.Sockets;
-
-using System.Text.Json;
 using System.Formats.Tar;
 using System.Globalization;
 
 using Docker.DotNet;
 using Docker.DotNet.Models;
 
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
 using Modulix.Docker.Models;
-using Modulix.Docker.Options;
 using Modulix.Docker.Extensions;
+
+using Modulix.Docker.Services.Interfaces;
 
 namespace Modulix.Docker.Services;
 
 /// <inheritdoc cref="IDockerService"/>
-public class DockerService : IDockerService, IDisposable
+internal class DockerService : IDockerService, IDisposable
 {
-    /// <summary>
-    /// The shared module settings.
-    /// </summary>
-    private readonly DockerOptions _options;
-
     /// <summary>
     /// The Docker client used to interact with the Docker daemon.
     /// </summary>
@@ -49,63 +40,47 @@ public class DockerService : IDockerService, IDisposable
     /// Initializes a new instance of the <see cref="DockerService"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    /// <param name="options">The shared module settings.</param>
     /// <param name="client">The Docker client owned by this service.</param>
     /// <param name="dockerExtension">The Docker extension instance used for image management and port probing.</param>
     /// <param name="portProbe">Optional delegate for probing local TCP port readiness.</param>
     public DockerService(
         ILogger<DockerService> logger, 
-        IOptions<DockerOptions> options,
         DockerClient client,
         DockerExtension dockerExtension,
         Func<int, CancellationToken, Task<bool>>? portProbe = null)
     {
         _logger = logger;
-        _options = options.Value;
         _client = client;
         _dockerExtension = dockerExtension;
         _portProbe = portProbe ?? DockerExtension.ProbeTcpPortAsync;
     }
 
     /// <inheritdoc/>
-    public async Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
-    {
-        var networks = await _client.Networks.ListNetworksAsync(new NetworksListParameters(), ct);
-        if (!networks.Any(n => n.Name == _options.NetworkName))
+    public async Task<string> BuildContainerAsync(
+        string buildContextPath, 
+        string dockerfileName, 
+        string imageName, 
+        string containerName, 
+        string networkName,
+        int containerPort, 
+        IList<string>? env = null, 
+        IList<string>? binds = null, 
+        CancellationToken ct = default)
+    {      
+        var fullDockerfilePath = Path.Combine(buildContextPath, dockerfileName);
+        if (!File.Exists(fullDockerfilePath))
         {
-            await _client.Networks.CreateNetworkAsync(new NetworksCreateParameters
-            {
-                Name = _options.NetworkName,
-                Driver = "bridge"
-            }, ct);
-            _logger.LogInformation("Docker network '{NetworkName}' created.", _options.NetworkName);
-        }
-
-        var version = Guid.NewGuid().ToString("N");
-        var imageName = $"modulix-module-{moduleId:N}:{version}";
-        var containerName = $"modulix-container-{moduleId:N}-{version}";
-        var dockerfilePath = Path.Combine(storagePath, "Dockerfile");
-
-        if (!File.Exists(dockerfilePath))
-        {
-            var defaultDockerfile = $"""
-                FROM {_options.BaseImage}
-                WORKDIR /app
-                COPY . .
-                RUN mkdir -p /app/data && chown -R "$APP_UID" /app /app/data 2>/dev/null || true && chmod -R 777 /app/data
-                ENV ASPNETCORE_ENVIRONMENT=Production
-                ENTRYPOINT {JsonSerializer.Serialize(new[] { "dotnet", entryDllName })}
-            """;
-
-            await File.WriteAllTextAsync(dockerfilePath, defaultDockerfile, ct);
+            throw new FileNotFoundException($"Dockerfile '{dockerfileName}' was not found in '{buildContextPath}'.", fullDockerfilePath);
         }
 
         await using var tarStream = new MemoryStream();
-        TarFile.CreateFromDirectory(storagePath, tarStream, includeBaseDirectory: false);
+        TarFile.CreateFromDirectory(buildContextPath, tarStream, includeBaseDirectory: false);
         tarStream.Position = 0;
-        _logger.LogInformation("Docker build context created for module '{ModuleId}'.", moduleId);
 
-        var progress = new DockerBuildProgress(_logger, moduleId);
+        _logger.LogInformation("Building Docker image '{ImageName}' from '{Path}' using '{Dockerfile}'...", 
+            imageName, buildContextPath, dockerfileName);
+        
+        var progress = new DockerBuildProgress(_logger, containerName);
         var portString = containerPort.ToString(CultureInfo.InvariantCulture);
 
         try
@@ -114,7 +89,7 @@ public class DockerService : IDockerService, IDisposable
                 new ImageBuildParameters
                 {
                     Tags = [imageName],
-                    Dockerfile = "Dockerfile"
+                    Dockerfile = dockerfileName
                 },
                 tarStream,
                 [],
@@ -126,8 +101,6 @@ public class DockerService : IDockerService, IDisposable
             if (progress.ErrorMessage is not null)
                 throw new InvalidOperationException($"Docker image build failed: {progress.ErrorMessage}");
 
-            var hostDataPath = DockerExtension.EnsureHostDataDirectory(storagePath);
-
             var createResponse = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
             {
                 Image = imageName,
@@ -136,15 +109,11 @@ public class DockerService : IDockerService, IDisposable
                 {
                     [$"{portString}/tcp"] = default
                 },
-                Env =
-                [
-                    $"ASPNETCORE_HTTP_PORTS={portString}",
-                    "ASPNETCORE_ENVIRONMENT=Production"
-                ],
+                Env = env ?? [],
                 HostConfig = new HostConfig
                 {
-                    NetworkMode = _options.NetworkName,
-                    Binds = [$"{hostDataPath}:/app/data"],
+                    NetworkMode = networkName,
+                    Binds = binds ?? [],
                     PublishAllPorts = false,
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
@@ -154,7 +123,7 @@ public class DockerService : IDockerService, IDisposable
                 }
             }, ct);
 
-            _logger.LogInformation("Container '{ContainerName}' created for module '{ModuleId}'.", containerName, moduleId);
+            _logger.LogInformation("Container '{ContainerName}' created successfully.", containerName);
             return createResponse.ID;
         }
         catch
@@ -170,14 +139,29 @@ public class DockerService : IDockerService, IDisposable
                 _logger.LogWarning(ex, "Failed to clean up candidate container '{ContainerName}'.", containerName);
             }
 
-            await _dockerExtension.TryDeleteImageAsync(imageName, moduleId, _client, cleanupCts.Token);
+            await _dockerExtension.TryDeleteImageAsync(imageName, containerName, _client, cleanupCts.Token);
 
             throw;
         }
     }
 
     /// <inheritdoc/>
-    public async Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default)
+    public async Task EnsureNetworkExistsAsync(string networkName, CancellationToken ct = default)
+    {
+        var networks = await _client.Networks.ListNetworksAsync(new NetworksListParameters(), ct);
+        if (!networks.Any(n => n.Name == networkName))
+        {
+            await _client.Networks.CreateNetworkAsync(new NetworksCreateParameters
+            {
+                Name = networkName,
+                Driver = "bridge"
+            }, ct);
+            _logger.LogInformation("Docker network '{NetworkName}' created.", networkName);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task RemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default)
     {
         ContainerInspectResponse container;
         try
@@ -191,38 +175,39 @@ public class DockerService : IDockerService, IDisposable
 
         await StopContainerAsync(containerId, ct);
 
-        _logger.LogDebug("Stopping and removing container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+        _logger.LogDebug("Stopping and removing container '{ContainerId}' with name '{ContainerName}'.", containerId, containerName);
 
         try
         {
             await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, ct);
-            _logger.LogInformation("Container '{ContainerId}' removed for module '{ModuleId}'.", containerId, moduleId);
+            _logger.LogInformation("Container '{ContainerId}' removed with name '{ContainerName}'.", containerId, containerName);
         }
         catch (DockerContainerNotFoundException ex)
         {
-            _logger.LogWarning(ex, "Container '{ContainerId}' was not found during removal for module '{ModuleId}'.", containerId, moduleId);
+            _logger.LogWarning(ex, "Container '{ContainerId}' was not found during removal with name '{ContainerName}'.", containerId, containerName);
         }
         catch (DockerApiException ex)
         {
-            _logger.LogWarning(ex, "Failed to remove container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+            _logger.LogWarning(ex, "Failed to remove container '{ContainerId}' with name '{ContainerName}'.", containerId, containerName);
             throw;
         }
 
-        await _dockerExtension.TryDeleteImageAsync(container.Config?.Image, moduleId, _client, ct);
+        await _dockerExtension.TryDeleteImageAsync(container.Config?.Image, containerName, _client, ct);
     }
 
     /// <inheritdoc/>
-    public async Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId)
+    public async Task<bool> TryRemoveModuleContainerAsync(string containerId, string containerName, CancellationToken ct = default)
     {
-        using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var cleanupCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cleanupCts.CancelAfter(TimeSpan.FromSeconds(30));
         try
         {
-            await RemoveContainerAsync(containerId, moduleId, cleanupCts.Token);
+            await RemoveContainerAsync(containerId, containerName, cleanupCts.Token);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to clean up container '{ContainerId}' for module '{ModuleId}'.", containerId, moduleId);
+            _logger.LogWarning(ex, "Failed to clean up container '{ContainerId}' with name '{ContainerName}'.", containerId, containerName);
             return false;
         }
     }
@@ -447,7 +432,7 @@ public class DockerService : IDockerService, IDisposable
     /// <summary>
     /// Represents the progress of a Docker build operation.
     /// </summary>
-    private sealed class DockerBuildProgress(ILogger<DockerService> logger, Guid moduleId) : IProgress<JSONMessage>
+    private sealed class DockerBuildProgress(ILogger<DockerService> logger, string moduleId) : IProgress<JSONMessage>
     {
         /// <summary>
         /// Gets the error message from the Docker build operation, if any.

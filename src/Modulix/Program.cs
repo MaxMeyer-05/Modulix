@@ -14,8 +14,7 @@ using Modulix.Services;
 using Modulix.Services.Interfaces;
 
 using Modulix.Docker;
-using Modulix.Docker.Options;
-using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 
 using Modulix;
 using Modulix.Mappers;
@@ -44,10 +43,22 @@ builder.Services.AddOptions<ModuleSettings>()
     })
     .ValidateOnStart();
 
-builder.Services.AddOptions<DockerOptions>()
-    .Bind(builder.Configuration.GetSection(DockerOptions.SectionName))
+builder.Services.AddOptions<DockerSettings>()
+    .Bind(builder.Configuration.GetSection(DockerSettings.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+
+builder.Services.AddOptions<AuthorizationSettings>()
+    .Bind(builder.Configuration.GetSection(AuthorizationSettings.SectionName))
+    .ValidateDataAnnotations()
+    .PostConfigure(options =>
+    {
+        if (options.AutoProvisionContainer)
+        {
+            options.Authority = AuthorizationSettings.Default.Authority;
+            options.Audience ??= AuthorizationSettings.Default.Audience;
+        }
+    });
 
 builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleVersionExtension>();
@@ -59,6 +70,11 @@ builder.Services.AddScoped<ISubEndpointService, SubEndpointService>();
 builder.Services.AddScoped<IModuleVersionService, ModuleVersionService>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
+
+builder.Services.AddSingleton<KeycloakService>();
+builder.Services.AddSingleton<IKeycloakService>(sp => sp.GetRequiredService<KeycloakService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<KeycloakService>());
+
 builder.Services.AddDockerServices();
 builder.Services.AddReverseProxyServices();
 
@@ -116,8 +132,12 @@ builder.Services
             .Get<AuthorizationSettings>()
             ?? AuthorizationSettings.Default;
 
+        if (authOptions.AutoProvisionContainer)
+            authOptions = AuthorizationSettings.Default;
+
         options.Authority = authOptions.Authority;
         options.RequireHttpsMetadata = authOptions.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
+        options.RefreshOnIssuerKeyNotFound = true;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = authOptions.Authority,
@@ -168,7 +188,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ServerContext>();
     await dbContext.Database.MigrateAsync();
 
-    var dockerService = scope.ServiceProvider.GetRequiredService<IDockerService>();
+    var moduleDockerService = scope.ServiceProvider.GetRequiredService<IModuleDockerService>();
     var reverseProxyService = scope.ServiceProvider.GetRequiredService<IReverseProxyService>();
     var candidateModules = await dbContext.Modules
         .Include(m => m.SubEndpoints)
@@ -181,7 +201,7 @@ using (var scope = app.Services.CreateScope())
     foreach (var module in candidateModules)
     {
         var isRunning = !string.IsNullOrWhiteSpace(module.ContainerId)
-            && await dockerService.IsContainerRunningAsync(module.ContainerId);
+            && await moduleDockerService.IsModuleRunningAsync(module.ContainerId);
 
         if (isRunning)
         {

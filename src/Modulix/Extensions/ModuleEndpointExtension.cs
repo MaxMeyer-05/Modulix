@@ -4,7 +4,7 @@ using Modulix.Database.Entities;
 using Modulix.Client.Models.Dtos;
 using Modulix.Client.Models.Enums;
 
-using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 using Modulix.Mappers;
 using Modulix.ReverseProxy.Services;
 
@@ -41,7 +41,7 @@ public class ModuleEndpointExtension
     /// <summary>
     /// The Docker service used to provision module containers.
     /// </summary>
-    private readonly IDockerService _dockerService;
+    private readonly IModuleDockerService _dockerService;
 
     /// <summary>
     /// The reverse proxy service used to synchronize module routing configurations.
@@ -58,7 +58,7 @@ public class ModuleEndpointExtension
     public ModuleEndpointExtension(
         ServerContext context,
         ILogger<ModuleEndpointExtension> logger,
-        IDockerService dockerService,
+        IModuleDockerService dockerService,
         IReverseProxyService reverseProxyService)
     {
         _context = context;
@@ -274,14 +274,14 @@ public class ModuleEndpointExtension
             try
             {
                 module.Status = ModuleStatus.Starting;
-                var containerId = await _dockerService.BuildContainerAsync(
+                var containerId = await _dockerService.BuildModuleContainerAsync(
                     module.Id,
                     currentVersion.StoragePath,
                     currentVersion.ModuleEntryAssemblyFileName,
                     module.ContainerPort,
                     ct);
                 module.ContainerId = containerId;
-                await _dockerService.RunContainerAsync(containerId, ct);
+                await _dockerService.RunModuleContainerAsync(containerId, ct);
                 await _dockerService.WaitUntilReadyAsync(containerId, ct);
                 module.Status = ModuleStatus.Running;
                 ActivateCurrentVersionSubEndpoints(module);
