@@ -51,13 +51,13 @@ public class ModuleDockerService : IModuleDockerService
 
         if (!File.Exists(dockerfilePath))
         {
-            var baseTemplatePath = Path.Combine(AppContext.BaseDirectory, "Resources", "Module", "Dockerfile");
-            if (!File.Exists(baseTemplatePath))
+            var templatePath = Path.Combine(AppContext.BaseDirectory, "storage", "resources", "Module", "Dockerfile");
+            if (!File.Exists(templatePath))
             {
-                throw new FileNotFoundException($"Base module Dockerfile template not found at '{baseTemplatePath}'.", baseTemplatePath);
+                throw new FileNotFoundException($"Base module Dockerfile template not found at '{templatePath}'.", templatePath);
             }
 
-            var templateContent = await File.ReadAllTextAsync(baseTemplatePath, ct);
+            var templateContent = await File.ReadAllTextAsync(templatePath, ct);
             var generatedDockerfile = templateContent.Replace("{{ENTRY_DLL}}", entryDllName);
 
             await File.WriteAllTextAsync(dockerfilePath, generatedDockerfile, ct);
