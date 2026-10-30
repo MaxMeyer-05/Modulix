@@ -116,6 +116,9 @@ builder.Services
             .Get<AuthorizationSettings>()
             ?? AuthorizationSettings.Default;
 
+        if (authOptions.AutoProvisionContainer)
+            authOptions = AuthorizationSettings.Default;
+
         options.Authority = authOptions.Authority;
         options.RequireHttpsMetadata = authOptions.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
         options.TokenValidationParameters = new TokenValidationParameters

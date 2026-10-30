@@ -20,10 +20,16 @@ public class AuthorizationSettings
     /// Default authorization options with a local authority.
     /// </summary>
     public static readonly AuthorizationSettings Default = new() 
-    { 
+    {
+        AutoProvisionContainer = true,
         Authority = $"http://{GetLocalIpAddress()}:8080/realms/modulix",
         Audience = "modulix-api"
     };
+
+    /// <summary>
+    /// Indicates whether the container should be automatically provisioned.
+    /// </summary>
+    public required bool AutoProvisionContainer { get; set; }
 
     /// <summary>
     /// The authority URL for the OIDC provider.
