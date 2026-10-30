@@ -115,37 +115,47 @@ internal class KeycloakDockerService : IKeycloakDockerService
 
     /// <inheritdoc/>
     public async Task<bool> WaitUntilReadyAsync(string authorityUrl, TimeSpan timeout, CancellationToken ct = default)
+{
+    var discoveryUrl = $"{authorityUrl.TrimEnd('/')}/.well-known/openid-configuration";
+    _logger.LogInformation("Waiting for Keycloak readiness at {Url}...", discoveryUrl);
+
+    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    linkedCts.CancelAfter(timeout);
+
+    using var httpClient = _httpClientFactory.CreateClient();
+    httpClient.Timeout = TimeSpan.FromSeconds(2);
+
+    while (!linkedCts.Token.IsCancellationRequested)
     {
-        var discoveryUrl = $"{authorityUrl.TrimEnd('/')}/.well-known/openid-configuration";
-        _logger.LogInformation("Waiting for Keycloak readiness at {Url}...", discoveryUrl);
-
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        linkedCts.CancelAfter(timeout);
-
-        using var httpClient = _httpClientFactory.CreateClient();
-        httpClient.Timeout = TimeSpan.FromSeconds(2);
-
-        while (!linkedCts.Token.IsCancellationRequested)
+        try
         {
-            try
+            var response = await httpClient.GetAsync(discoveryUrl, linkedCts.Token);
+            if (response.StatusCode == HttpStatusCode.OK)
             {
-                var response = await httpClient.GetAsync(discoveryUrl, linkedCts.Token);
-                if (response.StatusCode == HttpStatusCode.OK)
-                {
-                    _logger.LogInformation("Keycloak is ready to issue tokens at {Url}", discoveryUrl);
-                    return true;
-                }
-            }
-            catch
-            {
-                _logger.LogInformation("Keycloak is not ready yet at {Url}", discoveryUrl);
+                _logger.LogInformation("Keycloak is ready and accepting authentication requests at {Url}", discoveryUrl);
+                return true;
             }
 
-            await Task.Delay(1500, linkedCts.Token);
+            _logger.LogDebug("Keycloak responded with status {StatusCode}, retrying...", response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Keycloak endpoint not reachable yet ({Message}), retrying...", ex.Message);
         }
 
-        return false;
+        try
+        {
+            await Task.Delay(1500, linkedCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            break;
+        }
     }
+
+    _logger.LogWarning("Timed out after {Timeout}s waiting for Keycloak at {Url}", timeout.TotalSeconds, discoveryUrl);
+    return false;
+}
 
     private async Task EnsurePostgresRunningAsync(CancellationToken ct)
     {
