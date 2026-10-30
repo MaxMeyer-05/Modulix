@@ -48,6 +48,18 @@ builder.Services.AddOptions<DockerSettings>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddOptions<AuthorizationSettings>()
+    .Bind(builder.Configuration.GetSection(AuthorizationSettings.SectionName))
+    .ValidateDataAnnotations()
+    .PostConfigure(options =>
+    {
+        if (options.AutoProvisionContainer)
+        {
+            options.Authority = AuthorizationSettings.Default.Authority;
+            options.Audience ??= AuthorizationSettings.Default.Audience;
+        }
+    });
+
 builder.Services.AddScoped<DirectoryExtension>();
 builder.Services.AddScoped<ModuleVersionExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
@@ -58,6 +70,11 @@ builder.Services.AddScoped<ISubEndpointService, SubEndpointService>();
 builder.Services.AddScoped<IModuleVersionService, ModuleVersionService>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
+
+builder.Services.AddSingleton<KeycloakService>();
+builder.Services.AddSingleton<IKeycloakService>(sp => sp.GetRequiredService<KeycloakService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<KeycloakService>());
+
 builder.Services.AddDockerServices();
 builder.Services.AddReverseProxyServices();
 
@@ -120,6 +137,7 @@ builder.Services
 
         options.Authority = authOptions.Authority;
         options.RequireHttpsMetadata = authOptions.Authority.StartsWith("https:", StringComparison.OrdinalIgnoreCase);
+        options.RefreshOnIssuerKeyNotFound = true;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidIssuer = authOptions.Authority,
