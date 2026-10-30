@@ -9,7 +9,7 @@ using Modulix.Docker.Services.Interfaces;
 namespace Modulix.Docker.Services;
 
 /// <inheritdoc cref="IModuleDockerService"/>
-public class ModuleDockerService : IModuleDockerService
+internal class ModuleDockerService : IModuleDockerService
 {
     /// <summary>
     /// The name of the Docker network used for module containers.
@@ -31,7 +31,7 @@ public class ModuleDockerService : IModuleDockerService
     /// </summary>
     /// <param name="dockerService">The Docker service used for container operations.</param>
     /// <param name="logger">The logger.</param>
-    internal ModuleDockerService(
+    public ModuleDockerService(
         IDockerService dockerService, 
         ILogger<ModuleDockerService> logger)
     {

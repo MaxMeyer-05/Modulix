@@ -11,7 +11,7 @@ using Modulix.Docker.Services.Interfaces;
 namespace Modulix.Docker.Services;
 
 /// <inheritdoc cref="IKeycloakDockerService"/>
-public class KeycloakDockerService : IKeycloakDockerService
+internal class KeycloakDockerService : IKeycloakDockerService
 {
     /// <summary>
     /// The Docker image tag for the PostgreSQL database container.
@@ -72,7 +72,7 @@ public class KeycloakDockerService : IKeycloakDockerService
     /// <param name="dockerService">The Docker service for managing Docker resources.</param>
     /// <param name="httpClientFactory">The HTTP client.</param>
     /// <param name="logger">The logger.</param>
-    internal KeycloakDockerService(
+    public KeycloakDockerService(
         DockerClient client,
         IDockerService dockerService,
         IHttpClientFactory httpClientFactory,

@@ -37,27 +37,13 @@ internal class DockerService : IDockerService, IDisposable
     private readonly Func<int, CancellationToken, Task<bool>> _portProbe;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DockerService"/> class with the specified logger, Docker client, and Docker extension.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="client">The Docker client owned by this service.</param>
-    /// <param name="dockerExtension">The Docker extension instance used for image management and port probing.</param>
-    public DockerService(
-        ILogger<DockerService> logger, 
-        DockerClient client,
-        DockerExtension dockerExtension)
-        : this(logger, client, dockerExtension, null)
-    {
-    }
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="DockerService"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
     /// <param name="client">The Docker client owned by this service.</param>
     /// <param name="dockerExtension">The Docker extension instance used for image management and port probing.</param>
     /// <param name="portProbe">Optional delegate for probing local TCP port readiness.</param>
-    public DockerService(
+    internal DockerService(
         ILogger<DockerService> logger, 
         DockerClient client,
         DockerExtension dockerExtension,

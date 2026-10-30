@@ -38,7 +38,6 @@ public static class DockerRegistration
         services.TryAddSingleton<DockerExtension>();
 
         services.AddSingleton<IDockerService, DockerService>();
-
         services.AddSingleton<IModuleDockerService, ModuleDockerService>();
         services.AddSingleton<IKeycloakDockerService, KeycloakDockerService>();
 
