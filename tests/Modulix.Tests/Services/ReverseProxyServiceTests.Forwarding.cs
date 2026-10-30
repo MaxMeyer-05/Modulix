@@ -66,7 +66,7 @@ public partial class ReverseProxyServiceTests
         var proxyService = gatewayApp.Services.GetRequiredService<IReverseProxyService>();
         var moduleId = Guid.NewGuid();
 
-        using var httpClient = new HttpClient { BaseAddress = new Uri(gatewayAddress) };
+        using var httpClient = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { BaseAddress = new Uri(gatewayAddress) };
         httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "container-specific-token");
 
         var beforeRegistrationResponse = await httpClient.GetAsync("/analytics/api/reports");

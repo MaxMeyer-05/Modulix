@@ -5,13 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using Modulix.Docker;
 using Modulix.Docker.Extensions;
-using Modulix.Docker.Options;
 using Modulix.Docker.Services;
-using Modulix.Tests.TestData;
+using Modulix.Docker.Services.Interfaces;
+using Modulix.Docker.Tests.TestData;
 
-namespace Modulix.Tests.Services;
+namespace Modulix.Docker.Tests.Services;
 
 /// <summary>
 /// Readiness, runtime status inspection, and log retrieval tests for <see cref="DockerService"/>.
@@ -299,7 +298,7 @@ public partial class DockerServiceTests
         var services = new ServiceCollection();
         services.AddLogging();
         if (socketUri is not null)
-            services.Configure<DockerOptions>(options => options.SocketUri = socketUri);
+            services.Configure<DockerSettings>(options => options.SocketUri = socketUri);
 
         services.AddDockerServices();
 
@@ -319,7 +318,7 @@ public partial class DockerServiceTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.Configure<DockerOptions>(options => options.SocketUri = configuredSocketUri);
+        services.Configure<DockerSettings>(options => options.SocketUri = configuredSocketUri);
         services.AddDockerServices();
 
         using var provider = services.BuildServiceProvider();
@@ -328,15 +327,30 @@ public partial class DockerServiceTests
         Assert.Equal(new Uri(configuredSocketUri.Trim()), client.Configuration.EndpointBaseUri);
     }
 
+    [Fact]
+    public void AddDockerServices_RegistersAllExpectedServices()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDockerServices();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetService<DockerClient>());
+        Assert.NotNull(provider.GetService<DockerExtension>());
+        Assert.NotNull(provider.GetService<IDockerService>());
+        Assert.NotNull(provider.GetService<IModuleDockerService>());
+        Assert.NotNull(provider.GetService<IKeycloakDockerService>());
+    }
+
     #endregion
 
     private static DockerService CreateService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder,
-        DockerOptions? options = null,
         Func<int, CancellationToken, Task<bool>>? portProbe = null)
     {
         var client = DockerHttpTestHelper.CreateDockerClient(responder);
         var dockerExtension = new DockerExtension(NullLogger<DockerExtension>.Instance);
-        return new DockerService(NullLogger<DockerService>.Instance, Options.Create(options ?? new DockerOptions()), client, dockerExtension, portProbe);
+        return new DockerService(NullLogger<DockerService>.Instance, client, dockerExtension, portProbe);
     }
 }

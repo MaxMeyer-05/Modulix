@@ -8,7 +8,7 @@ using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
 using Modulix.Docker.Models;
-using Modulix.Docker.Services;
+using Modulix.Docker.Services.Interfaces;
 using Modulix.ReverseProxy.Services;
 
 using Modulix.Client.Models.Dtos;
@@ -239,20 +239,20 @@ public class ModuleEndpointExtensionTests : IDisposable
     private Task<Module> LoadPersistedModuleAsync(Guid moduleId) =>
         _context.Modules.AsNoTracking().Include(module => module.SubEndpoints).Include(module => module.Versions).SingleAsync(module => module.Id == moduleId);
 
-    private sealed class RecordingDockerService : IDockerService
+    private sealed class RecordingDockerService : IModuleDockerService
     {
         public List<string> Calls { get; } = [];
         public string? FailingOperation { get; set; }
         public (Guid ModuleId, string StoragePath, string EntryAssembly, int Port) BuildArguments { get; private set; }
 
-        public Task<string> BuildContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
+        public Task<string> BuildModuleContainerAsync(Guid moduleId, string storagePath, string entryDllName, int containerPort, CancellationToken ct = default)
         {
             BuildArguments = (moduleId, storagePath, entryDllName, containerPort);
             Record("build", ct);
             return Task.FromResult("candidate");
         }
 
-        public Task RunContainerAsync(string containerId, CancellationToken ct = default)
+        public Task RunModuleContainerAsync(string containerId, CancellationToken ct = default)
         {
             Record("start:" + containerId, ct);
             return Task.CompletedTask;
@@ -264,12 +264,11 @@ public class ModuleEndpointExtensionTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public Task StopContainerAsync(string containerId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task RemoveContainerAsync(string containerId, Guid moduleId, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid moduleId) => throw new NotSupportedException();
-        public Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default) => Task.FromResult(true);
-        public Task<string> GetContainerLogsAsync(string containerId, int? tail = null, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<ContainerStats> GetContainerStatsAsync(string containerId, CancellationToken ct = default) => Task.FromResult(new ContainerStats());
+        public Task StopModuleContainerAsync(string containerId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RemoveModuleContainerAsync(string containerId, Guid containerName, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid containerName, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> IsModuleRunningAsync(string containerId, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<ContainerStats> GetModuleStatsAsync(string containerId, CancellationToken ct = default) => Task.FromResult(new ContainerStats());
 
         private void Record(string operation, CancellationToken ct)
         {
