@@ -43,7 +43,7 @@ internal class DockerService : IDockerService, IDisposable
     /// <param name="client">The Docker client owned by this service.</param>
     /// <param name="dockerExtension">The Docker extension instance used for image management and port probing.</param>
     /// <param name="portProbe">Optional delegate for probing local TCP port readiness.</param>
-    internal DockerService(
+    public DockerService(
         ILogger<DockerService> logger, 
         DockerClient client,
         DockerExtension dockerExtension,
