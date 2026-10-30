@@ -199,7 +199,7 @@ internal class KeycloakDockerService : IKeycloakDockerService
                 },
                 Env =
                 [
-                    $"KC_HOSTNAME={authorityHost}"
+                    $"KC_HOSTNAME=http://{authorityHost}"
                 ],
                 HostConfig = new HostConfig
                 {
