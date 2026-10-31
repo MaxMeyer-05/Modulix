@@ -15,7 +15,7 @@ namespace Modulix.Controllers;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/modules-management/modules")]
+[Route("api/v1/modules")]
 public class ModulesManagementController : ControllerBase
 {
     private const long MaximumUploadBytes = 50L * 1024 * 1024; // Maximum allowed upload size for module files (50 MB)
@@ -45,7 +45,7 @@ public class ModulesManagementController : ControllerBase
     /// or a 202 Accepted response if the module is pending confirmation.
     /// A 400 Bad Request response if the input data is invalid.
     /// </returns>
-    [HttpPost("create")]
+    [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
@@ -187,7 +187,7 @@ public class ModulesManagementController : ControllerBase
     /// <returns>
     /// A 204 No Content response indicating that the module was successfully deleted.
     /// </returns>
-    [HttpDelete("{moduleId}/delete")]
+    [HttpDelete("{moduleId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteModuleAsync(Guid moduleId, CancellationToken ct = default)
     {

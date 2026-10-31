@@ -14,7 +14,7 @@ namespace Modulix.Controllers;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/scanner-management/scanner")]
+[Route("api/v1/scanner")]
 public class ScannerManagementController : ControllerBase
 {
     /// <summary>
@@ -73,7 +73,7 @@ public class ScannerManagementController : ControllerBase
     /// A 400 Bad Request response if the module is not queued for scanning.
     /// A 409 Conflict response if the scan has already started or completed.
     /// </returns>
-    [HttpDelete("{moduleId}/cancel-scan")]
+    [HttpDelete("queue/{moduleId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

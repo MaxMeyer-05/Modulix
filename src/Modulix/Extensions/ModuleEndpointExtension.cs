@@ -20,10 +20,11 @@ public class ModuleEndpointExtension
     /// </summary>
     private static readonly string[] ReservedBasePaths =
     [
-        "api/modules-management",
-        "api/version-management",
-        "api/endpoint-management",
-        "api/scanner-management",
+        "api/v1/modules",
+        "api/v1/module-versions",
+        "api/v1/endpoints",
+        "api/v1/scanner",
+        "api/v1/dockerfiles",
         "swagger",
         "openapi"
     ];

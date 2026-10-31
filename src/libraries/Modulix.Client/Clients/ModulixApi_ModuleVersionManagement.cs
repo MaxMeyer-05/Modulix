@@ -10,7 +10,7 @@ namespace Modulix.Client;
 /// <inheritdoc cref="IModuleVersionClient"/>
 internal partial class ModulixApi : IModuleVersionClient
 {
-    private const string ModuleVersionEndpoint = "api/version-management/module-versions";
+    private const string ModuleVersionEndpoint = "api/v1/module-versions";
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> CreateModuleVersionAsync(Guid moduleId, ModuleVersionCreateDto dto, CancellationToken ct = default, string? authToken = null)
@@ -25,7 +25,7 @@ internal partial class ModulixApi : IModuleVersionClient
         content.Add(new StreamContent(dto.ModuleFile.OpenReadStream()),
             nameof(dto.ModuleFile), Path.GetFileName(dto.ModuleFile.FileName));
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{ModuleVersionEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/version") { Content = content };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/v1/modules/{Uri.EscapeDataString(moduleId.ToString())}/versions") { Content = content };
         if (!string.IsNullOrWhiteSpace(authToken))
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", authToken);
@@ -36,7 +36,7 @@ internal partial class ModulixApi : IModuleVersionClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> DeleteModuleVersionAsync(Guid moduleId, string version, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleVersionEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/version/{Uri.EscapeDataString(version)}/delete";
+        var requestUri = $"api/v1/modules/{Uri.EscapeDataString(moduleId.ToString())}/versions/{Uri.EscapeDataString(version)}";
         return await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
     }
 
@@ -66,28 +66,28 @@ internal partial class ModulixApi : IModuleVersionClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetModuleVersionByIdAsync(Guid moduleVersionId, string version, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleVersionEndpoint}/{Uri.EscapeDataString(moduleVersionId.ToString())}/version/{Uri.EscapeDataString(version)}";
+        var requestUri = $"api/v1/modules/{Uri.EscapeDataString(moduleVersionId.ToString())}/versions/{Uri.EscapeDataString(version)}";
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetModuleVersionsByModuleIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleVersionEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
+        var requestUri = $"api/v1/modules/{Uri.EscapeDataString(moduleId.ToString())}/versions";
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> RollbackModuleVersionAsync(Guid moduleId, string version, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleVersionEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/rollback/{Uri.EscapeDataString(version)}";
+        var requestUri = $"api/v1/modules/{Uri.EscapeDataString(moduleId.ToString())}/versions/{Uri.EscapeDataString(version)}/rollback";
         return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> UpdateModuleVersionAsync(Guid moduleId, string version, ModuleVersionUpdateDto dto, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleVersionEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/version/{Uri.EscapeDataString(version)}";
+        var requestUri = $"api/v1/modules/{Uri.EscapeDataString(moduleId.ToString())}/versions/{Uri.EscapeDataString(version)}";
         return await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, dto, authToken: authToken, ct: ct);
     }
 }

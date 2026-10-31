@@ -15,7 +15,7 @@ namespace Modulix.Controllers;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/version-management/module-versions")]
+[Route("api/v1")]
 public class ModuleVersionsManagementController : ControllerBase
 {
     private const long MaximumUploadBytes = 50L * 1024 * 1024; // Maximum allowed upload size for module files (50 MB)
@@ -43,7 +43,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// <returns>
     /// A 200 OK response with a list of all module versions.
     /// </returns>
-    [HttpGet]
+    [HttpGet("module-versions")]
     [ProducesResponseType(typeof(PagedResultDto<ModuleVersionDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResultDto<ModuleVersionDto>>> GetAllModuleVersionsAsync([FromQuery] ModuleVersionQueryDto? moduleVersionQuery, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
@@ -60,7 +60,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 200 OK response with a list of versions for the specified module.
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
-    [HttpGet("{moduleId}")]
+    [HttpGet("modules/{moduleId}/versions")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(IEnumerable<ModuleVersionDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<ModuleVersionDto>>> GetModuleVersionsByModuleIdAsync([FromRoute] Guid moduleId, CancellationToken ct = default)
@@ -80,7 +80,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 400 Bad Request response if the version parameter is invalid.
     /// A 404 Not Found response if the module or version could not be found.
     /// </returns>
-    [HttpGet("{moduleId}/version/{version}")]
+    [HttpGet("modules/{moduleId}/versions/{version}")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ModuleVersionDto), StatusCodes.Status200OK)]
@@ -103,7 +103,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// A 409 Conflict response if the version already exists or the module cannot be updated.
     /// </returns>
-    [HttpPost("{moduleId}/version")]
+    [HttpPost("modules/{moduleId}/versions")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaximumUploadBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaximumUploadBytes)]
@@ -139,7 +139,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if the module cannot be rolled back in its current state.
     /// </returns>
-    [HttpPost("{moduleId}/rollback/{version}")]
+    [HttpPost("modules/{moduleId}/versions/{version}/rollback")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -163,7 +163,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if the new version name already exists.
     /// </returns>
-    [HttpPut("{moduleId}/version/{version}")]
+    [HttpPut("modules/{moduleId}/versions/{version}")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -186,7 +186,7 @@ public class ModuleVersionsManagementController : ControllerBase
     /// A 404 Not Found response if the module or version could not be found.
     /// A 409 Conflict response if attempting to delete the currently active version.
     /// </returns>
-    [HttpDelete("{moduleId}/version/{version}/delete")]
+    [HttpDelete("modules/{moduleId}/versions/{version}")]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

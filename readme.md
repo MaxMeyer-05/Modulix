@@ -136,22 +136,22 @@ To protect the host during extraction, uploads are capped at 50 MiB and validate
 3. **Reconciliation:** The scanner outputs the entry assembly name and discovered HTTP routes (`HttpMethod` and `EndpointPath`) as JSON. `Modulix` compares the discovered endpoints against any user-supplied or existing endpoints:
    - If no manual endpoints were supplied, or if they match the scan result, all discovered endpoints are marked `Active` and the module proceeds directly to container provisioning (`Starting` -> `Running`).
    - If differences exist (`MissingEndpoints` or `ExtraEndpoints`), the module enters `PendingConfirmation` and returns a discrepancy report.
-4. **Confirmation:** Administrators review and confirm or reject individual endpoints via `POST /api/endpoint-management/sub-endpoints/{moduleId}/confirm` (or the Web UI) before the container is built and started.
+4. **Confirmation:** Administrators review and confirm or reject individual endpoints via `POST /api/v1/modules/{moduleId}/endpoints/confirm` (or the Web UI) before the container is built and started.
 
 ### Priority Scan Queue
 
-Concurrent scanner containers are bounded by `Docker:MaxConcurrentScans`. When all scan slots are busy, new uploads receive the `QueuedForScan` status and are placed in an in-memory priority queue. As running scans finish, queued modules are dequeued automatically in priority order, scanned, and provisioned. Queued scans can be inspected via `GET /api/scanner-management/scanner/queue` and cancelled via `DELETE /api/scanner-management/scanner/{moduleId}/cancel-scan`.
+Concurrent scanner containers are bounded by `Docker:MaxConcurrentScans`. When all scan slots are busy, new uploads receive the `QueuedForScan` status and are placed in an in-memory priority queue. As running scans finish, queued modules are dequeued automatically in priority order, scanned, and provisioned. Queued scans can be inspected via `GET /api/v1/scanner/queue` and cancelled via `DELETE /api/v1/scanner/queue/{moduleId}`.
 
 ### Container Lifecycle and Version Rollback
 
 When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage` (preparing `/app/data` with write permissions for `$APP_UID`), builds a dedicated image for the active `ModuleVersion`, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, mounts `<StorageBasePath>/<moduleId>/data` into `/app/data`, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
 
 Modules support:
-- **Start / Stop & Live Metrics:** Starting and stopping module containers (`POST /api/modules-management/modules/{moduleId}/start` and `/stop`), as well as inspecting live container CPU %, memory usage/limit, uptime, and exit code (`GET /api/modules-management/modules/{moduleId}/stats`).
-- **Metadata Updates:** Updating module name and description (`PUT /api/modules-management/modules/{moduleId}`).
-- **Version Releases, Rollbacks & Retention:** Deploying new module versions (`POST /api/version-management/module-versions/{moduleId}/version`), rolling back to an earlier version (`POST /api/version-management/module-versions/{moduleId}/rollback/{version}`), updating or deleting inactive versions, and automatically pruning the oldest inactive versions exceeding `Module:MaxRetainedVersionsPerModule`.
-- **Individual Sub-Endpoint Management:** Activating or deactivating individual sub-endpoints on a running module (`PATCH /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/status`) and deleting unneeded sub-endpoints (`DELETE /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/delete`) with immediate YARP routing updates.
-- **Full Teardown:** Deleting a module (`DELETE /api/modules-management/modules/{moduleId}/delete`), which stops and removes the container, image, database records, reverse proxy routes, persistent data directory, and all stored version directories.
+- **Start / Stop & Live Metrics:** Starting and stopping module containers (`POST /api/v1/modules/{moduleId}/start` and `/stop`), as well as inspecting live container CPU %, memory usage/limit, uptime, and exit code (`GET /api/v1/modules/{moduleId}/stats`).
+- **Metadata Updates:** Updating module name and description (`PUT /api/v1/modules/{moduleId}`).
+- **Version Releases, Rollbacks & Retention:** Deploying new module versions (`POST /api/v1/modules/{moduleId}/versions`), rolling back to an earlier version (`POST /api/v1/modules/{moduleId}/versions/{version}/rollback`), updating or deleting inactive versions, and automatically pruning the oldest inactive versions exceeding `Module:MaxRetainedVersionsPerModule`.
+- **Individual Sub-Endpoint Management:** Activating or deactivating individual sub-endpoints on a running module (`PATCH /api/v1/modules/{moduleId}/endpoints/{subEndpointId}/status`) and deleting unneeded sub-endpoints (`DELETE /api/v1/modules/{moduleId}/endpoints/{subEndpointId}`) with immediate YARP routing updates.
+- **Full Teardown:** Deleting a module (`DELETE /api/v1/modules/{moduleId}`), which stops and removes the container, image, database records, reverse proxy routes, persistent data directory, and all stored version directories.
 
 ### Dynamic Reverse Proxy Routing
 
@@ -159,7 +159,7 @@ Modules support:
 
 - Only modules with status `Running` and sub-endpoints with status `Active` are exposed through the proxy. Sub-endpoints automatically transition to `Inactive` when a module stops or fails, and are restored to `Active` for the current version when the module is running.
 - Incoming requests to `/{BaseUrlPath}/{EndpointPath}` matching the configured HTTP method have their `/{BaseUrlPath}` prefix stripped and are forwarded to `http://127.0.0.1:{ContainerPort}/{EndpointPath}`.
-- Reserved system prefixes (`api/modules-management`, `api/version-management`, `api/endpoint-management`, `api/scanner-management`, `api`, `swagger`, `openapi`) are blocked from being registered by modules.
+- Reserved system prefixes (`api/v1/modules`, `api/v1/module-versions`, `api/v1/endpoints`, `api/v1/scanner`, `api/v1/dockerfiles`, `swagger`, `openapi`) are blocked from being registered by modules.
 - Active routes are restored from SQLite on server startup and hot-reloaded without downtime whenever modules are created, confirmed, started, stopped, rolled back, updated, or deleted.
 
 ### Web Management Portal (`Modulix.Web`)
@@ -176,44 +176,54 @@ Modules support:
 
 All management endpoints require a valid JWT bearer token and are organized by controller:
 
-#### Modules (`ModulesManagementController` — `/api/modules-management/modules`)
+#### Modules (`ModulesManagementController` — `/api/v1/modules`)
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
 | `GET` | `/` | List registered modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleDto>`). |
 | `GET` | `/{moduleId}` | Retrieve module details, sub-endpoints, versions, and lifecycle status. |
 | `GET` | `/{moduleId}/stats` | Retrieve live container resource metrics (CPU %, memory usage/limit, uptime, and exit code) for a module. |
-| `POST` | `/create` | Upload a new module archive (`multipart/form-data`). |
+| `POST` | `/` | Upload a new module archive (`multipart/form-data`). |
 | `POST` | `/{moduleId}/start` | Start a stopped or created module container. |
 | `POST` | `/{moduleId}/stop` | Stop a running module container. |
 | `PUT` | `/{moduleId}` | Update module metadata (`ModuleName`, `Description`). |
-| `DELETE` | `/{moduleId}/delete` | Delete a module, its container/image, versions, and stored files. |
+| `DELETE` | `/{moduleId}` | Delete a module, its container/image, versions, and stored files. |
 
-#### Module Versions (`ModuleVersionsManagementController` — `/api/version-management/module-versions`)
+#### Module Versions (`ModuleVersionsManagementController`)
 
-| Method | Relative route | Purpose |
+| Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Retrieve module versions across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleVersionDto>`). |
-| `GET` | `/{moduleId}` | Retrieve all versions for a specific module. |
-| `GET` | `/{moduleId}/version/{version}` | Retrieve details of a specific module version. |
-| `POST` | `/{moduleId}/version` | Upload and deploy a new version for a module (`multipart/form-data`). |
-| `POST` | `/{moduleId}/rollback/{version}` | Roll a module back to a previously released version. |
-| `PUT` | `/{moduleId}/version/{version}` | Update version metadata (`Version`, `Changelog`). |
-| `DELETE` | `/{moduleId}/version/{version}/delete` | Delete an inactive version of a module and its files. |
+| `GET` | `/api/v1/module-versions` | Retrieve module versions across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleVersionDto>`). |
+| `GET` | `/api/v1/modules/{moduleId}/versions` | Retrieve all versions for a specific module. |
+| `GET` | `/api/v1/modules/{moduleId}/versions/{version}` | Retrieve details of a specific module version. |
+| `POST` | `/api/v1/modules/{moduleId}/versions` | Upload and deploy a new version for a module (`multipart/form-data`). |
+| `POST` | `/api/v1/modules/{moduleId}/versions/{version}/rollback` | Roll a module back to a previously released version. |
+| `PUT` | `/api/v1/modules/{moduleId}/versions/{version}` | Update version metadata (`Version`, `Changelog`). |
+| `DELETE` | `/api/v1/modules/{moduleId}/versions/{version}` | Delete an inactive version of a module and its files. |
 
-#### Sub-Endpoints (`SubEndpointsManagementController` — `/api/endpoint-management/sub-endpoints`)
+#### Sub-Endpoints (`SubEndpointsManagementController`)
 
-| Method | Relative route | Purpose |
+| Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Retrieve detailed sub-endpoints across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointsDetailDto>`). |
-| `GET` | `/{moduleId}` | Retrieve sub-endpoints for a specific module (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointDto>`). |
-| `POST` | `/{moduleId}/confirm` | Confirm or reject pending endpoint discrepancies. |
-| `PATCH` | `/{moduleId}/{endpointId}/status` | Activate or deactivate an individual sub-endpoint on a running module and synchronize YARP routing. |
-| `DELETE` | `/{moduleId}/{endpointId}/delete` | Delete an individual sub-endpoint from a module and synchronize YARP routing. |
+| `GET` | `/api/v1/endpoints` | Retrieve detailed sub-endpoints across all modules (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointsDetailDto>`). |
+| `GET` | `/api/v1/modules/{moduleId}/endpoints` | Retrieve sub-endpoints for a specific module (supports `page` and `pageSize` query parameters; returns `PagedResultDto<ModuleSubEndpointDto>`). |
+| `POST` | `/api/v1/modules/{moduleId}/endpoints/confirm` | Confirm or reject pending endpoint discrepancies. |
+| `PATCH` | `/api/v1/modules/{moduleId}/endpoints/{subEndpointId}/status` | Activate or deactivate an individual sub-endpoint on a running module and synchronize YARP routing. |
+| `DELETE` | `/api/v1/modules/{moduleId}/endpoints/{subEndpointId}` | Delete an individual sub-endpoint from a module and synchronize YARP routing. |
 
-#### Scanner (`ScannerManagementController` — `/api/scanner-management/scanner`)
+#### Scanner (`ScannerManagementController` — `/api/v1/scanner`)
 
-| Method | Relative route | Purpose |
+| Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/queue` | Retrieve the current scan queue and priorities. |
-| `DELETE` | `/{moduleId}/cancel-scan` | Cancel a queued scan and delete the associated module. |
+| `DELETE` | `/queue/{moduleId}` | Cancel a queued scan and delete the associated module. |
+
+#### Dockerfiles (`DockerfilesManagementController` — `/api/v1/dockerfiles`)
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | Retrieve all Dockerfiles. |
+| `GET` | `/{id}` | Retrieve a specific Dockerfile by ID. |
+| `POST` | `/` | Create a new Dockerfile. |
+| `PUT` | `/{id}` | Update a specific Dockerfile. |
+| `DELETE` | `/{id}` | Delete a specific Dockerfile. |
