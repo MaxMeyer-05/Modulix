@@ -8,14 +8,14 @@ namespace Modulix.Controllers;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/dockerfile-management/dockerfiles")]
+[Route("api/v1/dockerfiles")]
 public class DockerfilesManagementController : ControllerBase
 {
     /// <summary>
     /// Creates a new Dockerfile.
     /// </summary>
     /// <returns>The result of the creation operation.</returns>
-    [HttpPost("create")]
+    [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
     public async Task<IActionResult> CreateDockerfile()
     {

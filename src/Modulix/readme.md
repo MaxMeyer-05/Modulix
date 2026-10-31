@@ -12,6 +12,11 @@ dotnet run --project src/Modulix --launch-profile http
 
 ## changelog
 
+### 1.3.0
+- Refactored and standardized API routes under `/api/v1/` across all controllers, removing redundant URL prefixes and verbs.
+- Normalized sub-endpoint and version route hierarchies under `/api/v1/modules/{moduleId}/`.
+- Updated `ReservedBasePaths` to protect system endpoints under `/api/v1/` from reverse proxy module conflicts.
+
 ### 1.2.0
 - Added `GET /api/modules-management/modules/{moduleId}/stats` (`IModuleService.GetModuleStatsAsync`) to expose live container CPU %, memory usage/limit, uptime, and exit code metrics.
 - Added `PATCH /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/status` and `DELETE /api/endpoint-management/sub-endpoints/{moduleId}/{endpointId}/delete` to activate, deactivate, or delete individual module sub-endpoints with live YARP route synchronization.

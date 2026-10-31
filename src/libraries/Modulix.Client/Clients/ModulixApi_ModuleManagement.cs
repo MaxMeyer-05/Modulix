@@ -14,7 +14,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <summary>
     /// The endpoint for module management within the Modulix API.
     /// </summary>
-    private const string ModuleManagementEndpoint = "api/modules-management/modules";
+    private const string ModuleManagementEndpoint = "api/v1/modules";
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
@@ -50,7 +50,7 @@ internal partial class ModulixApi : IModuleManagementClient
         content.Add(new StreamContent(request.ModuleFile.OpenReadStream()),
             nameof(request.ModuleFile), Path.GetFileName(request.ModuleFile.FileName));
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, $"{ModuleManagementEndpoint}/create") { Content = content };
+        using var message = new HttpRequestMessage(HttpMethod.Post, ModuleManagementEndpoint) { Content = content };
         if (!string.IsNullOrWhiteSpace(authToken))
             message.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", authToken);
@@ -61,7 +61,7 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> DeleteModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/delete";
+        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         return await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
     }
 

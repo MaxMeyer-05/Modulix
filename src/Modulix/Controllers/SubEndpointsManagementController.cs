@@ -13,7 +13,7 @@ namespace Modulix.Controllers;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("api/endpoint-management/sub-endpoints")]
+[Route("api/v1")]
 public class SubEndpointsManagementController : ControllerBase
 {
     /// <summary>
@@ -42,7 +42,7 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 404 Not Found response if the module could not be found.
     /// A 409 Conflict response if the module is already confirmed.
     /// </returns>
-    [HttpPost("module/{moduleId}/confirm")]
+    [HttpPost("modules/{moduleId}/endpoints/confirm")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -64,10 +64,10 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 200 OK response with a list of sub-endpoints for the specified module.
     /// A 404 Not Found response if the module could not be found.
     /// </returns>
-    [HttpGet("module/{moduleId}")]
+    [HttpGet("modules/{moduleId}/endpoints")]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(PagedResultDto<ModuleSubEndpointDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResultDto<ModuleSubEndpointDto>>> GetModuleEndpointsAsync(Guid moduleId, [FromQuery] SubEndpointQueryDto query, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
+    public async Task<ActionResult<PagedResultDto<ModuleSubEndpointDto>>> GetModuleEndpointsAsync([FromRoute] Guid moduleId, [FromQuery] SubEndpointQueryDto query, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
         var result = await _subEndpointService.GetModuleSubEndpointsAsync(moduleId, query, pagination, ct);
         return Ok(result);
@@ -82,7 +82,7 @@ public class SubEndpointsManagementController : ControllerBase
     /// <returns>
     /// A 200 OK response with a list of detailed sub-endpoints.
     /// </returns>
-    [HttpGet]
+    [HttpGet("endpoints")]
     [ProducesResponseType(typeof(PagedResultDto<ModuleSubEndpointsDetailDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResultDto<ModuleSubEndpointsDetailDto>>> GetAllEndpointsDetailAsync([FromQuery] SubEndpointQueryDto query, [FromQuery] PaginationQueryDto pagination, CancellationToken ct = default)
     {
@@ -103,12 +103,12 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 404 Not Found response if the module or sub-endpoint could not be found.
     /// A 409 Conflict response if the sub-endpoint cannot be activated in the module's current state.
     /// </returns>
-    [HttpPatch("{subEndpointId}/module/{moduleId}/status")]
+    [HttpPatch("modules/{moduleId}/endpoints/{subEndpointId}/status")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> UpdateSubEndpointStatusAsync(Guid moduleId, Guid subEndpointId, [FromBody] UpdateSubEndpointStatusDto dto, CancellationToken ct = default)
+    public async Task<IActionResult> UpdateSubEndpointStatusAsync([FromRoute] Guid moduleId, [FromRoute] Guid subEndpointId, [FromBody] UpdateSubEndpointStatusDto dto, CancellationToken ct = default)
     {
         await _subEndpointService.UpdateSubEndpointStatusAsync(moduleId, subEndpointId, dto, ct);
         return NoContent();
@@ -124,10 +124,10 @@ public class SubEndpointsManagementController : ControllerBase
     /// A 204 No Content response if the deletion is successful.
     /// A 404 Not Found response if the module or sub-endpoint could not be found.
     /// </returns>
-    [HttpDelete("{subEndpointId}/module/{moduleId}")]
+    [HttpDelete("modules/{moduleId}/endpoints/{subEndpointId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteSubEndpointAsync(Guid moduleId, Guid subEndpointId, CancellationToken ct = default)
+    public async Task<IActionResult> DeleteSubEndpointAsync([FromRoute] Guid moduleId, [FromRoute] Guid subEndpointId, CancellationToken ct = default)
     {
         await _subEndpointService.DeleteSubEndpointAsync(moduleId, subEndpointId, ct);
         return NoContent();
