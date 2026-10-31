@@ -47,6 +47,19 @@ public class DockerfilesManagementController : ControllerBase
     }
 
     /// <summary>
+    /// Updates a specific Dockerfile by its ID.
+    /// </summary>
+    /// <param name="id">The ID of the Dockerfile.</param>
+    /// <returns>The result of the update operation.</returns>
+    [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateDockerfile(string id)
+    {
+        return Ok();
+    }
+
+    /// <summary>
     /// Deletes a specific Dockerfile by its ID.
     /// </summary>
     /// <param name="id">The ID of the Dockerfile.</param>
