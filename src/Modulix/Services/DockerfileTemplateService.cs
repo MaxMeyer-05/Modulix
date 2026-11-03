@@ -46,7 +46,14 @@ public class DockerfileTemplateService : IDockerfileTemplateService
     /// <inheritdoc />
     public async Task CreateDockerfileTemplateAsync(CreateDockerfileTemplateDto createDockerfileTemplateDto, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var entity = createDockerfileTemplateDto.ToEntity();
+
+        // ToDo: Handle creating the storage path for the Dockerfile template and saving the file content.
+
+        entity.StoragePath = "placeholder/path";
+        _serverContext.DockerfileTemplates.Add(entity);
+        await _serverContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Created new Dockerfile template with ID {Id} in the database.", entity.Id);
     }
 
     /// <inheritdoc />
@@ -84,8 +91,18 @@ public class DockerfileTemplateService : IDockerfileTemplateService
     }
 
     /// <inheritdoc />
-    public async Task UpdateDockerfileTemplateAsync(UpdateDockerfileTemplateDto updateDockerfileTemplateDto, CancellationToken ct = default)
+    public async Task UpdateDockerfileTemplateAsync(int id, UpdateDockerfileTemplateDto updateDockerfileTemplateDto, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var entity = await _serverContext.DockerfileTemplates.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (entity is null)
+            throw new KeyNotFoundException($"Dockerfile template with ID {id} not found.");
+
+        entity.FileName = updateDockerfileTemplateDto.FileName;
+        entity.Description = updateDockerfileTemplateDto.Description;
+
+        // ToDo: Handle updating the Dockerfile template if the file content needs to be changed.
+
+        await _serverContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Updated Dockerfile template with ID {Id} in the database.", id);
     }
 }

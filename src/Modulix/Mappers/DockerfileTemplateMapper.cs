@@ -27,4 +27,18 @@ public static class DockerfileTemplateMapper
             UpdatedAt = entity.UpdatedAtUtc
         };
     }
+
+    /// <summary>
+    /// Maps a <see cref="CreateDockerfileTemplateDto"/> to a <see cref="DockerfileTemplate"/> entity.
+    /// </summary>
+    /// <param name="dto">The DTO to map.</param>
+    /// <returns>A <see cref="DockerfileTemplate"/> entity representing the DTO.</returns>
+    public static DockerfileTemplate ToEntity(this CreateDockerfileTemplateDto dto)
+    {
+        return new DockerfileTemplate
+        {
+            FileName = dto.FileName,
+            Description = dto.Description
+        };
+    }
 }

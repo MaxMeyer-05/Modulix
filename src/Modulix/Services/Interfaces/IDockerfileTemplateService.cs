@@ -32,9 +32,10 @@ public interface IDockerfileTemplateService
     /// <summary>
     /// Updates an existing Dockerfile template with the specified data.
     /// </summary>
+    /// <param name="id">The ID of the Dockerfile template to update.</param>
     /// <param name="updateDockerfileTemplateDto">The data required to update the Dockerfile template.</param>
     /// <param name="ct">The cancellation token.</param>
-    Task UpdateDockerfileTemplateAsync(UpdateDockerfileTemplateDto updateDockerfileTemplateDto, CancellationToken ct = default);
+    Task UpdateDockerfileTemplateAsync(int id, UpdateDockerfileTemplateDto updateDockerfileTemplateDto, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes a Dockerfile template by its ID.
