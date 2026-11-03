@@ -1,4 +1,9 @@
+using Microsoft.EntityFrameworkCore;
+
 using Modulix.Client.Models.Dtos;
+
+using Modulix.Database.DbContexts;
+using Modulix.Mappers;
 using Modulix.Services.Interfaces;
 
 namespace Modulix.Services;
@@ -12,12 +17,21 @@ public class DockerfileTemplateService : IDockerfileTemplateService
     private readonly ILogger<DockerfileTemplateService> _logger;
 
     /// <summary>
+    /// The server context.
+    /// </summary>
+    private readonly ServerContext _serverContext;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DockerfileTemplateService"/> class.
     /// </summary>
     /// <param name="logger">The logger.</param>
-    public DockerfileTemplateService(ILogger<DockerfileTemplateService> logger)
+    /// <param name="serverContext">The server context.</param>
+    public DockerfileTemplateService(
+        ILogger<DockerfileTemplateService> logger, 
+        ServerContext serverContext)
     {
         _logger = logger;
+        _serverContext = serverContext;
     }
 
     /// <inheritdoc />
@@ -35,13 +49,19 @@ public class DockerfileTemplateService : IDockerfileTemplateService
     /// <inheritdoc />
     public async Task<IList<DockerfileTemplateDto>> GetAllDockerfileTemplatesAsync(CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var entities = await _serverContext.DockerfileTemplates.ToListAsync(ct);
+        return entities.Select(entity => entity.ToDto()).ToList();
     }
 
     /// <inheritdoc />
     public async Task<DockerfileTemplateDto> GetDockerfileTemplateAsync(int id, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var entity = await _serverContext.DockerfileTemplates.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (entity is null)
+        {
+            throw new KeyNotFoundException($"Dockerfile template with ID {id} not found.");
+        }
+        return entity.ToDto();
     }
 
     /// <inheritdoc />

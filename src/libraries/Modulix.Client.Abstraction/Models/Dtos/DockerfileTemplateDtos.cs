@@ -12,12 +12,22 @@ public class DockerfileTemplateDto
     /// <summary>
     /// The unique identifier of the Dockerfile template.
     /// </summary>
-    public string Id { get; set; } = null!;
+    public int Id { get; set; }
 
     /// <summary>
     /// The name of the Dockerfile template.
     /// </summary>
     public string FileName { get; set; } = null!;
+
+    /// <summary>
+    /// The description of the Dockerfile template.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Whether the template is supplied by Modulix rather than created by a user.
+    /// </summary>
+    public bool IsBuiltIn { get; set; }
 
     /// <summary>
     /// The storage path of the Dockerfile template.

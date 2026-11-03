@@ -24,7 +24,7 @@ public class DockerfileTemplate
     /// </summary>
     [Required]
     [MaxLength(100)]
-    public string Name { get; set; } = null!;
+    public string FileName { get; set; } = null!;
 
     /// <summary>
     /// The description of the template.
