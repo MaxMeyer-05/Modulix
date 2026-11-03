@@ -104,7 +104,7 @@ dotnet test Modulix.slnx
 | Location | Responsibility |
 | --- | --- |
 | [./src/Modulix](./src/Modulix) | Core ASP.NET Core Web API, module lifecycle orchestration, authentication, and reverse proxy host. |
-| [./src/Modulix/Controllers](./src/Modulix/Controllers) | REST API endpoints (`ModulesManagementController`, `ModuleVersionsManagementController`, `SubEndpointsManagementController`, `ScannerManagementController`) for managing modules, versions, sub-endpoints, and the scan queue. |
+| [./src/Modulix/Controllers](./src/Modulix/Controllers) | REST API endpoints (`ModulesController`, `ModuleVersionsController`, `SubEndpointsController`, `ScannerController`) for managing modules, versions, sub-endpoints, and the scan queue. |
 | [./src/Modulix/Services](./src/Modulix/Services) | Business logic for module lifecycle (`ModuleService`), versioning and rollbacks (`ModuleVersionService`), sub-endpoints (`SubEndpointService`), and scan queue processing (`ScannerService`). |
 | [./src/Modulix/Scanner](./src/Modulix/Scanner) | Bounded-concurrency scan scheduling and isolated scanner container execution (`ModuleEndpointScanner`). |
 | [./src/Modulix/Extensions](./src/Modulix/Extensions) | ZIP archive extraction and validation, endpoint discrepancy reconciliation, version retention cleanup, and host port allocation. |
@@ -176,7 +176,7 @@ Modules support:
 
 All management endpoints require a valid JWT bearer token and are organized by controller:
 
-#### Modules (`ModulesManagementController` — `/api/v1/modules`)
+#### Modules (`ModulesController` — `/api/v1/modules`)
 
 | Method | Relative route | Purpose |
 | --- | --- | --- |
@@ -189,7 +189,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | `PUT` | `/{moduleId}` | Update module metadata (`ModuleName`, `Description`). |
 | `DELETE` | `/{moduleId}` | Delete a module, its container/image, versions, and stored files. |
 
-#### Module Versions (`ModuleVersionsManagementController`)
+#### Module Versions (`ModuleVersionsController`)
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -201,7 +201,7 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | `PUT` | `/api/v1/modules/{moduleId}/versions/{version}` | Update version metadata (`Version`, `Changelog`). |
 | `DELETE` | `/api/v1/modules/{moduleId}/versions/{version}` | Delete an inactive version of a module and its files. |
 
-#### Sub-Endpoints (`SubEndpointsManagementController`)
+#### Sub-Endpoints (`SubEndpointsController`)
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -211,14 +211,14 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | `PATCH` | `/api/v1/modules/{moduleId}/endpoints/{subEndpointId}/status` | Activate or deactivate an individual sub-endpoint on a running module and synchronize YARP routing. |
 | `DELETE` | `/api/v1/modules/{moduleId}/endpoints/{subEndpointId}` | Delete an individual sub-endpoint from a module and synchronize YARP routing. |
 
-#### Scanner (`ScannerManagementController` — `/api/v1/scanner`)
+#### Scanner (`ScannerController` — `/api/v1/scanner`)
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/queue` | Retrieve the current scan queue and priorities. |
 | `DELETE` | `/queue/{moduleId}` | Cancel a queued scan and delete the associated module. |
 
-#### Dockerfile Templates (`DockerfileTemplatesManagementController` — `/api/v1/dockerfiles`)
+#### Dockerfile Templates (`DockerfileTemplatesController` — `/api/v1/dockerfiles`)
 
 The controller, service, and DTOs are scaffolding only; template CRUD and service registration are not implemented yet. The existing route is retained.
 

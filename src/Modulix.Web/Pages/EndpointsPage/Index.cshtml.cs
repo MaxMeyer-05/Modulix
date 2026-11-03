@@ -152,7 +152,7 @@ public class IndexModel : PageModel
                     : null
             };
 
-            using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
+            using var response = await _modulixApiClient.SubEndpoint.GetAllEndpointsDetailAsync(
                 query: endpointQuery,
                 pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);

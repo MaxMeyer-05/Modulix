@@ -15,7 +15,7 @@ namespace Modulix.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/v1/scanner")]
-public class ScannerManagementController : ControllerBase
+public class ScannerController : ControllerBase
 {
     /// <summary>
     /// The module service used to interact with module data and operations.
@@ -33,12 +33,12 @@ public class ScannerManagementController : ControllerBase
     private readonly IModuleEndpointScanner _endpointScanner;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ScannerManagementController"/> class.
+    /// Initializes a new instance of the <see cref="ScannerController"/> class.
     /// </summary>
     /// <param name="moduleService">The module service used to interact with module data and operations.</param>
     /// <param name="scannerService">The scanner service used to manage module scans.</param>
     /// <param name="endpointScanner">The module endpoint scanner used by the controller.</param>
-    public ScannerManagementController(
+    public ScannerController(
         IModuleService moduleService, 
         IScannerService scannerService,
         IModuleEndpointScanner endpointScanner)

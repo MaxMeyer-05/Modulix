@@ -5,8 +5,8 @@ using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Client;
 
-/// <inheritdoc cref="ISubEndpointManagementClient"/>
-internal partial class ModulixApi : ISubEndpointManagementClient
+/// <inheritdoc cref="ISubEndpointClient"/>
+internal partial class ModulixApi : ISubEndpointClient
 {
     /// <summary>
     /// The endpoint for sub-endpoints within the Modulix API.

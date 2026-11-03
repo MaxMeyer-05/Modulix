@@ -118,7 +118,7 @@ public partial class DetailModel : PageModel
         {
             _logger.LogDebug("Loading module detail for ID {ModuleId}", id);
 
-            using var response = await _modulixApiClient.ModuleManagement.GetModuleByIdAsync(
+            using var response = await _modulixApiClient.Module.GetModuleByIdAsync(
                 moduleId: id,
                 ct: HttpContext.RequestAborted);
 
@@ -139,7 +139,7 @@ public partial class DetailModel : PageModel
 
             if (Module.Status == ModuleStatus.Running || !string.IsNullOrWhiteSpace(Module.ContainerId))
             {
-                using var statsResponse = await _modulixApiClient.ModuleManagement.GetModuleStatsAsync(
+                using var statsResponse = await _modulixApiClient.Module.GetModuleStatsAsync(
                     moduleId: id,
                     ct: HttpContext.RequestAborted);
 
@@ -150,7 +150,7 @@ public partial class DetailModel : PageModel
                 }
             }
 
-            using var endpointsResponse = await _modulixApiClient.SubEndpointManagement.GetModuleEndpointsAsync(
+            using var endpointsResponse = await _modulixApiClient.SubEndpoint.GetModuleEndpointsAsync(
                 moduleId: id,
                 pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);

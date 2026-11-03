@@ -46,7 +46,7 @@ public partial class DetailModel
         {
             _logger.LogInformation("Creating new version for module {ModuleId}.", id);
 
-            using var response = await _modulixApiClient.ModuleVersionManagement.CreateModuleVersionAsync(
+            using var response = await _modulixApiClient.ModuleVersion.CreateModuleVersionAsync(
                 id,
                 input,
                 ct: HttpContext.RequestAborted);
@@ -173,7 +173,7 @@ public partial class DetailModel
             var sanitizedVersion = trimmedVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
             _logger.LogInformation("Rolling back module {ModuleId} to version {Version}.", id, sanitizedVersion);
 
-            using var response = await _modulixApiClient.ModuleVersionManagement.RollbackModuleVersionAsync(
+            using var response = await _modulixApiClient.ModuleVersion.RollbackModuleVersionAsync(
                 id,
                 trimmedVersion,
                 ct: HttpContext.RequestAborted);
@@ -298,7 +298,7 @@ public partial class DetailModel
                 activateEndpoints.Count,
                 removeEndpoints.Count);
 
-            using var response = await _modulixApiClient.SubEndpointManagement.ConfirmEndpointAsync(
+            using var response = await _modulixApiClient.SubEndpoint.ConfirmEndpointAsync(
                 id,
                 request,
                 ct: HttpContext.RequestAborted);
@@ -428,7 +428,7 @@ public partial class DetailModel
             var sanitizedNew = trimmedNewVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
             _logger.LogInformation("Updating version {OriginalVersion} to {NewVersion} for module {ModuleId}.", sanitizedOriginal, sanitizedNew, id);
 
-            using var response = await _modulixApiClient.ModuleVersionManagement.UpdateModuleVersionAsync(
+            using var response = await _modulixApiClient.ModuleVersion.UpdateModuleVersionAsync(
                 id,
                 trimmedOriginalVersion,
                 request,
@@ -505,7 +505,7 @@ public partial class DetailModel
             var sanitizedVersion = trimmedVersion.Replace("\r", string.Empty).Replace("\n", string.Empty);
             _logger.LogInformation("Deleting version {Version} for module {ModuleId}.", sanitizedVersion, id);
 
-            using var response = await _modulixApiClient.ModuleVersionManagement.DeleteModuleVersionAsync(
+            using var response = await _modulixApiClient.ModuleVersion.DeleteModuleVersionAsync(
                 id,
                 trimmedVersion,
                 ct: HttpContext.RequestAborted);
@@ -588,7 +588,7 @@ public partial class DetailModel
                 id,
                 status);
 
-            using var response = await _modulixApiClient.SubEndpointManagement.UpdateSubEndpointStatusAsync(
+            using var response = await _modulixApiClient.SubEndpoint.UpdateSubEndpointStatusAsync(
                 id,
                 endpointId,
                 new UpdateSubEndpointStatusDto { Status = status },
@@ -676,7 +676,7 @@ public partial class DetailModel
         {
             _logger.LogInformation("Deleting sub-endpoint {SubEndpointId} from module {ModuleId}.", endpointId, id);
 
-            using var response = await _modulixApiClient.SubEndpointManagement.DeleteSubEndpointAsync(
+            using var response = await _modulixApiClient.SubEndpoint.DeleteSubEndpointAsync(
                 id,
                 endpointId,
                 ct: HttpContext.RequestAborted);

@@ -11,16 +11,16 @@ internal partial class ModulixApi : IModulixApi
     private readonly HttpClient _httpClient;
 
     /// <inheritdoc/>
-    public IModuleManagementClient ModuleManagement => this;
+    public IModuleClient Module => this;
 
     /// <inheritdoc/>
-    public ISubEndpointManagementClient SubEndpointManagement => this;
+    public ISubEndpointClient SubEndpoint => this;
 
     /// <inheritdoc/>
-    public IScannerManagementClient ScannerManagement => this;
+    public IScannerClient Scanner => this;
 
     /// <inheritdoc/>
-    public IModuleVersionClient ModuleVersionManagement => this;
+    public IModuleVersionClient ModuleVersion => this;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModulixApi"/> class with the specified <see cref="HttpClient"/>.

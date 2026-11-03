@@ -6,7 +6,7 @@ namespace Modulix.Client.Clients;
 /// <summary>
 /// Interface for managing sub-endpoints via HTTP client.
 /// </summary>
-public interface ISubEndpointManagementClient
+public interface ISubEndpointClient
 {
     /// <summary>
     /// Confirms the endpoint for a specific module.

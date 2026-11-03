@@ -28,7 +28,7 @@ public partial class DetailModel
         {
             _logger.LogInformation("Starting module {ModuleId}.", id);
 
-            using var response = await _modulixApiClient.ModuleManagement.StartModuleAsync(
+            using var response = await _modulixApiClient.Module.StartModuleAsync(
                 id,
                 ct: HttpContext.RequestAborted);
 
@@ -102,7 +102,7 @@ public partial class DetailModel
         {
             _logger.LogInformation("Stopping module {ModuleId}.", id);
 
-            using var response = await _modulixApiClient.ModuleManagement.StopModuleAsync(
+            using var response = await _modulixApiClient.Module.StopModuleAsync(
                 id,
                 ct: HttpContext.RequestAborted);
 
@@ -191,7 +191,7 @@ public partial class DetailModel
             var sanitizedName = trimmedName.Replace("\r", string.Empty).Replace("\n", string.Empty);
             _logger.LogInformation("Updating details for module {ModuleId} ({ModuleName}).", id, sanitizedName);
 
-            using var response = await _modulixApiClient.ModuleManagement.UpdateModuleAsync(
+            using var response = await _modulixApiClient.Module.UpdateModuleAsync(
                 id,
                 request,
                 ct: HttpContext.RequestAborted);
@@ -251,7 +251,7 @@ public partial class DetailModel
         {
             _logger.LogInformation("Deleting module {ModuleId}.", id);
 
-            using var response = await _modulixApiClient.ModuleManagement.DeleteModuleAsync(
+            using var response = await _modulixApiClient.Module.DeleteModuleAsync(
                 id,
                 ct: HttpContext.RequestAborted);
 

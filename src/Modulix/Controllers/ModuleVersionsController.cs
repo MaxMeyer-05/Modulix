@@ -16,7 +16,7 @@ namespace Modulix.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/v1")]
-public class ModuleVersionsManagementController : ControllerBase
+public class ModuleVersionsController : ControllerBase
 {
     private const long MaximumUploadBytes = 50L * 1024 * 1024; // Maximum allowed upload size for module files (50 MB)
 
@@ -26,10 +26,10 @@ public class ModuleVersionsManagementController : ControllerBase
     private readonly IModuleVersionService _moduleVersionService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ModuleVersionsManagementController"/> class.
+    /// Initializes a new instance of the <see cref="ModuleVersionsController"/> class.
     /// </summary>
     /// <param name="moduleVersionService">The module version service instance.</param>
-    public ModuleVersionsManagementController(IModuleVersionService moduleVersionService)
+    public ModuleVersionsController(IModuleVersionService moduleVersionService)
     {
         _moduleVersionService = moduleVersionService;
     }

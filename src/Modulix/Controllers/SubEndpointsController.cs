@@ -14,7 +14,7 @@ namespace Modulix.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/v1")]
-public class SubEndpointsManagementController : ControllerBase
+public class SubEndpointsController : ControllerBase
 {
     /// <summary>
     /// The sub-endpoint service used by the controller.
@@ -22,10 +22,10 @@ public class SubEndpointsManagementController : ControllerBase
     private readonly ISubEndpointService _subEndpointService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SubEndpointsManagementController"/> class.
+    /// Initializes a new instance of the <see cref="SubEndpointsController"/> class.
     /// </summary>
     /// <param name="subEndpointService">The sub-endpoint service instance.</param>
-    public SubEndpointsManagementController(ISubEndpointService subEndpointService)
+    public SubEndpointsController(ISubEndpointService subEndpointService)
     {
         _subEndpointService = subEndpointService;
     }

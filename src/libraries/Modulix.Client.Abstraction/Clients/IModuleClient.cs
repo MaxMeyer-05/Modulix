@@ -6,7 +6,7 @@ namespace Modulix.Client.Clients;
 /// <summary>
 /// Interface for managing modules via HTTP client.
 /// </summary>
-public interface IModuleManagementClient
+public interface IModuleClient
 {
     /// <summary>
     /// Creates a new module.

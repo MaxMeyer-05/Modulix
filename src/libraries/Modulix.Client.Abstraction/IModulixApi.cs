@@ -8,22 +8,22 @@ namespace Modulix.Client;
 public interface IModulixApi
 {
     /// <summary>
-    /// Gets the client for managing modules within the Modulix API.
+    /// Gets the client for interacting with modules.
     /// </summary>
-    IModuleManagementClient ModuleManagement { get; }
+    IModuleClient Module { get; }
 
     /// <summary>
-    /// Gets the client for managing sub-endpoints within the Modulix API.
+    /// Gets the client for interacting with sub-endpoints.
     /// </summary>
-    ISubEndpointManagementClient SubEndpointManagement { get; }
+    ISubEndpointClient SubEndpoint { get; }
 
     /// <summary>
-    /// Gets the client for managing the scanner within the Modulix API.
+    /// Gets the client for interacting with the scanner.
     /// </summary>
-    IScannerManagementClient ScannerManagement { get; }
+    IScannerClient Scanner { get; }
 
     /// <summary>
-    /// Gets the client for managing module versions within the Modulix API.
+    /// Gets the client for interacting with module versions.
     /// </summary>
-    IModuleVersionClient ModuleVersionManagement { get; }
+    IModuleVersionClient ModuleVersion { get; }
 }

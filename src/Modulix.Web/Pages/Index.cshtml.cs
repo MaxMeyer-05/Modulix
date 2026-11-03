@@ -212,7 +212,7 @@ public class IndexModel : PageModel
         {
             _logger.LogDebug("Loading all modules for dashboard.");
 
-            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+            using var response = await _modulixApiClient.Module.GetAllModulesAsync(
                 pagination: new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
                 ct: ct);
             if (!response.IsSuccessStatusCode)
@@ -238,7 +238,7 @@ public class IndexModel : PageModel
     {
         try
         {
-            using var response = await _modulixApiClient.ScannerManagement.GetScanQueueAsync(ct: ct);
+            using var response = await _modulixApiClient.Scanner.GetScanQueueAsync(ct: ct);
             if (response.IsSuccessStatusCode)
             {
                 ScanQueue = await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(cancellationToken: ct) ?? [];
@@ -254,7 +254,7 @@ public class IndexModel : PageModel
     {
         try
         {
-            using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
+            using var response = await _modulixApiClient.SubEndpoint.GetAllEndpointsDetailAsync(
                 pagination: new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
                 ct: ct);
             if (response.IsSuccessStatusCode)

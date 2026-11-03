@@ -3,7 +3,7 @@ namespace Modulix.Client.Clients;
 /// <summary>
 /// Interface for managing the scanner via HTTP client.
 /// </summary>
-public interface IScannerManagementClient
+public interface IScannerClient
 {
     /// <summary>
     /// Retrieves all modules currently in the scan queue along with their scan priority.

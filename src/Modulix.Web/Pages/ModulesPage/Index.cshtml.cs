@@ -245,7 +245,7 @@ public class IndexModel : PageModel
                 .Replace("\n", string.Empty);
             _logger.LogDebug("Creating a new module with name {ModuleName}.", sanitizedModuleName);
 
-            using var response = await _modulixApiClient.ModuleManagement.CreateModuleAsync(
+            using var response = await _modulixApiClient.Module.CreateModuleAsync(
                 input, ct: HttpContext.RequestAborted);
 
             if (!response.IsSuccessStatusCode)
@@ -338,7 +338,7 @@ public class IndexModel : PageModel
                     : null
             };
 
-            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+            using var response = await _modulixApiClient.Module.GetAllModulesAsync(
                 query: moduleQuery,
                 pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
                 ct: HttpContext.RequestAborted);

@@ -16,7 +16,7 @@ namespace Modulix.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/v1/modules")]
-public class ModulesManagementController : ControllerBase
+public class ModulesController : ControllerBase
 {
     private const long MaximumUploadBytes = 50L * 1024 * 1024; // Maximum allowed upload size for module files (50 MB)
 
@@ -26,10 +26,10 @@ public class ModulesManagementController : ControllerBase
     private readonly IModuleService _moduleService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ModulesManagementController"/> class.
+    /// Initializes a new instance of the <see cref="ModulesController"/> class.
     /// </summary>
     /// <param name="moduleService">The module service.</param>
-    public ModulesManagementController(
+    public ModulesController(
         IModuleService moduleService)
     {
         _moduleService = moduleService;

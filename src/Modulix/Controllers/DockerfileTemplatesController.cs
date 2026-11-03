@@ -11,7 +11,7 @@ namespace Modulix.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/v1/dockerfiles")]
-public class DockerfileTemplatesManagementController : ControllerBase
+public class DockerfileTemplatesController : ControllerBase
 {
     /// <summary>
     /// The service used to manage Dockerfile templates.
@@ -19,10 +19,10 @@ public class DockerfileTemplatesManagementController : ControllerBase
     private readonly IDockerfileTemplateService _dockerfileTemplateService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DockerfileTemplatesManagementController"/> class.
+    /// Initializes a new instance of the <see cref="DockerfileTemplatesController"/> class.
     /// </summary>
     /// <param name="dockerfileTemplateService">The Dockerfile template service.</param>
-    public DockerfileTemplatesManagementController(IDockerfileTemplateService dockerfileTemplateService)
+    public DockerfileTemplatesController(IDockerfileTemplateService dockerfileTemplateService)
     {
         _dockerfileTemplateService = dockerfileTemplateService;
     }

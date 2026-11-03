@@ -8,13 +8,13 @@ using Modulix.Client.Models.Dtos.Query;
 
 namespace Modulix.Client;
 
-/// <inheritdoc cref="IModuleManagementClient"/>
-internal partial class ModulixApi : IModuleManagementClient
+/// <inheritdoc cref="IModuleClient"/>
+internal partial class ModulixApi : IModuleClient
 {
     /// <summary>
     /// The endpoint for module management within the Modulix API.
     /// </summary>
-    private const string ModuleManagementEndpoint = "api/v1/modules";
+    private const string ModuleEndpoint = "api/v1/modules";
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> CreateModuleAsync(CreateModuleDto request, CancellationToken ct = default, string? authToken = null)
@@ -50,7 +50,7 @@ internal partial class ModulixApi : IModuleManagementClient
         content.Add(new StreamContent(request.ModuleFile.OpenReadStream()),
             nameof(request.ModuleFile), Path.GetFileName(request.ModuleFile.FileName));
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, ModuleManagementEndpoint) { Content = content };
+        using var message = new HttpRequestMessage(HttpMethod.Post, ModuleEndpoint) { Content = content };
         if (!string.IsNullOrWhiteSpace(authToken))
             message.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", authToken);
@@ -61,14 +61,14 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> DeleteModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
+        var requestUri = $"{ModuleEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         return await _httpClient.SendRequestAsync(HttpMethod.Delete, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetAllModulesAsync(ModuleQueryDto? query = null, PaginationQueryDto? pagination = null, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}";
+        var requestUri = $"{ModuleEndpoint}";
         if (pagination != null)
         {
             var queryParams = new List<string>();
@@ -94,35 +94,35 @@ internal partial class ModulixApi : IModuleManagementClient
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetModuleByIdAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
+        var requestUri = $"{ModuleEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> GetModuleStatsAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stats";
+        var requestUri = $"{ModuleEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stats";
         return await _httpClient.SendRequestAsync(HttpMethod.Get, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> UpdateModuleAsync(Guid moduleId, UpdateModuleDto request, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
+        var requestUri = $"{ModuleEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}";
         return await _httpClient.SendRequestAsync(HttpMethod.Put, requestUri, request, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> StopModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stop";
+        var requestUri = $"{ModuleEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/stop";
         return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
     }
 
     /// <inheritdoc/>
     public async Task<HttpResponseMessage> StartModuleAsync(Guid moduleId, CancellationToken ct = default, string? authToken = null)
     {
-        var requestUri = $"{ModuleManagementEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/start";
+        var requestUri = $"{ModuleEndpoint}/{Uri.EscapeDataString(moduleId.ToString())}/start";
         return await _httpClient.SendRequestAsync(HttpMethod.Post, requestUri, authToken: authToken, ct: ct);
     }
 }
