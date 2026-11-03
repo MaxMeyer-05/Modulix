@@ -250,7 +250,7 @@ public class ModuleVersionService : IModuleVersionService
             {
                 _context.ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
             }
-            _directoryExtension.DeleteModuleDirectory(versionDirectory, module.Id);
+            _directoryExtension.DeleteDirectory(versionDirectory, module.Id);
 
             _logger.LogError(ex, "An error occurred while creating version '{Version}' for module with ID '{ModuleId}'.", normalizedVersion, moduleId);
             throw;
@@ -484,7 +484,7 @@ public class ModuleVersionService : IModuleVersionService
             _context.ModuleEndpoints.RemoveRange(discoveredEndpoints);
         }
 
-        _directoryExtension.DeleteModuleDirectory(moduleVersion.StoragePath, moduleId);
+        _directoryExtension.DeleteDirectory(moduleVersion.StoragePath, moduleId);
 
         _context.ModuleVersions.Remove(moduleVersion);
         await _context.SaveChangesAsync(ct);

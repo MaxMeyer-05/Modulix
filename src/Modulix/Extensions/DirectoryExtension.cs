@@ -101,8 +101,8 @@ public class DirectoryExtension
     /// Deletes a temporary file used during module update.
     /// </summary>
     /// <param name="filePath">The path to the temporary file to delete.</param>
-    /// <param name="moduleId">The ID of the module associated with the temporary file.</param>
-    public void DeleteTemporaryFile(string filePath, Guid moduleId)
+    /// <param name="moduleId">Optional - The ID of the module associated with the temporary file.</param>
+    public void DeleteTemporaryFile(string filePath, Guid? moduleId = null)
     {
         try
         {
@@ -111,7 +111,10 @@ public class DirectoryExtension
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to delete temporary ZIP file for module with ID '{ModuleId}'.", moduleId);
+            if (moduleId is not null)
+                _logger.LogWarning(ex, "Failed to delete temporary ZIP file for module with ID '{ModuleId}'.", moduleId);
+            else
+                _logger.LogWarning(ex, "Failed to delete file.");
         }
     }
 
@@ -119,8 +122,8 @@ public class DirectoryExtension
     /// Deletes a directory used to store module files.
     /// </summary>
     /// <param name="directoryPath">The path to the staging directory to delete.</param>
-    /// <param name="moduleId">The ID of the module associated with the staging directory.</param>
-    public void DeleteModuleDirectory(string directoryPath, Guid moduleId)
+    /// <param name="moduleId">Optional - The ID of the module associated with the staging directory.</param>
+    public void DeleteDirectory(string directoryPath, Guid? moduleId = null)
     {
         try
         {
@@ -153,7 +156,10 @@ public class DirectoryExtension
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to delete module directory for module with ID '{ModuleId}'.", moduleId);
+            if (moduleId is not null)
+                _logger.LogWarning(ex, "Failed to delete module directory for module with ID '{ModuleId}'.", moduleId);
+            else
+                _logger.LogWarning(ex, "Failed to delete directory.");
         }
     }
 
@@ -213,7 +219,7 @@ public class DirectoryExtension
         }
         catch
         {
-            DeleteModuleDirectory(targetPath, moduleId);
+            DeleteDirectory(targetPath, moduleId);
             throw;
         }
         finally
@@ -269,6 +275,6 @@ public class DirectoryExtension
     public void DeleteModuleDataDirectory(Guid moduleId)
     {
         var dataPath = GetModuleDataDirectoryPath(moduleId);
-        DeleteModuleDirectory(dataPath, moduleId);
+        DeleteDirectory(dataPath, moduleId);
     }
 }

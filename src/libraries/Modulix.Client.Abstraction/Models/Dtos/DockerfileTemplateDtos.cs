@@ -54,7 +54,14 @@ public class CreateDockerfileTemplateDto
     /// The name of the Dockerfile template.
     /// </summary>
     [Required(ErrorMessage = "FileName is required.")]
+    [MaxLength(255, ErrorMessage = "FileName cannot exceed 255 characters.")]
     public string FileName { get; set; } = null!;
+
+    /// <summary>
+    /// The description of the Dockerfile template.
+    /// </summary>
+    [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
+    public string? Description { get; set; }
 
     /// <summary>
     /// The content of the Dockerfile template.
@@ -72,7 +79,14 @@ public class UpdateDockerfileTemplateDto
     /// The name of the Dockerfile template.
     /// </summary>
     [Required(ErrorMessage = "FileName is required.")]
+    [MaxLength(255, ErrorMessage = "FileName cannot exceed 255 characters.")]
     public string FileName { get; set; } = null!;
+
+    /// <summary>
+    /// The description of the Dockerfile template.
+    /// </summary>
+    [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
+    public string? Description { get; set; }
 
     /// <summary>
     /// The content of the Dockerfile template.

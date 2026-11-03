@@ -304,7 +304,7 @@ public class ModuleService : IModuleService
         }
         catch
         {
-            _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
+            _directoryExtension.DeleteDirectory(initialVersion.StoragePath, module.Id);
             _directoryExtension.DeleteModuleDataDirectory(module.Id);
             throw;
         }
@@ -332,7 +332,7 @@ public class ModuleService : IModuleService
             if (string.IsNullOrWhiteSpace(module.ContainerId) ||
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
-                _directoryExtension.DeleteModuleDirectory(initialVersion.StoragePath, module.Id);
+                _directoryExtension.DeleteDirectory(initialVersion.StoragePath, module.Id);
                 _directoryExtension.DeleteModuleDataDirectory(module.Id);
             }
 
@@ -391,13 +391,13 @@ public class ModuleService : IModuleService
 
         foreach (var version in module.Versions)
         {
-            _directoryExtension.DeleteModuleDirectory(version.StoragePath, moduleId);
+            _directoryExtension.DeleteDirectory(version.StoragePath, moduleId);
         }
 
         _directoryExtension.DeleteModuleDataDirectory(moduleId);
 
         var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, moduleId.ToString());
-        _directoryExtension.DeleteModuleDirectory(moduleBaseDirectory, moduleId);
+        _directoryExtension.DeleteDirectory(moduleBaseDirectory, moduleId);
 
         _context.Modules.Remove(module);
         _context.ModuleEndpoints.RemoveRange(module.SubEndpoints);
