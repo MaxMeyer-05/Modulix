@@ -218,12 +218,32 @@ All management endpoints require a valid JWT bearer token and are organized by c
 | `GET` | `/queue` | Retrieve the current scan queue and priorities. |
 | `DELETE` | `/queue/{moduleId}` | Cancel a queued scan and delete the associated module. |
 
-#### Dockerfiles (`DockerfilesManagementController` — `/api/v1/dockerfiles`)
+#### Dockerfile Templates (`DockerfileTemplatesManagementController` — `/api/v1/dockerfiles`)
+
+The controller, service, and DTOs are scaffolding only; template CRUD and service registration are not implemented yet. The existing route is retained.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Retrieve all Dockerfiles. |
-| `GET` | `/{id}` | Retrieve a specific Dockerfile by ID. |
-| `POST` | `/` | Create a new Dockerfile. |
-| `PUT` | `/{id}` | Update a specific Dockerfile. |
-| `DELETE` | `/{id}` | Delete a specific Dockerfile. |
+| `GET` | `/` | Retrieve all Dockerfile templates (planned). |
+| `GET` | `/{id}` | Retrieve a specific Dockerfile template by ID (planned). |
+| `POST` | `/` | Create a new Dockerfile template (planned). |
+| `PUT` | `/{id}` | Update a specific Dockerfile template (planned). |
+| `DELETE` | `/{id}` | Delete a specific Dockerfile template (planned). |
+
+##### Prepared database model
+
+[`DockerfileTemplate`](src/Modulix/Database/Entities/DockerfileTemplate.cs) is registered in `ServerContext` as `DockerfileTemplates` and maps to `dockerfile_templates`:
+
+| Column | Model type | Purpose |
+| --- | --- | --- |
+| `Id` | Auto-generated `int`, primary key | Stable template identifier. |
+| `Name` | Required string, max. 100 characters | Display name, independent of the file name. |
+| `Description` | Optional string, max. 500 characters | Usage notes for template selection. |
+| `StoragePath` | Required string, max. 500 characters, unique index | Relative file path, e.g. `dockerfiles/<template-id>/Dockerfile`. |
+| `IsBuiltIn` | `bool` | Distinguishes supplied templates from custom templates; does not enforce deletion rules. |
+| `CreatedAtUtc` | `DateTime` | Creation time in UTC. |
+| `UpdatedAtUtc` | `DateTime` | Last update time in UTC; future CRUD must maintain it. |
+
+Only metadata belongs in the database; template content, including placeholders, stays under `<StorageBasePath>/dockerfiles/`. Relative paths allow moving the storage root without rewriting database rows. Path validation and length validation must also be enforced by future CRUD; SQLite does not enforce the model's maximum string lengths.
+
+No migration, built-in template seeding, module/version relationship, or template selection/build integration is included yet. Existing DTO payload fields and API parameter types are unchanged by the rename; mapping them to this model remains part of future CRUD implementation.

@@ -25,6 +25,11 @@ public class ServerContext : DbContext
     public DbSet<ModuleVersion> ModuleVersions { get; set; } = null!;
 
     /// <summary>
+    /// Represents the collection of reusable Dockerfile template metadata in the database.
+    /// </summary>
+    public DbSet<DockerfileTemplate> DockerfileTemplates { get; set; } = null!;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ServerContext"/> class with the specified options.
     /// </summary>
     public ServerContext(DbContextOptions<ServerContext> options) 
