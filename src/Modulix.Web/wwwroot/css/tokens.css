@@ -1,0 +1,48 @@
+:root {
+  --color-background: #0b1018;
+  --color-surface: #171e29;
+  --color-surface-inset: #101721;
+  --color-surface-raised: #1b2531;
+  --color-surface-hover: #263544;
+  --color-shell: #10151e;
+  --color-shell-border: #252c36;
+  --color-border: #2b3442;
+  --color-border-strong: #384453;
+  --color-border-hover: #4c8d99;
+  --color-text: #eef2f6;
+  --color-text-muted: #a5afbd;
+  --color-text-subtle: #8998ab;
+  --color-navigation-text: #b8c0cd;
+  --color-accent: #54d4da;
+  --color-accent-hover: #83e7eb;
+  --color-accent-contrast: #0b1018;
+  --color-success: #62dba6;
+  --color-info: #6bcce6;
+  --color-warning: #e9b16c;
+  --color-queued: #e4d17c;
+  --color-danger: #ff9299;
+  --color-danger-fill: #a83746;
+  --color-danger-fill-hover: #c64252;
+  --color-on-danger: #fff;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-control: 13px;
+  --font-size-base: 14px;
+  --font-size-dialog-title: 18px;
+  --shadow-menu: 0 12px 28px rgb(0 0 0 / 25%);
+  --shadow-dialog-overlay: 0 0 0 100vmax rgb(3 7 13 / 75%);
+  --z-sticky: 1;
+  --z-sidebar: 2;
+  --z-dialog: 1000;
+}

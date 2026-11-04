@@ -1,17 +1,13 @@
 .signed-out-page {
-  --signed-out-background: #10151e;
-  --signed-out-text: #f2f5f8;
-  --signed-out-muted: #a5afbd;
-  --signed-out-accent: #54d4da;
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  background-color: var(--signed-out-background);
+  background-color: var(--color-shell);
   background-image:
     linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px);
   background-size: 64px 64px;
-  color: var(--signed-out-text);
+  color: var(--color-text);
 }
 
 .signed-out-header {
@@ -19,8 +15,8 @@
   align-items: center;
   min-height: 80px;
   padding: 20px 32px;
-  border-bottom: 1px solid #252c36;
-  background: var(--signed-out-background);
+  border-bottom: 1px solid var(--color-shell-border);
+  background: var(--color-shell);
 }
 
 .signed-out-brand {
@@ -34,7 +30,7 @@
 .signed-out-brand ::deep svg {
   width: 28px;
   height: 28px;
-  color: var(--signed-out-accent);
+  color: var(--color-accent);
 }
 
 .signed-out-main {
@@ -86,37 +82,14 @@
 .signed-out-message {
   max-width: 320px;
   margin: 0 auto 32px;
-  color: var(--signed-out-muted);
+  color: var(--color-text-muted);
   font-size: 15px;
   line-height: 1.6;
 }
 
 .signed-out-content ::deep .signed-out-sign-in {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
   width: 100%;
   max-width: 240px;
-  min-height: 44px;
-  padding: 12px 20px;
-  border: 1px solid var(--signed-out-accent);
-  border-radius: 6px;
-  background: var(--signed-out-accent);
-  color: #10151e;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.signed-out-content ::deep .signed-out-sign-in:hover {
-  border-color: #83e7eb;
-  background: #83e7eb;
-}
-
-.signed-out-content ::deep .signed-out-sign-in:focus-visible {
-  outline: 2px solid var(--signed-out-text);
-  outline-offset: 4px;
 }
 
 .signed-out-content ::deep .signed-out-sign-in svg {
