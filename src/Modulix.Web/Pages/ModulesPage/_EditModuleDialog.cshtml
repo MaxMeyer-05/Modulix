@@ -1,0 +1,33 @@
+@model DetailModel
+@{
+    var module = Model.Module!;
+    var dialogHeader = new DialogHeaderModel("edit-module-heading", "Edit module details", "pencil");
+}
+<dialog class="dialog dialog--md" id="edit-module-dialog" data-open-on-load="@(Model.ReopenEdit ? "true" : "false")" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId">
+    <partial name="_DialogHeader" model="dialogHeader" />
+    <form class="dialog-layout" id="edit-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Edit" asp-route-id="@module.Id">
+        <div class="dialog-body">
+            @if (Model.EditError is { } editError)
+            {
+                <div class="module-form-error" role="alert">
+                    <strong>@editError.Title</strong> <span class="module-code">HTTP @editError.StatusCode</span>
+                    <p>@editError.Description</p>
+                </div>
+            }
+            <fieldset class="module-form-fields" id="module-edit-fields">
+                <label>
+                    <span>Module name <span class="required-mark">*</span></span>
+                    <input name="ModuleName" value="@(Model.EditInput?.ModuleName ?? module.ModuleName)" required maxlength="100" placeholder="AnalyticsModule" autofocus />
+                </label>
+                <label>
+                    <span>Description</span>
+                    <textarea name="Description" rows="3" maxlength="500" placeholder="Optional description">@(Model.EditInput is not null ? Model.EditInput.Description : module.Description)</textarea>
+                </label>
+            </fieldset>
+        </div>
+        <div class="dialog-footer">
+            <partial name="_DialogCancelButton" />
+            <button class="ui-button ui-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
+        </div>
+    </form>
+</dialog>

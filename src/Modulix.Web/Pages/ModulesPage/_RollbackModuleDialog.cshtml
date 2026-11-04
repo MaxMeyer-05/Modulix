@@ -1,0 +1,45 @@
+@model DetailModel
+@using System.Globalization
+@{
+    var module = Model.Module!;
+    var rollbackVersions = Model.RollbackVersions;
+    var dialogHeader = new DialogHeaderModel("rollback-module-heading", "Rollback module version", "rotate-ccw");
+}
+<dialog class="dialog dialog--md dialog--info" id="rollback-module-dialog" data-open-on-load="@(Model.ReopenRollback ? "true" : "false")" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId" aria-describedby="rollback-module-description">
+    <partial name="_DialogHeader" model="dialogHeader" />
+    <form class="dialog-layout" id="rollback-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Rollback" asp-route-id="@module.Id">
+        <div class="dialog-body">
+            @if (Model.RollbackError is { } rollbackError)
+            {
+                <div class="module-form-error" role="alert">
+                    <strong>@rollbackError.Title</strong> <span class="module-code">HTTP @rollbackError.StatusCode</span>
+                    <p>@rollbackError.Description</p>
+                </div>
+            }
+            <input type="hidden" name="moduleName" value="@module.ModuleName" />
+            <fieldset class="module-form-fields" id="module-rollback-fields">
+                <p class="dialog-description" id="rollback-module-description">Roll back <strong>@module.ModuleName</strong> from current version <span class="module-code">@module.CurrentVersion</span> to a previous version. This will rebuild and start the container from that version's files and restore its endpoints.</p>
+                <label>
+                    <span>Target version <span class="required-mark">*</span></span>
+                    <select name="version" id="rollback-version-select" required disabled="@(rollbackVersions.Count == 0)">
+                        @foreach (var ver in rollbackVersions)
+                        {
+                            var isSelected = string.Equals(Model.RollbackVersion, ver.Version, StringComparison.Ordinal);
+                            var optionLabel = string.IsNullOrWhiteSpace(ver.Changelog)
+                                ? $"{ver.Version} ({ver.ReleasedAtUtc.ToString("MMM d, yyyy HH:mm 'UTC'", CultureInfo.InvariantCulture)})"
+                                : $"{ver.Version} ({ver.ReleasedAtUtc.ToString("MMM d, yyyy HH:mm 'UTC'", CultureInfo.InvariantCulture)}) — {ver.Changelog}";
+                            <option value="@ver.Version" selected="@isSelected">@optionLabel</option>
+                        }
+                    </select>
+                </label>
+            </fieldset>
+        </div>
+        <div class="dialog-footer">
+            <partial name="_DialogCancelButton" />
+            @if (rollbackVersions.Count > 0)
+            {
+                <button class="ui-button ui-button-primary" type="submit"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+            }
+        </div>
+    </form>
+</dialog>
