@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 
 using Modulix.Docker.Services.Interfaces;
 using Modulix.Services;
+using Modulix.Settings;
 
 namespace Modulix.Tests.Services;
 

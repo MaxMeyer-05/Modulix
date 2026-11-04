@@ -239,6 +239,6 @@ The controller, service, and DTOs are scaffolding only; template CRUD and servic
 | `Id` | Auto-generated `int`, primary key | Stable template identifier. |
 | `Name` | Required string, max. 100 characters | Display name, independent of the file name. |
 | `Description` | Optional string, max. 500 characters | Usage notes for template selection. |
-| `StoragePath` | Required string, max. 500 characters, unique index | Relative file path, e.g. `dockerfile-templates/<template-id>/Dockerfile`. |
+| `StoragePath` | Required string, max. 500 characters, unique index | Relative file path, e.g. `dockerfile-templates/<GUID>/Dockerfile`. Each upload gets its own GUID directory and retains the uploaded base file name, independently of the database ID and template display name. |
 | `CreatedAtUtc` | `DateTime` | Creation time in UTC. |
 | `UpdatedAtUtc` | `DateTime` | Last update time in UTC; future CRUD must maintain it. |

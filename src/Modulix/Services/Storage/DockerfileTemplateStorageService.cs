@@ -22,16 +22,23 @@ internal sealed class DockerfileTemplateStorageService : IDockerfileTemplateStor
     /// <inheritdoc />
     public Task<string> SaveAsync(IFormFile content, CancellationToken ct = default)
     {
-        var relativeFilePath = Path.Combine("dockerfile-templates", Guid.NewGuid().ToString("N"));
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentException.ThrowIfNullOrWhiteSpace(content.FileName, nameof(content));
+        var fileName = Path.GetFileName(content.FileName.Replace('\\', '/'));
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            fileName is "." or ".." ||
+            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException("The uploaded file must have a valid file name.", nameof(content));
+        }
+
+        var relativeFilePath = Path.Combine("dockerfile-templates", Guid.NewGuid().ToString("N"), fileName);
         return _storage.SaveFileAsync(content, relativeFilePath, ct);
     }
 
     /// <inheritdoc />
     public void Delete(string storagePath)
     {
-        var fullPath = _storage.ResolvePath(storagePath);
-        var directoryPath = Path.GetDirectoryName(fullPath)
-            ?? throw new ArgumentException("The storage path must refer to a file.", nameof(storagePath));
-        _storage.DeleteDirectory(directoryPath);
+        _storage.DeleteFile(storagePath);
     }
 }

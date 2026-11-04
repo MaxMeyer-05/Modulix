@@ -46,6 +46,14 @@ public interface IStorageService
     Task<string> SaveFileAsync(IFormFile content, string relativeFilePath, CancellationToken ct = default);
 
     /// <summary>
+    /// Deletes a stored file and any empty parent directories below the storage root.
+    /// File system cleanup failures are logged.
+    /// </summary>
+    /// <param name="path">The storage-relative or absolute path of the file to delete.</param>
+    /// <exception cref="ArgumentException">Thrown if the path is invalid or outside the storage root.</exception>
+    void DeleteFile(string path);
+
+    /// <summary>
     /// Deletes a storage directory and any empty parent directories below the storage root.
     /// </summary>
     /// <param name="path">The storage-relative or absolute path of the directory to delete.</param>

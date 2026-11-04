@@ -19,6 +19,7 @@ using Modulix.ReverseProxy.Services;
 using Modulix.Scanner.Interfaces;
 using Modulix.Services.Storage;
 using Modulix.Services.Storage.Interfaces;
+using Modulix.Settings;
 
 namespace Modulix.Tests.TestData;
 

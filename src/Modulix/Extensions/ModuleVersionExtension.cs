@@ -1,8 +1,10 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 
-using Modulix.Database.DbContexts;
 using Modulix.Database.Entities;
+using Modulix.Database.DbContexts;
+
+using Modulix.Settings;
 
 namespace Modulix.Extensions;
 

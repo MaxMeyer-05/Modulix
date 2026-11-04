@@ -132,6 +132,21 @@ public sealed class StorageService : IStorageService
     }
 
     /// <inheritdoc/>
+    public void DeleteFile(string path)
+    {
+        var fullPath = ResolvePath(path);
+        try
+        {
+            File.Delete(fullPath);
+            DeleteEmptyDirectories(Path.GetDirectoryName(fullPath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete storage file '{Path}'.", path);
+        }
+    }
+
+    /// <inheritdoc/>
     public void DeleteDirectory(string path, string? resourceId = null)
     {
         try

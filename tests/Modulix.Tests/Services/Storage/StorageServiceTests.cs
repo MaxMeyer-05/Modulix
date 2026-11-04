@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Modulix.Services.Storage;
+using Modulix.Settings;
 
 namespace Modulix.Tests.Services.Storage;
 
@@ -147,6 +148,42 @@ public sealed class StorageServiceTests : IDisposable
 
         Assert.False(Directory.Exists(target));
         Assert.Equal("persistent", File.ReadAllText(Path.Combine(sibling, "database.db")));
+    }
+
+    [Fact]
+    public async Task DeleteFile_ExistingStoragePath_RemovesOnlyTargetAndPreservesSibling()
+    {
+        var target = await _sut.SaveFileAsync(CreateUpload("target"), Path.Combine("templates", "target"));
+        var sibling = await _sut.SaveFileAsync(CreateUpload("preserved"), Path.Combine("templates", "sibling"));
+
+        _sut.DeleteFile(target);
+
+        Assert.False(File.Exists(_sut.ResolvePath(target)));
+        Assert.Equal("preserved", await File.ReadAllTextAsync(_sut.ResolvePath(sibling)));
+        Assert.Equal(_sut.ResolvePath(sibling), Assert.Single(Directory.GetFiles(
+            _storageRootPath, "*", SearchOption.AllDirectories)));
+    }
+
+    [Fact]
+    public async Task DeleteFile_LastFile_RemovesEmptyParentsButPreservesStorageRoot()
+    {
+        var path = await _sut.SaveFileAsync(CreateUpload("target"), Path.Combine("templates", "nested", "target"));
+
+        _sut.DeleteFile(_sut.ResolvePath(path));
+
+        Assert.True(Directory.Exists(_storageRootPath));
+        Assert.Empty(Directory.GetFileSystemEntries(_storageRootPath));
+    }
+
+    [Fact]
+    public void DeleteFile_OutsideStorageRoot_RejectsAndPreservesFile()
+    {
+        var outsidePath = Path.Combine(_testRootPath, "outside.txt");
+        File.WriteAllText(outsidePath, "preserved");
+
+        Assert.Throws<ArgumentException>(() => _sut.DeleteFile(outsidePath));
+
+        Assert.Equal("preserved", File.ReadAllText(outsidePath));
     }
 
     private static IFormFile CreateUpload(string contents)

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Modulix.Services.Storage;
+using Modulix.Settings;
 
 namespace Modulix.Tests.Services.Storage;
 

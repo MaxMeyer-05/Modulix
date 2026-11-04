@@ -26,25 +26,48 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
             CreateTemplateStorage(storage));
     }
 
-    [Fact]
-    public async Task CreateDockerfileTemplateAsync_SavesMetadataAndDockerfileContents()
+    [Theory]
+    [InlineData("Dockerfile", "Dockerfile")]
+    [InlineData("Dockerfile.alpine", "Dockerfile.alpine")]
+    [InlineData(@"C:\fakepath\Dockerfile.dev", "Dockerfile.dev")]
+    [InlineData("../../outside/Dockerfile.prod", "Dockerfile.prod")]
+    public async Task CreateDockerfileTemplateAsync_SavesMetadataAndDockerfileContents(
+        string uploadedFileName, string expectedFileName)
     {
         const string dockerfileContents = "FROM alpine:3.20";
 
-        await _sut.CreateDockerfileTemplateAsync(CreateDto("Initial Dockerfile", dockerfileContents));
+        await _sut.CreateDockerfileTemplateAsync(CreateDto("Initial Dockerfile", dockerfileContents, uploadedFileName));
 
         var stored = await _context.DockerfileTemplates.AsNoTracking().SingleAsync();
         var filePath = GetStoredFilePath(stored.StoragePath);
         Assert.Equal("Initial Dockerfile", stored.FileName);
         Assert.Equal("initial description", stored.Description);
         Assert.StartsWith("dockerfile-templates/", stored.StoragePath);
-        Assert.Equal("Dockerfile", Path.GetFileName(stored.StoragePath));
         var templateId = Path.GetFileName(Path.GetDirectoryName(filePath));
-        Assert.NotNull(templateId);
         Assert.True(Guid.TryParseExact(templateId, "N", out _));
-        Assert.Equal(Path.Combine(_storageOptions.Value.StorageBasePath, "dockerfile-templates", templateId, "Dockerfile"), filePath);
+        Assert.NotNull(templateId);
+        Assert.Equal($"dockerfile-templates/{templateId}/{expectedFileName}", stored.StoragePath);
+        Assert.Equal(Path.Combine(_storageOptions.Value.StorageBasePath, "dockerfile-templates", templateId, expectedFileName), filePath);
         Assert.False(Directory.Exists(Path.Combine(ModuleStoragePath, "dockerfile-templates")));
         Assert.Equal(dockerfileContents, await File.ReadAllTextAsync(filePath));
+        Assert.Equal(filePath, Assert.Single(
+            Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories)));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("folder/")]
+    [InlineData("folder\\")]
+    public async Task CreateDockerfileTemplateAsync_InvalidUploadedFileName_RejectsWithoutSaving(string uploadedFileName)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.CreateDockerfileTemplateAsync(CreateDto("Invalid upload", "FROM alpine:3.20", uploadedFileName)));
+
+        Assert.Empty(await _context.DockerfileTemplates.AsNoTracking().ToListAsync());
+        AssertNoTemplateStorageFiles();
     }
 
     [Fact]
@@ -53,7 +76,7 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         string? savedFilePath = null;
         _saveInterceptor.BeforeSave = () =>
         {
-            savedFilePath = Assert.Single(Directory.GetFiles(_storageOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories));
+            savedFilePath = Assert.Single(Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories));
             Assert.Equal("contents before database save", File.ReadAllText(savedFilePath));
         };
         _saveInterceptor.ExceptionToThrow = new InvalidOperationException("Database save failed.");
@@ -69,12 +92,36 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
     }
 
     [Fact]
+    public async Task CreateDockerfileTemplateAsync_DatabaseSaveFails_PreservesExistingTemplate()
+    {
+        await _sut.CreateDockerfileTemplateAsync(CreateDto("Existing template", "existing Dockerfile"));
+        var original = await _context.DockerfileTemplates.AsNoTracking().SingleAsync();
+        var originalPath = GetStoredFilePath(original.StoragePath);
+        _saveInterceptor.ExceptionToThrow = new InvalidOperationException("Database save failed.");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.CreateDockerfileTemplateAsync(CreateDto("Failed create", "uncommitted Dockerfile")));
+
+        Assert.Equal("Database save failed.", exception.Message);
+        var persisted = await _context.DockerfileTemplates.AsNoTracking().SingleAsync();
+        Assert.Equal(original.Id, persisted.Id);
+        Assert.Equal(original.StoragePath, persisted.StoragePath);
+        Assert.Equal("existing Dockerfile", await File.ReadAllTextAsync(originalPath));
+        Assert.Equal(originalPath, Assert.Single(
+            Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories)));
+        Assert.Equal(Path.GetDirectoryName(originalPath), Assert.Single(
+            Directory.GetDirectories(Path.Combine(_storageOptions.Value.StorageBasePath, "dockerfile-templates"))));
+    }
+
+    [Fact]
     public async Task UpdateDockerfileTemplateAsync_Success_ReplacesMetadataAndFile()
     {
         await _sut.CreateDockerfileTemplateAsync(CreateDto("Before update", "old Dockerfile"));
         var before = await _context.DockerfileTemplates.SingleAsync();
         var oldStoragePath = before.StoragePath;
         var oldPath = GetStoredFilePath(before.StoragePath);
+        await _sut.CreateDockerfileTemplateAsync(CreateDto("Other template", "unrelated Dockerfile"));
+        var other = await _context.DockerfileTemplates.AsNoTracking().SingleAsync(e => e.Id != before.Id);
 
         await _sut.UpdateDockerfileTemplateAsync(
             before.Id,
@@ -85,12 +132,16 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
                 Content = CreateFormFile("new Dockerfile")
             });
 
-        var after = await _context.DockerfileTemplates.AsNoTracking().SingleAsync();
+        var after = await _context.DockerfileTemplates.AsNoTracking().SingleAsync(e => e.Id == before.Id);
         Assert.Equal("After update", after.FileName);
         Assert.Equal("updated description", after.Description);
         Assert.NotEqual(oldStoragePath, after.StoragePath);
         Assert.Equal("new Dockerfile", await File.ReadAllTextAsync(GetStoredFilePath(after.StoragePath)));
         Assert.False(File.Exists(oldPath));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(oldPath)));
+        Assert.Equal("unrelated Dockerfile", await File.ReadAllTextAsync(GetStoredFilePath(other.StoragePath)));
+        Assert.Equal(2, await _context.DockerfileTemplates.CountAsync());
+        Assert.Equal(2, Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories).Length);
     }
 
     [Fact]
@@ -103,7 +154,7 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         _saveInterceptor.BeforeSave = () =>
         {
             updatedPath = Assert.Single(
-                Directory.GetFiles(_storageOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories),
+                Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories),
                 path => !string.Equals(path, originalPath, StringComparison.Ordinal));
             Assert.Equal("replacement Dockerfile", File.ReadAllText(updatedPath));
             Assert.True(File.Exists(originalPath));
@@ -128,7 +179,9 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         Assert.Equal("original Dockerfile", await File.ReadAllTextAsync(originalPath));
         Assert.NotNull(updatedPath);
         Assert.False(File.Exists(updatedPath));
-        Assert.Single(Directory.GetFiles(_storageOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(updatedPath)));
+        Assert.Equal(originalPath, Assert.Single(
+            Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories)));
     }
 
     [Fact]
@@ -143,6 +196,28 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         Assert.Empty(await _context.DockerfileTemplates.AsNoTracking().ToListAsync());
         Assert.False(File.Exists(filePath));
         AssertNoTemplateStorageFiles();
+    }
+
+    [Fact]
+    public async Task DeleteDockerfileTemplateAsync_MultipleTemplates_PreservesOtherTemplate()
+    {
+        await _sut.CreateDockerfileTemplateAsync(CreateDto("Delete me", "file to remove"));
+        var target = await _context.DockerfileTemplates.AsNoTracking().SingleAsync();
+        var targetPath = GetStoredFilePath(target.StoragePath);
+        await _sut.CreateDockerfileTemplateAsync(CreateDto("Keep me", "file to preserve"));
+        var other = await _context.DockerfileTemplates.AsNoTracking().SingleAsync(e => e.Id != target.Id);
+        var otherPath = GetStoredFilePath(other.StoragePath);
+
+        await _sut.DeleteDockerfileTemplateAsync(target.Id);
+
+        var remaining = await _context.DockerfileTemplates.AsNoTracking().SingleAsync();
+        Assert.Equal(other.Id, remaining.Id);
+        Assert.Equal(other.StoragePath, remaining.StoragePath);
+        Assert.Equal("file to preserve", await File.ReadAllTextAsync(otherPath));
+        Assert.False(File.Exists(targetPath));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(targetPath)));
+        Assert.Equal(otherPath, Assert.Single(
+            Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories)));
     }
 
     [Fact]
@@ -175,17 +250,18 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         Assert.Empty(Directory.GetDirectories(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories));
     }
 
-    private static CreateDockerfileTemplateDto CreateDto(string fileName, string contents) => new()
+    private static CreateDockerfileTemplateDto CreateDto(
+        string fileName, string contents, string uploadedFileName = "Dockerfile") => new()
     {
         FileName = fileName,
         Description = "initial description",
-        Content = CreateFormFile(contents)
+        Content = CreateFormFile(contents, uploadedFileName)
     };
 
-    private static FormFile CreateFormFile(string contents)
+    private static FormFile CreateFormFile(string contents, string fileName = "Dockerfile")
     {
         var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(contents));
-        return new FormFile(stream, 0, stream.Length, "content", "Dockerfile");
+        return new FormFile(stream, 0, stream.Length, "content", fileName);
     }
 
     private static IDockerfileTemplateStorageService CreateTemplateStorage(IStorageService storage)
