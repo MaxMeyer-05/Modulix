@@ -108,6 +108,21 @@
 		});
 	});
 
+	document.querySelectorAll("dialog .dialog-body").forEach(body => {
+		body.addEventListener("focusin", event => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement)) {
+				return;
+			}
+
+			requestAnimationFrame(() => {
+				if (document.activeElement === target) {
+					target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+				}
+			});
+		});
+	});
+
 	document.addEventListener("click", event => {
 		if (!(event.target instanceof Element)) {
 			return;

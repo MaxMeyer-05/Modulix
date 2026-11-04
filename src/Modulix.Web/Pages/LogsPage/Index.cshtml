@@ -52,7 +52,7 @@
                         <a class="log-icon-button" href="@Url.Page("/LogsPage/Index", clearDateValues)" title="Clear date filter" aria-label="Clear date filter"><i data-lucide="x" aria-hidden="true"></i></a>
                     }
                 </div>
-                <button class="log-dialog-button log-apply-button" type="submit" form="log-filters">Apply filters</button>
+                <button class="ui-button log-apply-button" type="submit" form="log-filters">Apply filters</button>
             </div>
             @if (Model.Matches.Count > 0)
             {
@@ -130,7 +130,7 @@
                 </select>
                 <label class="log-wrap"><input id="log-wrap" name="wrap" form="log-filters" type="checkbox" value="true" checked="@Model.Wrap" />Wrap lines</label>
                 <input type="hidden" name="wrap" value="false" form="log-filters" />
-                <button class="log-dialog-button log-apply-button" type="submit" form="log-filters">Apply</button>
+                <button class="ui-button log-apply-button" type="submit" form="log-filters">Apply</button>
             </div>
 
             <div class="log-summary" aria-label="File summary">
@@ -197,31 +197,37 @@
 
     @if (selected is not null)
     {
-        <dialog id="log-delete-dialog" class="log-delete-dialog" closedby="closerequest" aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
-            <form method="post" asp-page-handler="Delete" id="log-delete-form">
-                <h2 id="log-delete-heading">Delete log file?</h2>
-                <p id="log-delete-description">Permanently delete <strong id="log-delete-name">@selectedName</strong>? This cannot be undone.</p>
-                <input type="hidden" name="name" value="@selectedName" />
-                @if (!string.IsNullOrEmpty(Model.Service))
-                {
-                    <input type="hidden" name="service" value="@Model.Service" />
-                }
-                @if (dateValue is not null)
-                {
-                    <input type="hidden" name="date" value="@dateValue" />
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.Query))
-                {
-                    <input type="hidden" name="q" value="@Model.Query" />
-                }
-                @if (!string.IsNullOrEmpty(Model.Level))
-                {
-                    <input type="hidden" name="level" value="@Model.Level" />
-                }
-                <input type="hidden" name="wrap" value="@(Model.Wrap ? "true" : "false")" />
-                <div class="log-dialog-actions">
-                    <button id="log-delete-cancel" class="log-dialog-button" type="button" data-dialog-close autofocus>Cancel</button>
-                    <button id="log-delete-confirm" class="log-dialog-button log-dialog-button-danger" type="submit">Delete file</button>
+        <dialog id="log-delete-dialog" class="dialog dialog--sm dialog--danger" closedby="closerequest" aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
+            <form class="dialog-layout" method="post" asp-page-handler="Delete" id="log-delete-form">
+                <div class="dialog-header">
+                    <span class="dialog-icon" aria-hidden="true"><i data-lucide="trash-2"></i></span>
+                    <div class="dialog-heading"><h2 class="dialog-title" id="log-delete-heading">Delete log file?</h2></div>
+                    <button class="ui-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                </div>
+                <div class="dialog-body">
+                    <p class="dialog-description" id="log-delete-description">Permanently delete <strong id="log-delete-name">@selectedName</strong>? This cannot be undone.</p>
+                    <input type="hidden" name="name" value="@selectedName" />
+                    @if (!string.IsNullOrEmpty(Model.Service))
+                    {
+                        <input type="hidden" name="service" value="@Model.Service" />
+                    }
+                    @if (dateValue is not null)
+                    {
+                        <input type="hidden" name="date" value="@dateValue" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Query))
+                    {
+                        <input type="hidden" name="q" value="@Model.Query" />
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Level))
+                    {
+                        <input type="hidden" name="level" value="@Model.Level" />
+                    }
+                    <input type="hidden" name="wrap" value="@(Model.Wrap ? "true" : "false")" />
+                </div>
+                <div class="dialog-footer">
+                    <button id="log-delete-cancel" class="ui-button" type="button" data-dialog-close autofocus>Cancel</button>
+                    <button id="log-delete-confirm" class="ui-button ui-button-danger" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete file</span></button>
                 </div>
             </form>
         </dialog>

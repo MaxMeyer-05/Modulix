@@ -161,90 +161,108 @@
         </footer>
     }
 
-    <dialog class="module-dialog" id="add-module-dialog" data-open-on-load="@(reopen ? "true" : "false")" closedby="closerequest" aria-labelledby="add-module-heading">
-        <div class="module-dialog-heading">
-            <div class="modules-title"><h2 id="add-module-heading">Add module</h2></div>
-            <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+    <dialog class="dialog dialog--md" id="add-module-dialog" data-open-on-load="@(reopen ? "true" : "false")" closedby="closerequest" aria-labelledby="add-module-heading">
+        <div class="dialog-header">
+            <span class="dialog-icon" aria-hidden="true"><i data-lucide="box"></i></span>
+            <div class="dialog-heading">
+                <h2 class="dialog-title" id="add-module-heading">Add module</h2>
+                <p class="dialog-subtitle">Configure the module and upload its archive.</p>
+            </div>
+            <button class="ui-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
         </div>
-        <form id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data">
-            @if (Model.CreationError is { } error)
-            {
-                <div class="module-form-error" role="alert">
-                    <strong>@error.Title</strong> <span class="module-code">HTTP @error.StatusCode</span>
-                    <p>@error.Description</p>
-                </div>
-            }
-            <fieldset class="module-form-fields" id="module-creation-fields">
-                <div class="module-form-row">
-                    <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" value="@Model.Input?.ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
-                    <label><span>Version <span class="required-mark">*</span></span><input name="Version" value="@(Model.Input?.Version ?? "v1.0.0")" required maxlength="50" placeholder="v1.0.0" /></label>
-                </div>
-                <label>Description<textarea name="Description" rows="2" maxlength="500" placeholder="Optional description">@Model.Input?.Description</textarea></label>
-                <label>Changelog<textarea name="Changelog" rows="2" maxlength="500" placeholder="Optional changelog for the initial version">@Model.Input?.Changelog</textarea></label>
-                <div class="module-form-row">
-                    <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" value="@Model.Input?.BaseUrlPath" required maxlength="200" placeholder="module/analytics" /></label>
-                    <label>Container port<input name="ContainerPort" value="@Model.Input?.ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
-                </div>
-                <div class="module-subendpoints-group">
-                    <div class="module-subendpoints-header">
-                        <div>
-                            <span class="module-field-label">Sub-endpoints <span class="module-optional-label">(optional)</span></span>
-                            <p class="module-field-hint">Pre-register expected HTTP routes to compare against the scanner result.</p>
+        <form class="dialog-layout" id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data">
+            <div class="dialog-body">
+                @if (Model.CreationError is { } error)
+                {
+                    <div class="module-form-error" role="alert">
+                        <strong>@error.Title</strong> <span class="module-code">HTTP @error.StatusCode</span>
+                        <p>@error.Description</p>
+                    </div>
+                }
+                <fieldset class="module-form-fields" id="module-creation-fields">
+                    <div class="module-form-row">
+                        <label><span>Module name <span class="required-mark">*</span></span><input name="ModuleName" value="@Model.Input?.ModuleName" required maxlength="100" placeholder="AnalyticsModule" autofocus /></label>
+                        <label><span>Version <span class="required-mark">*</span></span><input name="Version" value="@(Model.Input?.Version ?? "v1.0.0")" required maxlength="50" placeholder="v1.0.0" /></label>
+                    </div>
+                    <label>Description<textarea name="Description" rows="2" maxlength="500" placeholder="Optional description">@Model.Input?.Description</textarea></label>
+                    <label>Changelog<textarea name="Changelog" rows="2" maxlength="500" placeholder="Optional changelog for the initial version">@Model.Input?.Changelog</textarea></label>
+                    <div class="module-form-row">
+                        <label><span>Base URL path <span class="required-mark">*</span></span><input name="BaseUrlPath" value="@Model.Input?.BaseUrlPath" required maxlength="200" placeholder="module/analytics" /></label>
+                        <label>Container port<input name="ContainerPort" value="@Model.Input?.ContainerPort" type="number" min="1" max="65535" placeholder="Automatic" /></label>
+                    </div>
+                    <div class="module-subendpoints-group">
+                        <div class="module-subendpoints-header">
+                            <div>
+                                <span class="module-field-label">Sub-endpoints <span class="module-optional-label">(optional)</span></span>
+                                <p class="module-field-hint">Pre-register expected HTTP routes to compare against the scanner result.</p>
+                            </div>
+                            <button class="module-button module-button-compact" type="button" id="add-subendpoint-button">
+                                <i data-lucide="plus" aria-hidden="true"></i><span>Add endpoint</span>
+                            </button>
                         </div>
-                        <button class="module-button module-button-compact" type="button" id="add-subendpoint-button">
-                            <i data-lucide="plus" aria-hidden="true"></i><span>Add endpoint</span>
-                        </button>
-                    </div>
-                    <div class="module-subendpoints-list" id="initial-endpoints-list">
-                        @if (Model.Input?.InitialEndpoints is not null)
-                        {
-                            var idx = 0;
-                            foreach (var ep in Model.Input.InitialEndpoints)
+                        <div class="module-subendpoints-list" id="initial-endpoints-list">
+                            @if (Model.Input?.InitialEndpoints is not null)
                             {
-                                var currentMethod = (ep.HttpMethod ?? "GET").ToUpperInvariant();
-                                <div class="module-subendpoint-row" data-subendpoint-row>
-                                    <select name="InitialEndpoints[@idx].HttpMethod" aria-label="HTTP method">
-                                        @foreach (var httpMethod in new[] { "GET", "POST", "PUT", "PATCH", "DELETE" })
-                                        {
-                                            <option value="@httpMethod" selected="@(currentMethod == httpMethod)">@httpMethod</option>
-                                        }
-                                    </select>
-                                    <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" placeholder="/api/v1/items" aria-label="Endpoint path" />
-                                    <button class="module-icon-button module-subendpoint-remove" type="button" data-remove-subendpoint aria-label="Remove endpoint" title="Remove endpoint">
-                                        <i data-lucide="trash-2" aria-hidden="true"></i>
-                                    </button>
-                                </div>
-                                idx++;
+                                var idx = 0;
+                                foreach (var ep in Model.Input.InitialEndpoints)
+                                {
+                                    var currentMethod = (ep.HttpMethod ?? "GET").ToUpperInvariant();
+                                    <div class="module-subendpoint-row" data-subendpoint-row>
+                                        <select name="InitialEndpoints[@idx].HttpMethod" aria-label="HTTP method">
+                                            @foreach (var httpMethod in new[] { "GET", "POST", "PUT", "PATCH", "DELETE" })
+                                            {
+                                                <option value="@httpMethod" selected="@(currentMethod == httpMethod)">@httpMethod</option>
+                                            }
+                                        </select>
+                                        <input name="InitialEndpoints[@idx].EndpointPath" value="@ep.EndpointPath" required maxlength="200" placeholder="/api/v1/items" aria-label="Endpoint path" />
+                                        <button class="module-icon-button module-subendpoint-remove" type="button" data-remove-subendpoint aria-label="Remove endpoint" title="Remove endpoint">
+                                            <i data-lucide="trash-2" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
+                                    idx++;
+                                }
                             }
-                        }
+                        </div>
                     </div>
-                </div>
-                <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
-                <label class="module-upload" id="module-upload-area" for="module-archive">
-                    <i data-lucide="upload" aria-hidden="true"></i>
-                    <strong>Choose a ZIP archive</strong>
-                    <input id="module-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
-                </label>
-            </fieldset>
-            <div class="module-dialog-footer">
-                <button class="module-button" type="button" data-dialog-close>Cancel</button>
-                <button class="module-button module-button-primary" type="submit"><i data-lucide="plus" aria-hidden="true"></i><span>Create</span></button>
+                    <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
+                    <label class="module-upload" id="module-upload-area" for="module-archive">
+                        <i data-lucide="upload" aria-hidden="true"></i>
+                        <strong>Choose a ZIP archive</strong>
+                        <input id="module-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
+                    </label>
+                </fieldset>
+            </div>
+            <div class="dialog-footer">
+                <button class="ui-button" type="button" data-dialog-close>Cancel</button>
+                <button class="ui-button ui-button-primary" type="submit"><i data-lucide="plus" aria-hidden="true"></i><span>Create</span></button>
             </div>
         </form>
     </dialog>
 
     @if (Model.CreationSuccess is { } success)
     {
-        <dialog class="module-dialog module-result-dialog" id="module-result-dialog" data-open-on-load="true" data-dialog-return-focus="add-module-button" closedby="closerequest" data-result="@success.Kind" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
-            <form method="dialog">
-                <div class="module-dialog-heading">
-                    <div class="modules-title">
-                        <span class="module-result-symbol"><i data-lucide="message-square" aria-hidden="true"></i></span>
-                        <h2 id="module-result-heading">@success.Title</h2>
-                    </div>
-                    <button class="module-icon-button" type="submit" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+        var hasDiscrepancy = success.DiscrepancyReport is { HasDiscrepancy: true };
+        var resultVariant = success.Kind switch
+        {
+            "error" => "danger",
+            "accepted" => "info",
+            _ when hasDiscrepancy => "info",
+            _ => "success"
+        };
+        var resultIcon = resultVariant switch
+        {
+            "danger" => "circle-alert",
+            "info" => "info",
+            _ => "check-circle-2"
+        };
+        <dialog class="dialog dialog--@(hasDiscrepancy ? "lg" : "md") dialog--@resultVariant" id="module-result-dialog" data-open-on-load="true" data-dialog-return-focus="add-module-button" closedby="closerequest" data-result="@success.Kind" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
+            <form class="dialog-layout" method="dialog">
+                <div class="dialog-header">
+                    <span class="dialog-icon" aria-hidden="true"><i data-lucide="@resultIcon"></i></span>
+                    <div class="dialog-heading"><h2 class="dialog-title" id="module-result-heading">@success.Title</h2></div>
+                    <button class="ui-icon-button" type="submit" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
                 </div>
-                <div class="module-result-body">
+                <div class="dialog-body module-result-content">
                     <span class="module-result-code module-code" id="module-result-code">HTTP @success.StatusCode</span>
                     <p id="module-result-description">@success.Description</p>
                     @if (success.DiscrepancyReport is { HasDiscrepancy: true } discrepancy)
@@ -304,11 +322,11 @@
                         </div>
                     }
                 </div>
-                <div class="module-dialog-footer">
-                    <button class="module-button" type="submit" autofocus>Close</button>
+                <div class="dialog-footer">
+                    <button class="ui-button" type="submit" autofocus>Close</button>
                     @if (success.ModuleUrl is not null)
                     {
-                        <a class="module-button module-button-primary" id="module-result-link" href="@success.ModuleUrl"><i data-lucide="arrow-up-right" aria-hidden="true"></i><span>Go to module</span></a>
+                        <a class="ui-button ui-button-primary" id="module-result-link" href="@success.ModuleUrl"><i data-lucide="arrow-up-right" aria-hidden="true"></i><span>Go to module</span></a>
                     }
                 </div>
             </form>

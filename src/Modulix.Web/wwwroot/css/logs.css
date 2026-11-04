@@ -115,12 +115,6 @@
 .log-delete-feedback { margin: 12px 0 0; color: var(--color-text-muted); font-size: 12px; overflow-wrap: anywhere; }
 .log-delete-feedback.log-delete-error { color: var(--color-danger); }
 .log-content { scroll-behavior: smooth; }
-.log-delete-dialog { width: 440px; padding: 24px; }
-.log-delete-dialog h2 { margin: 0 0 16px; font-size: 18px; }
-.log-delete-dialog p { margin: 0 0 20px; color: var(--color-text-muted); line-height: 1.6; overflow-wrap: anywhere; }
-.log-delete-dialog strong { color: var(--color-text); font-weight: 500; }
-.log-delete-dialog .log-delete-error { color: var(--color-danger); }
-.log-dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
 .log-archive-filters .log-apply-button { grid-column: 1 / -1; }
 
 @media (max-width: 1100px) {
