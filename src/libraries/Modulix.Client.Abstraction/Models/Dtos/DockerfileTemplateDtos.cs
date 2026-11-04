@@ -25,11 +25,6 @@ public class DockerfileTemplateDto
     public string? Description { get; set; }
 
     /// <summary>
-    /// Whether the template is supplied by Modulix rather than created by a user.
-    /// </summary>
-    public bool IsBuiltIn { get; set; }
-
-    /// <summary>
     /// The storage path of the Dockerfile template.
     /// </summary>
     public string StoragePath { get; set; } = null!;

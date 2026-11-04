@@ -35,6 +35,11 @@ public class Module
     public string? Description { get; set; }
 
     /// <summary>
+    /// The ID of the associated Dockerfile template.
+    /// </summary>
+    public int? DockerfileTemplateId { get; set; }
+
+    /// <summary>
     /// The base URL path of the module.
     /// </summary>
     [Required]
@@ -82,4 +87,10 @@ public class Module
     /// The versions of the module.
     /// </summary>
     public ICollection<ModuleVersion> Versions { get; set; } = [];
+
+    /// <summary>
+    /// The associated Dockerfile template.
+    /// </summary>
+    [ForeignKey(nameof(DockerfileTemplateId))]
+    public DockerfileTemplate? DockerfileTemplate { get; set; }
 }

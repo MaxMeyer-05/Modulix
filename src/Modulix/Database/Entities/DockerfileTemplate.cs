@@ -40,11 +40,6 @@ public class DockerfileTemplate
     public string StoragePath { get; set; } = null!;
 
     /// <summary>
-    /// Whether the template is supplied by Modulix rather than created by a user.
-    /// </summary>
-    public bool IsBuiltIn { get; set; }
-
-    /// <summary>
     /// The creation time of the template in UTC.
     /// </summary>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
@@ -53,4 +48,9 @@ public class DockerfileTemplate
     /// The last update time of the template in UTC.
     /// </summary>
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// The modules associated with this Dockerfile template.
+    /// </summary>
+    public ICollection<Module>? Modules { get; set; } = [];
 }

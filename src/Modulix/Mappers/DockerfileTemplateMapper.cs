@@ -22,7 +22,6 @@ public static class DockerfileTemplateMapper
             FileName = entity.FileName,
             StoragePath = entity.StoragePath,
             Description = entity.Description,
-            IsBuiltIn = entity.IsBuiltIn,
             CreatedAt = entity.CreatedAtUtc,
             UpdatedAt = entity.UpdatedAtUtc
         };
