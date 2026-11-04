@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Modulix;
+namespace Modulix.Settings;
 
 /// <summary>
 /// Defines the shared storage root for module files and Dockerfile templates.

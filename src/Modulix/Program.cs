@@ -16,8 +16,8 @@ using Modulix.Services.Interfaces;
 using Modulix.Docker;
 using Modulix.Docker.Services.Interfaces;
 
-using Modulix;
 using Modulix.Mappers;
+using Modulix.Settings;
 using Modulix.Extensions;
 using Modulix.Infrastructure;
 

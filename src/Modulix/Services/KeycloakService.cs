@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
-using Modulix.Docker.Services.Interfaces;
+
+using Modulix.Settings;
 using Modulix.Services.Interfaces;
+using Modulix.Docker.Services.Interfaces;
 
 namespace Modulix.Services;
 

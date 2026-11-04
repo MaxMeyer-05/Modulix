@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Modulix;
+namespace Modulix.Settings;
 
 /// <summary>
 /// Defines module archive limits and version retention settings.

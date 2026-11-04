@@ -1,6 +1,8 @@
 using System.IO.Compression;
+
 using Microsoft.Extensions.Options;
 
+using Modulix.Settings;
 using Modulix.Services.Storage.Interfaces;
 
 namespace Modulix.Services.Storage;

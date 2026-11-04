@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Modulix;
+namespace Modulix.Settings;
 
 /// <summary>
 /// Settings for authorization configuration.
