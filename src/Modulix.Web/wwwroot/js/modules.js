@@ -91,7 +91,7 @@ document.querySelectorAll("[data-delete-version]").forEach(button => {
     };
 
     const isEditingFilter = () => {
-        const openDialog = document.querySelector(".module-dialog.module-dialog-open, .module-dialog:popover-open");
+        const openDialog = document.querySelector("dialog[open]");
         if (openDialog) {
             return true;
         }

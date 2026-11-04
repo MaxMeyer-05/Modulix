@@ -66,7 +66,7 @@
                     </div>
                     @if (Model.CanConfirmEndpoints)
                     {
-                        <button class="module-button module-button-compact module-button-primary" type="button" popovertarget="confirm-endpoints-dialog">
+                        <button class="module-button module-button-compact module-button-primary" type="button" data-dialog-open="confirm-endpoints-dialog">
                             <i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints (@Model.PendingEndpoints.Count)</span>
                         </button>
                     }
@@ -218,15 +218,15 @@
                         }
                         @if (Model.CanConfirmEndpoints)
                         {
-                            <button class="module-button module-button-primary" type="button" id="confirm-endpoints-button" popovertarget="confirm-endpoints-dialog" title="Review and confirm @Model.PendingEndpoints.Count pending endpoint(s)"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+                            <button class="module-button module-button-primary" type="button" id="confirm-endpoints-button" data-dialog-open="confirm-endpoints-dialog" title="Review and confirm @Model.PendingEndpoints.Count pending endpoint(s)"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
                         }
-                        <button class="module-button" type="button" id="edit-module-button" popovertarget="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
-                        <button class="module-button" type="button" id="update-files-button" popovertarget="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
+                        <button class="module-button" type="button" id="edit-module-button" data-dialog-open="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
+                        <button class="module-button" type="button" id="update-files-button" data-dialog-open="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
                         @if (Model.CanRollback)
                         {
-                            <button class="module-button" type="button" id="rollback-module-button" popovertarget="rollback-module-dialog" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                            <button class="module-button" type="button" id="rollback-module-button" data-dialog-open="rollback-module-dialog" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
                         }
-                        <button class="module-button module-button-danger" type="button" id="delete-module-button" popovertarget="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
+                        <button class="module-button module-button-danger" type="button" id="delete-module-button" data-dialog-open="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
                     </div>
                 </section>
             </aside>

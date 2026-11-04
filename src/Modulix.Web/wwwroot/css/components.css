@@ -205,6 +205,11 @@
   overflow-y: auto;
 }
 
+:is(.ui-dialog, .module-dialog, .log-delete-dialog)::backdrop {
+  background: var(--color-dialog-backdrop);
+  backdrop-filter: blur(3px);
+}
+
 .modules-page {
   min-height: calc(100dvh - 80px);
   margin: -28px;

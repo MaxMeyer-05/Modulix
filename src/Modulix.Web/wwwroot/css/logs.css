@@ -116,7 +116,6 @@
 .log-delete-feedback.log-delete-error { color: var(--color-danger); }
 .log-content { scroll-behavior: smooth; }
 .log-delete-dialog { width: 440px; padding: 24px; }
-.log-delete-dialog::backdrop { background: rgb(3 7 13 / 75%); }
 .log-delete-dialog h2 { margin: 0 0 16px; font-size: 18px; }
 .log-delete-dialog p { margin: 0 0 20px; color: var(--color-text-muted); line-height: 1.6; overflow-wrap: anywhere; }
 .log-delete-dialog strong { color: var(--color-text); font-weight: 500; }

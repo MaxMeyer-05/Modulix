@@ -32,20 +32,22 @@
                     <div class="endpoint-status-actions">
                         <button class="module-button module-button-compact"
                                 type="button"
-                                popovertarget="edit-version-dialog"
+                                id="edit-version-@ver.Id"
+                                data-dialog-open="edit-version-dialog"
                                 data-edit-version="@ver.Version"
                                 data-edit-changelog="@(ver.Changelog ?? string.Empty)"
                                 title="Edit metadata for version @ver.Version">
-                            <i data-lucide="pencil" aria-hidden="true"></i><span>Edit</span>
+                            <i data-lucide="pencil" aria-hidden="true"></i>
                         </button>
                         @if (!isActiveVersion)
                         {
                             <button class="module-button module-button-compact module-button-danger"
                                     type="button"
-                                    popovertarget="delete-version-dialog"
+                                    id="delete-version-@ver.Id"
+                                    data-dialog-open="delete-version-dialog"
                                     data-delete-version="@ver.Version"
                                     title="Delete inactive version @ver.Version">
-                                <i data-lucide="trash-2" aria-hidden="true"></i><span>Delete</span>
+                                <i data-lucide="trash-2" aria-hidden="true"></i>
                             </button>
                         }
                     </div>

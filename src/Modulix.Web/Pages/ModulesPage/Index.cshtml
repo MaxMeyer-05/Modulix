@@ -33,7 +33,7 @@
             <a class="module-button" data-auto-refresh-link href="@Model.GetPageUrl(Model.CurrentPage)">
                 <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
             </a>
-            <button class="module-button module-button-primary" type="button" popovertarget="add-module-dialog">
+            <button class="module-button module-button-primary" type="button" id="add-module-button" data-dialog-open="add-module-dialog">
                 <i data-lucide="plus" aria-hidden="true"></i><span>Add module</span>
             </button>
         </div>
@@ -161,17 +161,10 @@
         </footer>
     }
 
-    <div class="module-dialog @(reopen ? "module-dialog-open" : "")" id="add-module-dialog" popover="@(reopen ? null : "auto")" role="dialog" aria-labelledby="add-module-heading">
+    <dialog class="module-dialog" id="add-module-dialog" data-open-on-load="@(reopen ? "true" : "false")" closedby="closerequest" aria-labelledby="add-module-heading">
         <div class="module-dialog-heading">
             <div class="modules-title"><h2 id="add-module-heading">Add module</h2></div>
-            @if (reopen)
-            {
-                <a class="module-icon-button" href="@closeUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-            }
-            else
-            {
-                <button class="module-icon-button" type="button" popovertarget="add-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-            }
+            <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
         </div>
         <form id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data">
             @if (Model.CreationError is { } error)
@@ -234,22 +227,15 @@
                 </label>
             </fieldset>
             <div class="module-dialog-footer">
-                @if (reopen)
-                {
-                    <a class="module-button" href="@closeUrl">Cancel</a>
-                }
-                else
-                {
-                    <button class="module-button" type="button" popovertarget="add-module-dialog" popovertargetaction="hide">Cancel</button>
-                }
+                <button class="module-button" type="button" data-dialog-close>Cancel</button>
                 <button class="module-button module-button-primary" type="submit"><i data-lucide="plus" aria-hidden="true"></i><span>Create</span></button>
             </div>
         </form>
-    </div>
+    </dialog>
 
     @if (Model.CreationSuccess is { } success)
     {
-        <dialog class="module-dialog module-result-dialog" open data-result="@success.Kind" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
+        <dialog class="module-dialog module-result-dialog" id="module-result-dialog" data-open-on-load="true" data-dialog-return-focus="add-module-button" closedby="closerequest" data-result="@success.Kind" aria-labelledby="module-result-heading" aria-describedby="module-result-description">
             <form method="dialog">
                 <div class="module-dialog-heading">
                     <div class="modules-title">

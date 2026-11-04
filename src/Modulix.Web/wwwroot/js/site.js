@@ -85,3 +85,63 @@
 
 	lucide.createIcons();
 })();
+
+(() => {
+	const returnFocus = new WeakMap();
+	const triggers = [...document.querySelectorAll("[data-dialog-open]")];
+
+	const openDialog = (dialog, trigger) => {
+		if (dialog.open) {
+			return;
+		}
+
+		returnFocus.set(dialog, trigger);
+		dialog.showModal();
+	};
+
+	document.querySelectorAll("dialog").forEach(dialog => {
+		dialog.addEventListener("close", () => {
+			const trigger = returnFocus.get(dialog);
+			if (trigger?.isConnected && !trigger.disabled) {
+				trigger.focus();
+			}
+		});
+	});
+
+	document.addEventListener("click", event => {
+		if (!(event.target instanceof Element)) {
+			return;
+		}
+
+		const trigger = event.target.closest("[data-dialog-open]");
+		if (trigger) {
+			const dialog = document.getElementById(trigger.dataset.dialogOpen);
+			if (!(dialog instanceof HTMLDialogElement)) {
+				console.error(`Dialog "${trigger.dataset.dialogOpen}" was not found.`);
+				return;
+			}
+
+			event.preventDefault();
+			openDialog(dialog, trigger);
+			return;
+		}
+
+		const closeButton = event.target.closest("[data-dialog-close]");
+		if (closeButton) {
+			const dialog = closeButton.closest("dialog");
+			if (!(dialog instanceof HTMLDialogElement)) {
+				console.error("A dialog close button must be inside a dialog.");
+				return;
+			}
+
+			event.preventDefault();
+			dialog.close();
+		}
+	});
+
+	document.querySelectorAll('dialog[data-open-on-load="true"]').forEach(dialog => {
+		const trigger = document.getElementById(dialog.dataset.dialogReturnFocus)
+			|| triggers.find(candidate => candidate.dataset.dialogOpen === dialog.id);
+		openDialog(dialog, trigger);
+	});
+})();

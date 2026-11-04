@@ -112,7 +112,7 @@
                     }
                     @if (selected is not null)
                     {
-                        <button class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" popovertarget="log-delete-dialog"><i data-lucide="trash-2" aria-hidden="true"></i></button>
+                        <button class="log-icon-button log-delete-button" type="button" title="Delete selected file" aria-label="Delete selected file" data-dialog-open="log-delete-dialog"><i data-lucide="trash-2" aria-hidden="true"></i></button>
                     }
                 </div>
             </header>
@@ -197,7 +197,7 @@
 
     @if (selected is not null)
     {
-        <div id="log-delete-dialog" class="log-delete-dialog" popover aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
+        <dialog id="log-delete-dialog" class="log-delete-dialog" closedby="closerequest" aria-labelledby="log-delete-heading" aria-describedby="log-delete-description">
             <form method="post" asp-page-handler="Delete" id="log-delete-form">
                 <h2 id="log-delete-heading">Delete log file?</h2>
                 <p id="log-delete-description">Permanently delete <strong id="log-delete-name">@selectedName</strong>? This cannot be undone.</p>
@@ -220,10 +220,10 @@
                 }
                 <input type="hidden" name="wrap" value="@(Model.Wrap ? "true" : "false")" />
                 <div class="log-dialog-actions">
-                    <button id="log-delete-cancel" class="log-dialog-button" type="button" popovertarget="log-delete-dialog" popovertargetaction="hide" autofocus>Cancel</button>
+                    <button id="log-delete-cancel" class="log-dialog-button" type="button" data-dialog-close autofocus>Cancel</button>
                     <button id="log-delete-confirm" class="log-dialog-button log-dialog-button-danger" type="submit">Delete file</button>
                 </div>
             </form>
-        </div>
+        </dialog>
     }
 </div>

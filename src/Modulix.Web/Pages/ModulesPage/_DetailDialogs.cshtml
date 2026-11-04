@@ -3,21 +3,15 @@
 @using Modulix.Web.Services
 @{
     var module = Model.Module!;
-    var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
     var rollbackVersions = Model.RollbackVersions;
     var pendingEndpoints = Model.PendingEndpoints;
+    var editVersionId = Model.OrderedVersions.FirstOrDefault(version => version.Version == Model.EditVersionTarget)?.Id;
+    var deleteVersionId = Model.OrderedVersions.FirstOrDefault(version => version.Version == Model.DeleteVersionTarget)?.Id;
 }
-<div class="module-dialog @(Model.ReopenEdit ? "module-dialog-open" : "")" id="edit-module-dialog" popover="@(Model.ReopenEdit ? null : "auto")" role="dialog" aria-labelledby="edit-module-heading">
+<dialog class="module-dialog" id="edit-module-dialog" data-open-on-load="@(Model.ReopenEdit ? "true" : "false")" closedby="closerequest" aria-labelledby="edit-module-heading">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="edit-module-heading">Edit module details</h2></div>
-        @if (Model.ReopenEdit)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="edit-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="edit-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Edit" asp-route-id="@module.Id">
         @if (Model.EditError is { } editError)
@@ -38,30 +32,16 @@
             </label>
         </fieldset>
         <div class="module-dialog-footer">
-            @if (Model.ReopenEdit)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="edit-module-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
         </div>
     </form>
-</div>
+</dialog>
 
-<div class="module-dialog @(Model.ReopenUpdateFiles ? "module-dialog-open" : "")" id="update-files-dialog" popover="@(Model.ReopenUpdateFiles ? null : "auto")" role="dialog" aria-labelledby="update-files-heading">
+<dialog class="module-dialog" id="update-files-dialog" data-open-on-load="@(Model.ReopenUpdateFiles ? "true" : "false")" closedby="closerequest" aria-labelledby="update-files-heading">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="update-files-heading">Update module files</h2></div>
-        @if (Model.ReopenUpdateFiles)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="update-files-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="update-files-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="UpdateFiles" asp-route-id="@module.Id" enctype="multipart/form-data">
         @if (Model.UpdateFilesError is { } filesError)
@@ -89,30 +69,16 @@
             </label>
         </fieldset>
         <div class="module-dialog-footer">
-            @if (Model.ReopenUpdateFiles)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="update-files-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             <button class="module-button module-button-primary" type="submit"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
         </div>
     </form>
-</div>
+</dialog>
 
-<div class="module-dialog @(Model.ReopenRollback ? "module-dialog-open" : "")" id="rollback-module-dialog" popover="@(Model.ReopenRollback ? null : "auto")" role="dialog" aria-labelledby="rollback-module-heading" aria-describedby="rollback-module-description">
+<dialog class="module-dialog" id="rollback-module-dialog" data-open-on-load="@(Model.ReopenRollback ? "true" : "false")" closedby="closerequest" aria-labelledby="rollback-module-heading" aria-describedby="rollback-module-description">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="rollback-module-heading">Rollback module version</h2></div>
-        @if (Model.ReopenRollback)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="rollback-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="rollback-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Rollback" asp-route-id="@module.Id">
         @if (Model.RollbackError is { } rollbackError)
@@ -140,33 +106,19 @@
             </label>
         </fieldset>
         <div class="module-dialog-footer">
-            @if (Model.ReopenRollback)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="rollback-module-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             @if (rollbackVersions.Count > 0)
             {
                 <button class="module-button module-button-primary" type="submit"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
             }
         </div>
     </form>
-</div>
+</dialog>
 
-<div class="module-dialog @(Model.ReopenConfirmEndpoints ? "module-dialog-open" : "")" id="confirm-endpoints-dialog" popover="@(Model.ReopenConfirmEndpoints ? null : "auto")" role="dialog" aria-labelledby="confirm-endpoints-heading" aria-describedby="confirm-endpoints-description">
+<dialog class="module-dialog" id="confirm-endpoints-dialog" data-open-on-load="@(Model.ReopenConfirmEndpoints ? "true" : "false")" closedby="closerequest" aria-labelledby="confirm-endpoints-heading" aria-describedby="confirm-endpoints-description">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="confirm-endpoints-heading">Confirm pending endpoints</h2></div>
-        @if (Model.ReopenConfirmEndpoints)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="confirm-endpoints-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="ConfirmEndpoints" asp-route-id="@module.Id">
         @if (Model.ConfirmEndpointsError is { } confirmError)
@@ -241,33 +193,19 @@
             }
         </fieldset>
         <div class="module-dialog-footer">
-            @if (Model.ReopenConfirmEndpoints)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="confirm-endpoints-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             @if (pendingEndpoints.Count > 0)
             {
                 <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Confirm endpoints</span></button>
             }
         </div>
     </form>
-</div>
+</dialog>
 
-<div class="module-dialog @(Model.ReopenDelete ? "module-dialog-open" : "")" id="delete-module-dialog" popover="@(Model.ReopenDelete ? null : "auto")" role="dialog" aria-labelledby="delete-module-heading" aria-describedby="delete-module-description">
+<dialog class="module-dialog" id="delete-module-dialog" data-open-on-load="@(Model.ReopenDelete ? "true" : "false")" closedby="closerequest" aria-labelledby="delete-module-heading" aria-describedby="delete-module-description">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="delete-module-heading">Delete module?</h2></div>
-        @if (Model.ReopenDelete)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="delete-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Delete" asp-route-id="@module.Id">
         @if (Model.DeleteError is { } deleteError)
@@ -282,30 +220,16 @@
             <p id="delete-module-description">Permanently delete <strong>@module.ModuleName</strong> (<span class="module-code">@module.BaseUrlPath</span>)? This will stop and remove its container, delete its extracted files, and unregister all endpoints. This cannot be undone.</p>
         </div>
         <div class="module-dialog-footer">
-            @if (Model.ReopenDelete)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="delete-module-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
         </div>
     </form>
-</div>
+</dialog>
 
-<div class="module-dialog @(Model.ReopenEditVersion ? "module-dialog-open" : "")" id="edit-version-dialog" popover="@(Model.ReopenEditVersion ? null : "auto")" role="dialog" aria-labelledby="edit-version-heading">
+<dialog class="module-dialog" id="edit-version-dialog" data-open-on-load="@(Model.ReopenEditVersion ? "true" : "false")" data-dialog-return-focus="@(editVersionId.HasValue ? $"edit-version-{editVersionId}" : null)" closedby="closerequest" aria-labelledby="edit-version-heading">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="edit-version-heading">Edit version metadata</h2></div>
-        @if (Model.ReopenEditVersion)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="edit-version-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="edit-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="EditVersion" asp-route-id="@module.Id">
         @if (Model.EditVersionError is { } editVersionError)
@@ -328,30 +252,16 @@
             </label>
         </fieldset>
         <div class="module-dialog-footer">
-            @if (Model.ReopenEditVersion)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="edit-version-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             <button class="module-button module-button-primary" type="submit"><i data-lucide="check" aria-hidden="true"></i><span>Save changes</span></button>
         </div>
     </form>
-</div>
+</dialog>
 
-<div class="module-dialog @(Model.ReopenDeleteVersion ? "module-dialog-open" : "")" id="delete-version-dialog" popover="@(Model.ReopenDeleteVersion ? null : "auto")" role="dialog" aria-labelledby="delete-version-heading" aria-describedby="delete-version-description">
+<dialog class="module-dialog" id="delete-version-dialog" data-open-on-load="@(Model.ReopenDeleteVersion ? "true" : "false")" data-dialog-return-focus="@(deleteVersionId.HasValue ? $"delete-version-{deleteVersionId}" : null)" closedby="closerequest" aria-labelledby="delete-version-heading" aria-describedby="delete-version-description">
     <div class="module-dialog-heading">
         <div class="modules-title"><h2 id="delete-version-heading">Delete module version?</h2></div>
-        @if (Model.ReopenDeleteVersion)
-        {
-            <a class="module-icon-button" href="@detailUrl" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></a>
-        }
-        else
-        {
-            <button class="module-icon-button" type="button" popovertarget="delete-version-dialog" popovertargetaction="hide" aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
-        }
+        <button class="module-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     </div>
     <form id="delete-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="DeleteVersion" asp-route-id="@module.Id">
         @if (Model.DeleteVersionError is { } deleteVersionError)
@@ -367,15 +277,8 @@
             <p id="delete-version-description">Permanently delete version <strong class="module-code" id="delete-version-label">@Model.DeleteVersionTarget</strong> of <strong>@module.ModuleName</strong>? This will remove the stored files for this version. This cannot be undone.</p>
         </div>
         <div class="module-dialog-footer">
-            @if (Model.ReopenDeleteVersion)
-            {
-                <a class="module-button" href="@detailUrl">Cancel</a>
-            }
-            else
-            {
-                <button class="module-button" type="button" popovertarget="delete-version-dialog" popovertargetaction="hide">Cancel</button>
-            }
+            <button class="module-button" type="button" data-dialog-close>Cancel</button>
             <button class="module-button module-button-danger-solid" type="submit"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete version</span></button>
         </div>
     </form>
-</div>
+</dialog>
