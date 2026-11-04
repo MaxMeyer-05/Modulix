@@ -13,7 +13,7 @@ public sealed class ModuleSettings
     public const string SectionName = "Module";
 
     /// <summary>
-    /// The module storage path, absolute or relative to the application's content root.
+    /// The storage root for module data and uploaded files, absolute or relative to the application's content root.
     /// </summary>
     [Required]
     public string StorageBasePath { get; set; } = Path.Combine("storage", "modules");

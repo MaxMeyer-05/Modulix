@@ -27,6 +27,8 @@ using Modulix.ReverseProxy;
 using Modulix.ReverseProxy.Services;
 
 using Modulix.Client.Models.Enums;
+using Modulix.Services.Storage;
+using Modulix.Services.Storage.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,7 +62,9 @@ builder.Services.AddOptions<AuthorizationSettings>()
         }
     });
 
-builder.Services.AddScoped<DirectoryExtension>();
+builder.Services.AddScoped<IStorageService, StorageService>();
+builder.Services.AddScoped<IModuleStorageService, ModuleStorageService>();
+builder.Services.AddScoped<IDockerfileTemplateStorageService, DockerfileTemplateStorageService>();
 builder.Services.AddScoped<ModuleVersionExtension>();
 builder.Services.AddScoped<ModuleEndpointExtension>();
 
@@ -68,6 +72,7 @@ builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<IScannerService, ScannerService>();
 builder.Services.AddScoped<ISubEndpointService, SubEndpointService>();
 builder.Services.AddScoped<IModuleVersionService, ModuleVersionService>();
+builder.Services.AddScoped<IDockerfileTemplateService, DockerfileTemplateService>();
 
 builder.Services.AddSingleton<IModuleEndpointScanner, ModuleEndpointScanner>();
 

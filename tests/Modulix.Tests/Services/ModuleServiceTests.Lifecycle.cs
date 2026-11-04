@@ -87,11 +87,14 @@ public partial class ModuleServiceTests
     [Trait("Feature", "DeleteModule")]
     public async Task DeleteModuleAsync_ModuleExists_DeletesStorageAndEndpoints(bool hasContainer)
     {
-        var moduleDir = Path.Combine(_testRootDirectory, "module_to_delete");
+        var module = CreateTestModuleEntity("To Delete", "api/v1/delete", 8009);
+        var moduleDir = Path.Combine(
+            _moduleOptions.Value.StorageBasePath,
+            module.Id.ToString(),
+            "versions",
+            module.Versions.Single().Version);
         Directory.CreateDirectory(moduleDir);
         File.WriteAllText(Path.Combine(moduleDir, "test.txt"), "delete me");
-
-        var module = CreateTestModuleEntity("To Delete", "api/v1/delete", 8009);
         module.Versions.Single().StoragePath = moduleDir;
         var dataDir = _directoryExtension.EnsureModuleDataDirectory(module.Id);
         File.WriteAllText(Path.Combine(dataDir, "app.db"), "sqlite-bytes");
@@ -124,10 +127,13 @@ public partial class ModuleServiceTests
     [Trait("Feature", "DeleteModule")]
     public async Task DeleteModuleAsync_QueuedForScan_CancelsScanAndDeletesModule()
     {
-        var moduleDir = Path.Combine(_testRootDirectory, "queued_module_to_delete");
-        Directory.CreateDirectory(moduleDir);
-
         var module = CreateTestModuleEntity("Queued Delete", "api/v1/queued-delete", 8010);
+        var moduleDir = Path.Combine(
+            _moduleOptions.Value.StorageBasePath,
+            module.Id.ToString(),
+            "versions",
+            module.Versions.Single().Version);
+        Directory.CreateDirectory(moduleDir);
         module.Versions.Single().StoragePath = moduleDir;
         module.Status = ModuleStatus.QueuedForScan;
 

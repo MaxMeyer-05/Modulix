@@ -1,9 +1,11 @@
+using Docker.DotNet.Models;
+
 using Modulix.Docker.Models;
 
 namespace Modulix.Docker.Services.Interfaces;
 
 /// <summary>
-/// Provides orchestration capabilities for building and managing Docker containers for modules.
+/// Provides common operations for building and managing Docker resources.
 /// </summary>
 internal interface IDockerService
 {
@@ -39,6 +41,46 @@ internal interface IDockerService
     Task EnsureNetworkExistsAsync(string networkName, CancellationToken ct = default);
 
     /// <summary>
+    /// Builds the specified Docker image if it is not already available.
+    /// </summary>
+    /// <param name="imageTag">The image tag.</param>
+    /// <param name="buildContextPath">The Docker build context.</param>
+    /// <param name="dockerfileName">The Dockerfile name.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task EnsureImageExistsAsync(string imageTag, string buildContextPath, string dockerfileName = "Dockerfile", CancellationToken ct = default);
+
+    /// <summary>
+    /// Ensures a named Docker container exists and is running, building its image if needed.
+    /// </summary>
+    /// <param name="parameters">The Docker container configuration.</param>
+    /// <param name="buildContextPath">The context used to build the configured image if it is missing.</param>
+    /// <param name="dockerfileName">The Dockerfile in the build context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task EnsureContainerRunningAsync(CreateContainerParameters parameters, string buildContextPath, string dockerfileName = "Dockerfile", CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks whether a container with the specified name is running.
+    /// </summary>
+    /// <param name="containerName">The container name.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>True when the container exists and is running.</returns>
+    Task<bool> IsContainerRunningByNameAsync(string containerName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Starts a named container if it exists and is stopped.
+    /// </summary>
+    /// <param name="containerName">The container name.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task StartContainerByNameAsync(string containerName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stops a named container if it exists and is running.
+    /// </summary>
+    /// <param name="containerName">The container name.</param>
+    /// <param name="ct">The cancellation token.</param>
+    Task StopContainerByNameAsync(string containerName, CancellationToken ct = default);
+
+    /// <summary>
     /// Starts an existing Docker container.
     /// </summary>
     /// <param name="containerId">The ID of the container to start.</param>
@@ -68,20 +110,20 @@ internal interface IDockerService
     Task RemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default);
 
     /// <summary>
-    /// Attempts to remove a Docker container associated with a module.
+    /// Attempts to remove a Docker container without throwing if cleanup fails.
     /// </summary>
     /// <param name="containerId">The ID of the container to remove.</param>
-    /// <param name="containerName">The name of the container associated with the module.</param>
+    /// <param name="containerName">The name of the container.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>True if the container was successfully removed; otherwise, false.</returns>
-    Task<bool> TryRemoveModuleContainerAsync(string containerId, string containerName, CancellationToken ct = default);
+    Task<bool> TryRemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default);
 
     /// <summary>
-    /// Checks whether the specified Docker container is currently running and healthy.
+    /// Checks whether the specified container is running and healthy.
     /// </summary>
     /// <param name="containerId">The ID of the container to inspect.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>True if the container exists, is running, is not restarting, and has not exited with an error; otherwise, false.</returns>
+    /// <returns>True if the container is running and has not failed; otherwise, false.</returns>
     Task<bool> IsContainerRunningAsync(string containerId, CancellationToken ct = default);
 
     /// <summary>

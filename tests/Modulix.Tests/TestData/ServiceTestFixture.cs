@@ -17,6 +17,8 @@ using Modulix.Docker.Services.Interfaces;
 using Modulix.Extensions;
 using Modulix.ReverseProxy.Services;
 using Modulix.Scanner.Interfaces;
+using Modulix.Services.Storage;
+using Modulix.Services.Storage.Interfaces;
 
 namespace Modulix.Tests.TestData;
 
@@ -32,7 +34,7 @@ public abstract class ServiceTestBase : IDisposable
     protected readonly FakeDockerService _dockerService;
     protected readonly ReverseProxyService _reverseProxyService;
     protected readonly FailingSaveInterceptor _saveInterceptor = new();
-    protected readonly DirectoryExtension _directoryExtension;
+    protected readonly IModuleStorageService _directoryExtension;
     protected readonly ModuleEndpointExtension _moduleEndpointExtension;
     protected readonly ModuleVersionExtension _moduleVersionExtension;
     protected readonly IOptions<ModuleSettings> _moduleOptions;
@@ -61,7 +63,8 @@ public abstract class ServiceTestBase : IDisposable
         _endpointScanner = new FakeModuleEndpointScanner();
         _dockerService = new FakeDockerService();
         _reverseProxyService = new ReverseProxyService(NullLogger<ReverseProxyService>.Instance);
-        _directoryExtension = new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, _moduleOptions);
+        var storageService = new StorageService(_moduleOptions, NullLogger<StorageService>.Instance);
+        _directoryExtension = new ModuleStorageService(NullLogger<ModuleStorageService>.Instance, _moduleOptions, storageService);
         _moduleVersionExtension = new ModuleVersionExtension(_moduleOptions, _context, NullLogger<ModuleVersionExtension>.Instance);
         _moduleEndpointExtension = new ModuleEndpointExtension(
             _context,

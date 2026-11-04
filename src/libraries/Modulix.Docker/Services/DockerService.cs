@@ -161,6 +161,105 @@ internal class DockerService : IDockerService, IDisposable
     }
 
     /// <inheritdoc/>
+    public async Task EnsureImageExistsAsync(
+        string imageTag,
+        string buildContextPath,
+        string dockerfileName = "Dockerfile",
+        CancellationToken ct = default)
+    {
+        var images = await _client.Images.ListImagesAsync(new ImagesListParameters(), ct);
+        if (images.Any(image => image.RepoTags?.Contains(imageTag) == true))
+            return;
+
+        if (!Directory.Exists(buildContextPath))
+            throw new DirectoryNotFoundException($"Docker build context directory not found: '{buildContextPath}'.");
+
+        var dockerfilePath = Path.Combine(buildContextPath, dockerfileName);
+        if (!File.Exists(dockerfilePath))
+            throw new FileNotFoundException($"Dockerfile '{dockerfileName}' was not found in '{buildContextPath}'.", dockerfilePath);
+
+        _logger.LogInformation("Building image '{ImageTag}' from '{BuildContextPath}'...", imageTag, buildContextPath);
+        await using var tarStream = new MemoryStream();
+        TarFile.CreateFromDirectory(buildContextPath, tarStream, includeBaseDirectory: false);
+        tarStream.Position = 0;
+
+        await _client.Images.BuildImageFromDockerfileAsync(
+            new ImageBuildParameters { Tags = [imageTag], Dockerfile = dockerfileName },
+            tarStream,
+            [],
+            new Dictionary<string, string>(),
+            new Progress<JSONMessage>(),
+            ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task EnsureContainerRunningAsync(
+        CreateContainerParameters parameters,
+        string buildContextPath,
+        string dockerfileName = "Dockerfile",
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(parameters.Name))
+            throw new ArgumentException("Container name is required.", nameof(parameters));
+
+        var container = await FindContainerByNameAsync(parameters.Name, ct);
+        string containerId;
+        if (container is null)
+        {
+            if (string.IsNullOrWhiteSpace(parameters.Image))
+                throw new ArgumentException("Container image is required.", nameof(parameters));
+
+            await EnsureImageExistsAsync(parameters.Image, buildContextPath, dockerfileName, ct);
+            var response = await _client.Containers.CreateContainerAsync(parameters, ct);
+            containerId = response.ID;
+            _logger.LogInformation("Created container '{ContainerName}'.", parameters.Name);
+        }
+        else
+        {
+            containerId = container.ID;
+        }
+
+        if (container?.State != "running")
+            await RunContainerAsync(containerId, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> IsContainerRunningByNameAsync(string containerName, CancellationToken ct = default)
+        => (await FindContainerByNameAsync(containerName, ct))?.State == "running";
+
+    /// <inheritdoc/>
+    public async Task StartContainerByNameAsync(string containerName, CancellationToken ct = default)
+    {
+        var container = await FindContainerByNameAsync(containerName, ct);
+        if (container is not null && container.State != "running")
+            await RunContainerAsync(container.ID, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task StopContainerByNameAsync(string containerName, CancellationToken ct = default)
+    {
+        var container = await FindContainerByNameAsync(containerName, ct);
+        if (container is not null && container.State == "running")
+            await StopContainerAsync(container.ID, ct);
+    }
+
+    private async Task<ContainerListResponse?> FindContainerByNameAsync(string name, CancellationToken ct)
+    {
+        var containers = await _client.Containers.ListContainersAsync(new ContainersListParameters
+        {
+            All = true,
+            Filters = new Dictionary<string, IDictionary<string, bool>>
+            {
+                ["name"] = new Dictionary<string, bool> { [name] = true }
+            }
+        }, ct);
+
+        return containers.FirstOrDefault(container =>
+            container.Names.Any(containerName =>
+                containerName.TrimStart('/').Equals(name, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <inheritdoc/>
     public async Task RemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default)
     {
         ContainerInspectResponse container;
@@ -196,7 +295,7 @@ internal class DockerService : IDockerService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task<bool> TryRemoveModuleContainerAsync(string containerId, string containerName, CancellationToken ct = default)
+    public async Task<bool> TryRemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default)
     {
         using var cleanupCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cleanupCts.CancelAfter(TimeSpan.FromSeconds(30));

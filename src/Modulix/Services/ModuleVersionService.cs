@@ -8,6 +8,7 @@ using Modulix.Client.Models.Dtos.Query;
 using Modulix.Client.Models.Enums;
 
 using Modulix.Extensions;
+using Modulix.Services.Storage.Interfaces;
 using Modulix.Database.DbContexts;
 
 using Modulix.Scanner.Interfaces;
@@ -42,7 +43,7 @@ public class ModuleVersionService : IModuleVersionService
     /// <summary>
     /// The directory extension for handling module directories and archives.
     /// </summary>
-    private readonly DirectoryExtension _directoryExtension;
+    private readonly IModuleStorageService _moduleStorage;
 
     /// <summary>
     /// The module endpoint extension for validating and reconciling endpoints.
@@ -61,7 +62,7 @@ public class ModuleVersionService : IModuleVersionService
     /// <param name="logger">The logger.</param>
     /// <param name="dockerService">The Docker service.</param>
     /// <param name="endpointScanner">The module endpoint scanner.</param>
-    /// <param name="directoryExtension">The directory extension for handling module directories and archives.</param>
+    /// <param name="moduleStorage">The module-specific storage service.</param>
     /// <param name="moduleEndpointExtension">The extension for validating and reconciling module endpoints.</param>
     /// <param name="moduleVersionExtension">The extension for handling module version limits.</param>
     public ModuleVersionService(
@@ -69,7 +70,7 @@ public class ModuleVersionService : IModuleVersionService
         ILogger<ModuleVersionService> logger,
         IModuleDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
-        DirectoryExtension directoryExtension,
+        IModuleStorageService moduleStorage,
         ModuleEndpointExtension moduleEndpointExtension,
         ModuleVersionExtension moduleVersionExtension)
     {
@@ -77,7 +78,7 @@ public class ModuleVersionService : IModuleVersionService
         _logger = logger;
         _dockerService = dockerService;
         _endpointScanner = endpointScanner;
-        _directoryExtension = directoryExtension;
+        _moduleStorage = moduleStorage;
         _moduleEndpointExtension = moduleEndpointExtension;
         _moduleVersionExtension = moduleVersionExtension;
     }
@@ -191,7 +192,7 @@ public class ModuleVersionService : IModuleVersionService
         var previousEndpointStatuses = module.SubEndpoints
             .Select(endpoint => (Endpoint: endpoint, endpoint.Status))
             .ToList();
-        var versionDirectory = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
+        var versionDirectory = await _moduleStorage.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
         var newVersion = dto.ToVersionEntity();
         newVersion.ModuleId = module.Id;
         newVersion.StoragePath = versionDirectory;
@@ -250,7 +251,7 @@ public class ModuleVersionService : IModuleVersionService
             {
                 _context.ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
             }
-            _directoryExtension.DeleteDirectory(versionDirectory, module.Id);
+            _moduleStorage.DeleteDirectory(versionDirectory, module.Id);
 
             _logger.LogError(ex, "An error occurred while creating version '{Version}' for module with ID '{ModuleId}'.", normalizedVersion, moduleId);
             throw;
@@ -339,7 +340,7 @@ public class ModuleVersionService : IModuleVersionService
 
         try
         {
-            _directoryExtension.EnsureModuleDataDirectory(module.Id);
+            _moduleStorage.EnsureModuleDataDirectory(module.Id);
             module.CurrentVersion = targetVersion.Version;
             module.Status = ModuleStatus.Starting;
 
@@ -484,7 +485,7 @@ public class ModuleVersionService : IModuleVersionService
             _context.ModuleEndpoints.RemoveRange(discoveredEndpoints);
         }
 
-        _directoryExtension.DeleteDirectory(moduleVersion.StoragePath, moduleId);
+        _moduleStorage.DeleteDirectory(moduleVersion.StoragePath, moduleId);
 
         _context.ModuleVersions.Remove(moduleVersion);
         await _context.SaveChangesAsync(ct);

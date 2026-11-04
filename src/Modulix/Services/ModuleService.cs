@@ -12,6 +12,7 @@ using Modulix.Database.Entities;
 using Modulix.Database.DbContexts;
 
 using Modulix.Extensions;
+using Modulix.Services.Storage.Interfaces;
 using Modulix.ReverseProxy.Services;
 
 using Modulix.Scanner.Interfaces;
@@ -49,9 +50,9 @@ public class ModuleService : IModuleService
     private readonly ModuleSettings _options;
 
     /// <summary>
-    /// The directory extension for handling module directories and archives.
+    /// The module-specific storage service.
     /// </summary>
-    private readonly DirectoryExtension _directoryExtension;
+    private readonly IModuleStorageService _moduleStorage;
 
     /// <summary>
     /// The module endpoint extension for validating and reconciling endpoints.
@@ -71,7 +72,7 @@ public class ModuleService : IModuleService
     /// <param name="options">The shared module settings.</param>
     /// <param name="dockerService">The Docker service.</param>
     /// <param name="endpointScanner">The module endpoint scanner.</param>
-    /// <param name="directoryExtension">The directory extension for handling module directories and archives.</param>
+    /// <param name="moduleStorage">The module-specific storage service.</param>
     /// <param name="moduleEndpointExtension">The extension for validating and reconciling module endpoints.</param>
     /// <param name="reverseProxyService">The reverse proxy service.</param>
     public ModuleService(
@@ -80,7 +81,7 @@ public class ModuleService : IModuleService
         IOptions<ModuleSettings> options,
         IModuleDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
-        DirectoryExtension directoryExtension,
+        IModuleStorageService moduleStorage,
         ModuleEndpointExtension moduleEndpointExtension,
         IReverseProxyService reverseProxyService)
     {
@@ -89,7 +90,7 @@ public class ModuleService : IModuleService
         _endpointScanner = endpointScanner;
         _dockerService = dockerService;
         _options = options.Value;
-        _directoryExtension = directoryExtension;
+        _moduleStorage = moduleStorage;
         _moduleEndpointExtension = moduleEndpointExtension;
         _reverseProxyService = reverseProxyService;
     }
@@ -138,7 +139,7 @@ public class ModuleService : IModuleService
 
         try
         {
-            _directoryExtension.EnsureModuleDataDirectory(module.Id);
+            _moduleStorage.EnsureModuleDataDirectory(module.Id);
             module.Status = ModuleStatus.Starting;
 
             if (string.IsNullOrWhiteSpace(module.ContainerId))
@@ -251,7 +252,7 @@ public class ModuleService : IModuleService
         module.CurrentVersion = normalizedVersion;
 
         // Prepare the target path for extracting the module file
-        var targetPath = await _directoryExtension.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
+        var targetPath = await _moduleStorage.CreateModuleTargetPathAsync(module.Id, normalizedVersion, dto.ModuleFile, ct);
 
         // Create the initial version entry for the module
         var initialVersion = new ModuleVersion
@@ -304,8 +305,8 @@ public class ModuleService : IModuleService
         }
         catch
         {
-            _directoryExtension.DeleteDirectory(initialVersion.StoragePath, module.Id);
-            _directoryExtension.DeleteModuleDataDirectory(module.Id);
+            _moduleStorage.DeleteDirectory(initialVersion.StoragePath, module.Id);
+            _moduleStorage.DeleteModuleDataDirectory(module.Id);
             throw;
         }
 
@@ -332,8 +333,8 @@ public class ModuleService : IModuleService
             if (string.IsNullOrWhiteSpace(module.ContainerId) ||
                 await _dockerService.TryRemoveModuleContainerAsync(module.ContainerId, module.Id))
             {
-                _directoryExtension.DeleteDirectory(initialVersion.StoragePath, module.Id);
-                _directoryExtension.DeleteModuleDataDirectory(module.Id);
+                _moduleStorage.DeleteDirectory(initialVersion.StoragePath, module.Id);
+                _moduleStorage.DeleteModuleDataDirectory(module.Id);
             }
 
             _context.Entry(module).State = EntityState.Detached;
@@ -391,13 +392,13 @@ public class ModuleService : IModuleService
 
         foreach (var version in module.Versions)
         {
-            _directoryExtension.DeleteDirectory(version.StoragePath, moduleId);
+            _moduleStorage.DeleteDirectory(version.StoragePath, moduleId);
         }
 
-        _directoryExtension.DeleteModuleDataDirectory(moduleId);
+        _moduleStorage.DeleteModuleDataDirectory(moduleId);
 
         var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, moduleId.ToString());
-        _directoryExtension.DeleteDirectory(moduleBaseDirectory, moduleId);
+        _moduleStorage.DeleteDirectory(moduleBaseDirectory, moduleId);
 
         _context.Modules.Remove(module);
         _context.ModuleEndpoints.RemoveRange(module.SubEndpoints);

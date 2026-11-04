@@ -39,9 +39,9 @@ public class DockerfileTemplateTests : IDisposable
         Assert.Equal(typeof(int), entity.FindProperty(nameof(DockerfileTemplate.Id))!.ClrType);
         Assert.Equal(ValueGenerated.OnAdd, entity.FindProperty(nameof(DockerfileTemplate.Id))!.ValueGenerated);
 
-        var name = entity.FindProperty(nameof(DockerfileTemplate.Name))!;
-        Assert.False(name.IsNullable);
-        Assert.Equal(100, name.GetMaxLength());
+        var fileName = entity.FindProperty(nameof(DockerfileTemplate.FileName))!;
+        Assert.False(fileName.IsNullable);
+        Assert.Equal(100, fileName.GetMaxLength());
 
         var description = entity.FindProperty(nameof(DockerfileTemplate.Description))!;
         Assert.True(description.IsNullable);
@@ -55,7 +55,7 @@ public class DockerfileTemplateTests : IDisposable
         Assert.Equal(nameof(DockerfileTemplate.StoragePath), Assert.Single(index.Properties).Name);
 
         Assert.Equal(
-            new[] { "CreatedAtUtc", "Description", "Id", "IsBuiltIn", "Name", "StoragePath", "UpdatedAtUtc" },
+            new[] { "CreatedAtUtc", "Description", "FileName", "Id", "StoragePath", "UpdatedAtUtc" },
             entity.GetProperties().Select(property => property.Name).OrderBy(name => name).ToArray());
         Assert.Empty(entity.GetForeignKeys());
     }
@@ -67,10 +67,9 @@ public class DockerfileTemplateTests : IDisposable
         var updatedAt = createdAt.AddDays(1);
         var template = new DockerfileTemplate
         {
-            Name = ".NET with SQLite Directory",
+            FileName = ".NET with SQLite Directory",
             Description = "Prepares /app/data for SQLite.",
             StoragePath = "dockerfiles/sqlite/Dockerfile",
-            IsBuiltIn = true,
             CreatedAtUtc = createdAt,
             UpdatedAtUtc = updatedAt
         };
@@ -82,10 +81,9 @@ public class DockerfileTemplateTests : IDisposable
         var stored = await _context.DockerfileTemplates.SingleAsync();
         Assert.True(stored.Id > 0);
         Assert.Equal(template.Id, stored.Id);
-        Assert.Equal(template.Name, stored.Name);
+        Assert.Equal(template.FileName, stored.FileName);
         Assert.Equal(template.Description, stored.Description);
         Assert.Equal(template.StoragePath, stored.StoragePath);
-        Assert.True(stored.IsBuiltIn);
         Assert.Equal(createdAt, stored.CreatedAtUtc);
         Assert.Equal(updatedAt, stored.UpdatedAtUtc);
     }
@@ -95,14 +93,14 @@ public class DockerfileTemplateTests : IDisposable
     {
         _context.DockerfileTemplates.Add(new DockerfileTemplate
         {
-            Name = "First template",
+            FileName = "First template",
             StoragePath = "dockerfiles/shared/Dockerfile"
         });
         await _context.SaveChangesAsync();
 
         _context.DockerfileTemplates.Add(new DockerfileTemplate
         {
-            Name = "Second template",
+            FileName = "Second template",
             StoragePath = "dockerfiles/shared/Dockerfile"
         });
 

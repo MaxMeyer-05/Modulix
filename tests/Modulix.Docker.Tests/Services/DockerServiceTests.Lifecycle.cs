@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 
 using Docker.DotNet;
+using Docker.DotNet.Models;
 using Microsoft.AspNetCore.WebUtilities;
 
 using Modulix.Docker.Tests.TestData;
@@ -221,7 +222,7 @@ public partial class DockerServiceTests
     }
 
     [Fact]
-    public async Task TryRemoveModuleContainerAsync_ReturnsTrueOnSuccess_AndFalseOnException()
+    public async Task TryRemoveContainerAsync_ReturnsTrueOnSuccess_AndFalseOnException()
     {
         var shouldThrow = false;
         using var service = CreateService((request, cancellationToken) =>
@@ -235,11 +236,11 @@ public partial class DockerServiceTests
                 : DockerHttpTestHelper.JsonResponse(Array.Empty<object>()));
         });
 
-        var success = await service.TryRemoveModuleContainerAsync("cont1", "name1");
+        var success = await service.TryRemoveContainerAsync("cont1", "name1");
         Assert.True(success);
 
         shouldThrow = true;
-        var failed = await service.TryRemoveModuleContainerAsync("cont1", "name1");
+        var failed = await service.TryRemoveContainerAsync("cont1", "name1");
         Assert.False(failed);
     }
 
@@ -296,6 +297,290 @@ public partial class DockerServiceTests
         await service.EnsureNetworkExistsAsync("test-net");
 
         Assert.False(networkCreated);
+    }
+
+    #endregion
+
+    #region Named Container Lifecycle Tests
+
+    [Fact]
+    public async Task EnsureContainerRunningAsync_MissingContainer_BuildsConfiguredImageCreatesAndStartsContainer()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Modulix_Docker_Ensure_Tests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var requests = new List<(HttpMethod Method, string Path)>();
+        var buildEntries = new List<string>();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "Containerfile"), "FROM alpine:3.20");
+            using var service = CreateService(async (request, cancellationToken) =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                requests.Add((request.Method, path));
+
+                if (path.EndsWith("/containers/json", StringComparison.Ordinal))
+                    return DockerHttpTestHelper.JsonResponse(Array.Empty<object>());
+
+                if (path.EndsWith("/images/json", StringComparison.Ordinal))
+                    return DockerHttpTestHelper.JsonResponse(Array.Empty<object>());
+
+                if (path.EndsWith("/build", StringComparison.Ordinal))
+                {
+                    var query = QueryHelpers.ParseQuery(request.RequestUri.Query);
+                    Assert.Equal("Containerfile", query["dockerfile"].ToString());
+                    Assert.Equal("sample-image:latest", query["t"].ToString());
+                    await using var context = await request.Content!.ReadAsStreamAsync(cancellationToken);
+                    using var tarReader = new TarReader(context);
+                    while (tarReader.GetNextEntry() is { } entry)
+                        buildEntries.Add(entry.Name);
+
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("{\"stream\":\"Build complete.\"}\n", Encoding.UTF8, "application/json")
+                    };
+                }
+
+                if (path.EndsWith("/containers/create", StringComparison.Ordinal))
+                {
+                    Assert.Equal("sample-container", QueryHelpers.ParseQuery(request.RequestUri.Query)["name"].ToString());
+                    using var document = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    Assert.Equal("sample-image:latest", document.RootElement.GetProperty("Image").GetString());
+                    Assert.Equal(new[] { "MODE=test" },
+                        document.RootElement.GetProperty("Env").EnumerateArray().Select(value => value.GetString()));
+                    return DockerHttpTestHelper.JsonResponse(new { Id = "created-container-id" });
+                }
+
+                return path.EndsWith("/containers/created-container-id/start", StringComparison.Ordinal)
+                    ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                    : DockerHttpTestHelper.JsonResponse(new { });
+            });
+
+            var parameters = new CreateContainerParameters
+            {
+                Image = "sample-image:latest",
+                Name = "sample-container",
+                Env = ["MODE=test"]
+            };
+            await service.EnsureContainerRunningAsync(parameters, root, "Containerfile");
+
+            Assert.Equal(
+                new[] { "GET", "GET", "POST", "POST", "POST" },
+                requests.Select(request => request.Method.Method));
+            Assert.EndsWith("/containers/json", requests[0].Path);
+            Assert.EndsWith("/images/json", requests[1].Path);
+            Assert.EndsWith("/build", requests[2].Path);
+            Assert.EndsWith("/containers/create", requests[3].Path);
+            Assert.EndsWith("/containers/created-container-id/start", requests[4].Path);
+            Assert.Contains("Containerfile", buildEntries);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task EnsureContainerRunningAsync_ExistingRunningContainer_SkipsImageBuildAndStart()
+    {
+        var requestCount = 0;
+        using var service = CreateService((request, _) =>
+        {
+            requestCount++;
+            Assert.EndsWith("/containers/json", request.RequestUri!.AbsolutePath);
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(new[]
+            {
+                new { Id = "existing-id", Names = new[] { "/sample-container" }, State = "running" }
+            }));
+        });
+
+        await service.EnsureContainerRunningAsync(
+            new CreateContainerParameters { Image = "sample-image", Name = "sample-container" },
+            Path.Combine(Path.GetTempPath(), "unused-build-context"));
+
+        Assert.Equal(1, requestCount);
+    }
+
+    [Fact]
+    public async Task EnsureContainerRunningAsync_ExistingStoppedContainer_StartsWithoutRebuildingImage()
+    {
+        var requests = new List<string>();
+        using var service = CreateService((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            requests.Add(request.Method.Method + " " + path);
+            if (path.EndsWith("/containers/json", StringComparison.Ordinal))
+            {
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new[]
+                {
+                    new { Id = "stopped-id", Names = new[] { "/sample-container" }, State = "exited" }
+                }));
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+        });
+
+        await service.EnsureContainerRunningAsync(
+            new CreateContainerParameters { Image = "sample-image", Name = "sample-container" },
+            Path.Combine(Path.GetTempPath(), "unused-build-context"));
+
+        Assert.Equal(2, requests.Count);
+        Assert.EndsWith("/containers/json", requests[0]);
+        Assert.EndsWith("/containers/stopped-id/start", requests[1]);
+    }
+
+    [Fact]
+    public async Task EnsureContainerRunningAsync_MissingContainerWithExistingImage_SkipsBuildAndStartsNewContainer()
+    {
+        var requests = new List<string>();
+        using var service = CreateService((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            requests.Add(request.Method.Method + " " + path);
+            if (path.EndsWith("/containers/json", StringComparison.Ordinal))
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(Array.Empty<object>()));
+
+            if (path.EndsWith("/images/json", StringComparison.Ordinal))
+            {
+                return Task.FromResult(DockerHttpTestHelper.JsonResponse(new[]
+                {
+                    new { Id = "image-id", RepoTags = new[] { "sample-image:latest" } }
+                }));
+            }
+
+            return Task.FromResult(path.EndsWith("/containers/create", StringComparison.Ordinal)
+                ? DockerHttpTestHelper.JsonResponse(new { Id = "created-container-id" })
+                : new HttpResponseMessage(HttpStatusCode.NoContent));
+        });
+
+        await service.EnsureContainerRunningAsync(
+            new CreateContainerParameters { Image = "sample-image:latest", Name = "sample-container" },
+            Path.Combine(Path.GetTempPath(), "unused-build-context"));
+
+        Assert.Equal(4, requests.Count);
+        Assert.EndsWith("/containers/json", requests[0]);
+        Assert.EndsWith("/images/json", requests[1]);
+        Assert.EndsWith("/containers/create", requests[2]);
+        Assert.EndsWith("/containers/created-container-id/start", requests[3]);
+    }
+
+    [Fact]
+    public async Task IsContainerRunningByNameAsync_RequiresExactNameAndRunningState()
+    {
+        object[] listedContainers =
+        [
+            new { Id = "prefix-id", Names = new[] { "/sample-container-extra" }, State = "running" }
+        ];
+        using var service = CreateService((_, _) =>
+            Task.FromResult(DockerHttpTestHelper.JsonResponse(listedContainers)));
+
+        var prefixMatch = await service.IsContainerRunningByNameAsync("sample-container");
+        listedContainers =
+        [
+            new { Id = "stopped-id", Names = new[] { "/sample-container" }, State = "exited" }
+        ];
+        var stoppedMatch = await service.IsContainerRunningByNameAsync("sample-container");
+        listedContainers =
+        [
+            new { Id = "exact-id", Names = new[] { "/sample-container" }, State = "running" }
+        ];
+        var exactMatch = await service.IsContainerRunningByNameAsync("sample-container");
+
+        Assert.False(prefixMatch);
+        Assert.False(stoppedMatch);
+        Assert.True(exactMatch);
+    }
+
+    [Fact]
+    public async Task StartContainerByNameAsync_StoppedContainerStartsByResolvedId()
+    {
+        var requests = new List<string>();
+        using var service = CreateService((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            requests.Add(request.Method.Method + " " + path);
+            return Task.FromResult(path.EndsWith("/containers/json", StringComparison.Ordinal)
+                ? DockerHttpTestHelper.JsonResponse(new[]
+                {
+                    new { Id = "stopped-id", Names = new[] { "/sample-container" }, State = "exited" }
+                })
+                : new HttpResponseMessage(HttpStatusCode.NoContent));
+        });
+
+        await service.StartContainerByNameAsync("sample-container");
+
+        Assert.Equal(2, requests.Count);
+        Assert.EndsWith("/containers/json", requests[0]);
+        Assert.EndsWith("/containers/stopped-id/start", requests[1]);
+    }
+
+    [Fact]
+    public async Task StartContainerByNameAsync_RunningOrMissingContainer_DoesNotStart()
+    {
+        object[] listedContainers =
+        [
+            new { Id = "running-id", Names = new[] { "/sample-container" }, State = "running" }
+        ];
+        var startRequests = 0;
+        using var service = CreateService((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/start", StringComparison.Ordinal))
+                startRequests++;
+
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(listedContainers));
+        });
+
+        await service.StartContainerByNameAsync("sample-container");
+        listedContainers = [];
+        await service.StartContainerByNameAsync("sample-container");
+
+        Assert.Equal(0, startRequests);
+    }
+
+    [Fact]
+    public async Task StopContainerByNameAsync_RunningContainerStopsByResolvedId()
+    {
+        var requests = new List<string>();
+        using var service = CreateService((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            requests.Add(request.Method.Method + " " + path);
+            return Task.FromResult(path.EndsWith("/containers/json", StringComparison.Ordinal)
+                ? DockerHttpTestHelper.JsonResponse(new[]
+                {
+                    new { Id = "running-id", Names = new[] { "/sample-container" }, State = "running" }
+                })
+                : new HttpResponseMessage(HttpStatusCode.NoContent));
+        });
+
+        await service.StopContainerByNameAsync("sample-container");
+
+        Assert.Equal(2, requests.Count);
+        Assert.EndsWith("/containers/json", requests[0]);
+        Assert.EndsWith("/containers/running-id/stop", requests[1]);
+    }
+
+    [Fact]
+    public async Task StopContainerByNameAsync_StoppedOrMissingContainer_DoesNotStop()
+    {
+        object[] listedContainers =
+        [
+            new { Id = "stopped-id", Names = new[] { "/sample-container" }, State = "exited" }
+        ];
+        var stopRequests = 0;
+        using var service = CreateService((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/stop", StringComparison.Ordinal))
+                stopRequests++;
+
+            return Task.FromResult(DockerHttpTestHelper.JsonResponse(listedContainers));
+        });
+
+        await service.StopContainerByNameAsync("sample-container");
+        listedContainers = [];
+        await service.StopContainerByNameAsync("sample-container");
+
+        Assert.Equal(0, stopRequests);
     }
 
     #endregion

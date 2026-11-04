@@ -3,9 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Modulix.Client.Models.Dtos;
 
 using Modulix.Mappers;
-using Modulix.Extensions;
 using Modulix.Database.DbContexts;
+
 using Modulix.Services.Interfaces;
+using Modulix.Services.Storage.Interfaces;
 
 namespace Modulix.Services;
 
@@ -23,24 +24,24 @@ public class DockerfileTemplateService : IDockerfileTemplateService
     private readonly ServerContext _serverContext;
 
     /// <summary>
-    /// The directory extension.
+    /// The storage service for Dockerfile templates.
     /// </summary>
-    private readonly DirectoryExtension _directoryExtension;
+    private readonly IDockerfileTemplateStorageService _templateStorage;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DockerfileTemplateService"/> class.
     /// </summary>
     /// <param name="logger">The logger.</param>
     /// <param name="serverContext">The server context.</param>
-    /// <param name="directoryExtension">The directory extension.</param>
+    /// <param name="templateStorage">The Dockerfile template storage service.</param>
     public DockerfileTemplateService(
         ILogger<DockerfileTemplateService> logger, 
         ServerContext serverContext,
-        DirectoryExtension directoryExtension)
+        IDockerfileTemplateStorageService templateStorage)
     {
         _logger = logger;
         _serverContext = serverContext;
-        _directoryExtension = directoryExtension;
+        _templateStorage = templateStorage;
     }
 
     /// <inheritdoc />
@@ -48,11 +49,18 @@ public class DockerfileTemplateService : IDockerfileTemplateService
     {
         var entity = createDockerfileTemplateDto.ToEntity();
 
-        // ToDo: Handle creating the storage path for the Dockerfile template and saving the file content.
-
-        entity.StoragePath = "placeholder/path";
+        entity.StoragePath = await _templateStorage.SaveAsync(createDockerfileTemplateDto.Content, ct);
         _serverContext.DockerfileTemplates.Add(entity);
-        await _serverContext.SaveChangesAsync(ct);
+        try
+        {
+            await _serverContext.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            _serverContext.DockerfileTemplates.Remove(entity);
+            _templateStorage.Delete(entity.StoragePath);
+            throw;
+        }
         _logger.LogInformation("Created new Dockerfile template with ID {Id} in the database.", entity.Id);
     }
 
@@ -63,10 +71,18 @@ public class DockerfileTemplateService : IDockerfileTemplateService
         if (entity is null)
             throw new KeyNotFoundException($"Dockerfile template with ID {id} not found.");
 
-        _directoryExtension.DeleteDirectory(entity.StoragePath);
-
         _serverContext.DockerfileTemplates.Remove(entity);
-        await _serverContext.SaveChangesAsync(ct);
+        try
+        {
+            await _serverContext.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            _serverContext.Entry(entity).State = EntityState.Unchanged;
+            throw;
+        }
+
+        _templateStorage.Delete(entity.StoragePath);
         _logger.LogInformation("Deleted Dockerfile template with ID {Id} from the storage and database.", id);
     }
 
@@ -97,12 +113,28 @@ public class DockerfileTemplateService : IDockerfileTemplateService
         if (entity is null)
             throw new KeyNotFoundException($"Dockerfile template with ID {id} not found.");
 
+        var oldStoragePath = entity.StoragePath;
+        var oldFileName = entity.FileName;
+        var oldDescription = entity.Description;
+        var newStoragePath = await _templateStorage.SaveAsync(updateDockerfileTemplateDto.Content, ct);
         entity.FileName = updateDockerfileTemplateDto.FileName;
         entity.Description = updateDockerfileTemplateDto.Description;
+        entity.StoragePath = newStoragePath;
+        try
+        {
+            await _serverContext.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            entity.FileName = oldFileName;
+            entity.Description = oldDescription;
+            entity.StoragePath = oldStoragePath;
+            _serverContext.Entry(entity).State = EntityState.Unchanged;
+            _templateStorage.Delete(newStoragePath);
+            throw;
+        }
 
-        // ToDo: Handle updating the Dockerfile template if the file content needs to be changed.
-
-        await _serverContext.SaveChangesAsync(ct);
+        _templateStorage.Delete(oldStoragePath);
         _logger.LogInformation("Updated Dockerfile template with ID {Id} in the database.", id);
     }
 }

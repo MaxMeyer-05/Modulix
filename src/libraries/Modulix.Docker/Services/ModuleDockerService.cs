@@ -107,7 +107,7 @@ internal class ModuleDockerService : IModuleDockerService
 
     /// <inheritdoc/>
     public Task<bool> TryRemoveModuleContainerAsync(string containerId, Guid containerName, CancellationToken ct = default)
-        => _dockerService.TryRemoveModuleContainerAsync(containerId, containerName.ToString("N"), ct);
+        => _dockerService.TryRemoveContainerAsync(containerId, containerName.ToString("N"), ct);
 
     /// <inheritdoc/>
     public Task WaitUntilReadyAsync(string containerId, CancellationToken ct = default)

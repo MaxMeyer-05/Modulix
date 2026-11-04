@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Docker.DotNet.Models;
 
 using Modulix.Docker.Models;
 using Modulix.Docker.Services;
@@ -42,7 +43,7 @@ public class ModuleDockerServiceTests
             Assert.Equal(5000, fakeDocker.LastContainerPort);
             Assert.Contains("ASPNETCORE_HTTP_PORTS=5000", fakeDocker.LastEnv!);
             Assert.Contains("ASPNETCORE_ENVIRONMENT=Production", fakeDocker.LastEnv!);
-            Assert.Contains($"{tempDir}/data:/app/data", fakeDocker.LastBinds!);
+            Assert.Contains($"{Path.Combine(tempDir, "data")}:/app/data", fakeDocker.LastBinds!);
         }
         finally
         {
@@ -178,6 +179,25 @@ public class ModuleDockerServiceTests
             return Task.CompletedTask;
         }
 
+        public Task EnsureImageExistsAsync(string imageTag, string buildContextPath, string dockerfileName = "Dockerfile", CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task EnsureContainerRunningAsync(
+            CreateContainerParameters parameters,
+            string buildContextPath,
+            string dockerfileName = "Dockerfile",
+            CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task<bool> IsContainerRunningByNameAsync(string containerName, CancellationToken ct = default)
+            => Task.FromResult(false);
+
+        public Task StartContainerByNameAsync(string containerName, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task StopContainerByNameAsync(string containerName, CancellationToken ct = default)
+            => Task.CompletedTask;
+
         public Task RunContainerAsync(string containerId, CancellationToken ct = default)
         {
             LastCall = "run:" + containerId;
@@ -202,7 +222,7 @@ public class ModuleDockerServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<bool> TryRemoveModuleContainerAsync(string containerId, string containerName, CancellationToken ct = default)
+        public Task<bool> TryRemoveContainerAsync(string containerId, string containerName, CancellationToken ct = default)
         {
             LastCall = $"try-remove:{containerId}:{containerName}";
             return Task.FromResult(true);

@@ -5,25 +5,26 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-using Modulix.Extensions;
+using Modulix.Services.Storage;
 
-namespace Modulix.Tests.Extensions;
+namespace Modulix.Tests.Services.Storage;
 
-[Trait("Category", "Extensions")]
-[Trait("SubCategory", "DirectoryExtension")]
-public class DirectoryExtensionTests : IDisposable
+[Trait("Category", "Services")]
+[Trait("SubCategory", "ModuleStorageService")]
+public class ModuleStorageServiceTests : IDisposable
 {
     private readonly string _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_Directory_Tests_" + Guid.NewGuid().ToString("N"));
     private readonly ModuleSettings _options;
-    private readonly DirectoryExtension _sut;
+    private readonly ModuleStorageService _sut;
 
     #region Setup & Teardown
 
-    public DirectoryExtensionTests()
+    public ModuleStorageServiceTests()
     {
         Directory.CreateDirectory(_testRootDirectory);
         _options = new ModuleSettings { StorageBasePath = Path.Combine(_testRootDirectory, "modules") };
-        _sut = new DirectoryExtension(NullLogger<DirectoryExtension>.Instance, Options.Create(_options));
+        var storage = new StorageService(Options.Create(_options), NullLogger<StorageService>.Instance);
+        _sut = new ModuleStorageService(NullLogger<ModuleStorageService>.Instance, Options.Create(_options), storage);
     }
 
     public void Dispose()
@@ -123,6 +124,25 @@ public class DirectoryExtensionTests : IDisposable
         Assert.Equal("keep", await File.ReadAllTextAsync(existingFile));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("..")]
+    [InlineData("../outside")]
+    [InlineData("nested/version")]
+    [InlineData("nested\\version")]
+    public async Task CreateModuleTargetPathAsync_InvalidVersion_RejectsWithoutCreatingModuleStorage(string version)
+    {
+        var moduleId = Guid.NewGuid();
+        using var contents = CreateArchive(("module.dll", "assembly"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.CreateModuleTargetPathAsync(moduleId, version, CreateFormFile(contents)));
+
+        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.False(File.Exists(Path.Combine(_testRootDirectory, "outside", "module.dll")));
+    }
+
     [Fact]
     public async Task CreateModuleTargetPathAsync_StoragePathIsFile_PropagatesFailureAndPreservesExistingFile()
     {
@@ -212,34 +232,19 @@ public class DirectoryExtensionTests : IDisposable
     #region Cleanup Tests
 
     [Fact]
-    public void DeleteTemporaryFile_ExistingOrMissingFile_IsIdempotentAndPreservesOtherFiles()
+    public void DeleteDirectory_NestedOrMissingDirectory_IsIdempotentAndPreservesSiblingDirectories()
     {
-        var temporaryFile = Path.Combine(_testRootDirectory, "temporary.zip");
-        var otherFile = Path.Combine(_testRootDirectory, "keep.zip");
-        File.WriteAllText(temporaryFile, "temporary");
-        File.WriteAllText(otherFile, "keep");
-
-        _sut.DeleteTemporaryFile(temporaryFile, Guid.NewGuid());
-        _sut.DeleteTemporaryFile(temporaryFile, Guid.NewGuid());
-
-        Assert.False(File.Exists(temporaryFile));
-        Assert.Equal("keep", File.ReadAllText(otherFile));
-    }
-
-    [Fact]
-    public void DeleteModuleDirectory_NestedOrMissingDirectory_IsIdempotentAndPreservesOtherDirectories()
-    {
-        var targetPath = Path.Combine(_testRootDirectory, "target");
+        var targetPath = Path.Combine(_options.StorageBasePath, "module", "versions", "v1.0.0");
         Directory.CreateDirectory(Path.Combine(targetPath, "nested"));
         File.WriteAllText(Path.Combine(targetPath, "nested", "module.dll"), "module");
-        var otherPath = Path.Combine(_testRootDirectory, "keep");
-        Directory.CreateDirectory(otherPath);
+        var siblingPath = Path.Combine(_options.StorageBasePath, "another-module");
+        Directory.CreateDirectory(siblingPath);
 
-        _sut.DeleteModuleDirectory(targetPath, Guid.NewGuid());
-        _sut.DeleteModuleDirectory(targetPath, Guid.NewGuid());
+        _sut.DeleteDirectory(targetPath, Guid.NewGuid());
+        _sut.DeleteDirectory(targetPath, Guid.NewGuid());
 
         Assert.False(Directory.Exists(targetPath));
-        Assert.True(Directory.Exists(otherPath));
+        Assert.True(Directory.Exists(siblingPath));
     }
 
     #endregion

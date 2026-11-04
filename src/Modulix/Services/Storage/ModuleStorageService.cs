@@ -1,12 +1,14 @@
 using System.IO.Compression;
 using Microsoft.Extensions.Options;
 
-namespace Modulix.Extensions;
+using Modulix.Services.Storage.Interfaces;
+
+namespace Modulix.Services.Storage;
 
 /// <summary>
-/// Provides utility methods for handling module directories and archives.
+/// Provides module-specific storage operations for version archives and persistent data.
 /// </summary>
-public class DirectoryExtension
+public class ModuleStorageService : IModuleStorageService
 {
     /// <summary>
     /// The shared module settings.
@@ -16,19 +18,23 @@ public class DirectoryExtension
     /// <summary>
     /// The logger instance.
     /// </summary>
-    private readonly ILogger<DirectoryExtension> _logger;
+    private readonly ILogger<ModuleStorageService> _logger;
+    private readonly IStorageService _storageService;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DirectoryExtension"/> class.
+    /// Initializes a new instance of the <see cref="ModuleStorageService"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">The shared module settings.</param>
-    public DirectoryExtension(
-        ILogger<DirectoryExtension> logger, 
-        IOptions<ModuleSettings> options)
+    /// <param name="storageService">The shared storage operations.</param>
+    public ModuleStorageService(
+        ILogger<ModuleStorageService> logger, 
+        IOptions<ModuleSettings> options,
+        IStorageService storageService)
     {
         _logger = logger;
         _options = options.Value;
+        _storageService = storageService;
     }
 
     /// <summary>
@@ -125,42 +131,7 @@ public class DirectoryExtension
     /// <param name="moduleId">Optional - The ID of the module associated with the staging directory.</param>
     public void DeleteDirectory(string directoryPath, Guid? moduleId = null)
     {
-        try
-        {
-            if (Directory.Exists(directoryPath))
-                Directory.Delete(directoryPath, true);
-
-            var storageBaseFullPath = Path.GetFullPath(_options.StorageBasePath)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var parentDir = Path.GetDirectoryName(Path.GetFullPath(directoryPath));
-
-            while (!string.IsNullOrEmpty(parentDir))
-            {
-                var normalizedParent = parentDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                if (string.Equals(normalizedParent, storageBaseFullPath, StringComparison.OrdinalIgnoreCase) ||
-                    !normalizedParent.StartsWith(storageBaseFullPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    break;
-                }
-
-                if (Directory.Exists(normalizedParent) && !Directory.EnumerateFileSystemEntries(normalizedParent).Any())
-                {
-                    Directory.Delete(normalizedParent, false);
-                    parentDir = Path.GetDirectoryName(normalizedParent);
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            if (moduleId is not null)
-                _logger.LogWarning(ex, "Failed to delete module directory for module with ID '{ModuleId}'.", moduleId);
-            else
-                _logger.LogWarning(ex, "Failed to delete directory.");
-        }
+        _storageService.DeleteDirectory(directoryPath, moduleId?.ToString());
     }
 
     /// <summary>
@@ -185,49 +156,33 @@ public class DirectoryExtension
             throw new ArgumentException("Module version contains invalid path characters.");
         }
 
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", normalizedVersion);
         if (file.Length == 0)
             throw new ArgumentException("Module file cannot be empty.");
         if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Module file must be a .zip archive.");
-            
-        if (Directory.Exists(targetPath))
-            Directory.Delete(targetPath, true);
-        
-        try
-        {
-            Directory.CreateDirectory(targetPath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create target directory '{TargetPath}'.", targetPath);
-            throw;
-        }
 
-        var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
-        try
-        {
-            using (var stream = new FileStream(tmpZipPath, FileMode.CreateNew))
+        var relativeTargetPath = Path.Combine(moduleId.ToString(), "versions", normalizedVersion);
+        return await _storageService.CreateDirectoryAsync(
+            relativeTargetPath,
+            async (targetPath, token) =>
             {
-                await file.CopyToAsync(stream, ct);
-            }
+                var tmpZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.zip");
+                try
+                {
+                    await using (var stream = new FileStream(tmpZipPath, FileMode.CreateNew))
+                        await file.CopyToAsync(stream, token);
 
-            ValidateModuleArchive(tmpZipPath);
-            ExtractModuleArchive(tmpZipPath, targetPath);
-            EnsureModuleDataDirectory(moduleId);
-            _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
-        }
-        catch
-        {
-            DeleteDirectory(targetPath, moduleId);
-            throw;
-        }
-        finally
-        {
-            DeleteTemporaryFile(tmpZipPath, moduleId);
-        }
-
-        return targetPath;
+                    ValidateModuleArchive(tmpZipPath);
+                    ExtractModuleArchive(tmpZipPath, targetPath);
+                    EnsureModuleDataDirectory(moduleId);
+                    _logger.LogInformation("Module files extracted to '{TargetPath}'.", targetPath);
+                }
+                finally
+                {
+                    DeleteTemporaryFile(tmpZipPath, moduleId);
+                }
+            },
+            ct);
     }
 
     /// <summary>
@@ -236,7 +191,7 @@ public class DirectoryExtension
     /// <param name="moduleId">The unique identifier of the module.</param>
     /// <returns>The full host path to the module's persistent data directory (<c>&lt;StorageBasePath&gt;/&lt;moduleId&gt;/data</c>).</returns>
     public string GetModuleDataDirectoryPath(Guid moduleId) =>
-        Path.GetFullPath(Path.Combine(_options.StorageBasePath, moduleId.ToString(), "data"));
+        _storageService.ResolvePath(Path.Combine(moduleId.ToString(), "data"));
 
     /// <summary>
     /// Ensures the persistent, version-independent data directory for a module exists on the host
@@ -249,15 +204,7 @@ public class DirectoryExtension
         var dataPath = GetModuleDataDirectoryPath(moduleId);
         try
         {
-            Directory.CreateDirectory(dataPath);
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(
-                    dataPath,
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
-                    UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
-                    UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
-            }
+            _storageService.EnsureDirectory(Path.Combine(moduleId.ToString(), "data"), writableForContainers: true);
         }
         catch (Exception ex)
         {
