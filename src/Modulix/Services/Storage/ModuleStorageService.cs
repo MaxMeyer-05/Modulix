@@ -5,9 +5,7 @@ using Modulix.Services.Storage.Interfaces;
 
 namespace Modulix.Services.Storage;
 
-/// <summary>
-/// Provides module-specific storage operations for version archives and persistent data.
-/// </summary>
+/// <inheritdoc cref="IModuleStorageService"/>
 public class ModuleStorageService : IModuleStorageService
 {
     /// <summary>
@@ -16,17 +14,21 @@ public class ModuleStorageService : IModuleStorageService
     private readonly ModuleSettings _options;
 
     /// <summary>
-    /// The logger instance.
+    /// The logger.
     /// </summary>
     private readonly ILogger<ModuleStorageService> _logger;
+
+    /// <summary>
+    /// The shared storage service.
+    /// </summary>
     private readonly IStorageService _storageService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModuleStorageService"/> class.
     /// </summary>
-    /// <param name="logger">The logger instance.</param>
+    /// <param name="logger">The logger.</param>
     /// <param name="options">The shared module settings.</param>
-    /// <param name="storageService">The shared storage operations.</param>
+    /// <param name="storageService">The shared storage service.</param>
     public ModuleStorageService(
         ILogger<ModuleStorageService> logger, 
         IOptions<ModuleSettings> options,
@@ -41,6 +43,7 @@ public class ModuleStorageService : IModuleStorageService
     /// Validates the contents of a module archive.
     /// </summary>
     /// <param name="archivePath">The path to the module archive to validate.</param>
+    /// <exception cref="InvalidOperationException">Thrown if the module archive exceeds the allowed limits.</exception>
     public void ValidateModuleArchive(string archivePath)
     {
         using var archive = ZipFile.OpenRead(archivePath);
@@ -124,24 +127,13 @@ public class ModuleStorageService : IModuleStorageService
         }
     }
 
-    /// <summary>
-    /// Deletes a directory used to store module files.
-    /// </summary>
-    /// <param name="directoryPath">The path to the staging directory to delete.</param>
-    /// <param name="moduleId">Optional - The ID of the module associated with the staging directory.</param>
+    /// <inheritdoc />
     public void DeleteDirectory(string directoryPath, Guid? moduleId = null)
     {
         _storageService.DeleteDirectory(directoryPath, moduleId?.ToString());
     }
 
-    /// <summary>
-    /// Creates the target path for a module version by extracting its files from the provided .zip archive.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <param name="version">The version string of the module.</param>
-    /// <param name="file">The .zip archive containing the module files.</param>
-    /// <param name="ct">A cancellation token.</param>
-    /// <returns>The path to the extracted module files.</returns>
+    /// <inheritdoc />
     public async Task<string> CreateModuleTargetPathAsync(Guid moduleId, string version, IFormFile file, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(version))
@@ -161,7 +153,7 @@ public class ModuleStorageService : IModuleStorageService
         if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Module file must be a .zip archive.");
 
-        var relativeTargetPath = Path.Combine(moduleId.ToString(), "versions", normalizedVersion);
+        var relativeTargetPath = Path.Combine("modules", moduleId.ToString(), "versions", normalizedVersion);
         return await _storageService.CreateDirectoryAsync(
             relativeTargetPath,
             async (targetPath, token) =>
@@ -185,26 +177,17 @@ public class ModuleStorageService : IModuleStorageService
             ct);
     }
 
-    /// <summary>
-    /// Gets the host path to the persistent, version-independent data directory for a module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <returns>The full host path to the module's persistent data directory (<c>&lt;StorageBasePath&gt;/&lt;moduleId&gt;/data</c>).</returns>
+    /// <inheritdoc />
     public string GetModuleDataDirectoryPath(Guid moduleId) =>
-        _storageService.ResolvePath(Path.Combine(moduleId.ToString(), "data"));
+        _storageService.ResolvePath(Path.Combine("modules", moduleId.ToString(), "data"));
 
-    /// <summary>
-    /// Ensures the persistent, version-independent data directory for a module exists on the host
-    /// and has write permissions for container processes.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
-    /// <returns>The full host path to the module's persistent data directory.</returns>
+    /// <inheritdoc />
     public string EnsureModuleDataDirectory(Guid moduleId)
     {
         var dataPath = GetModuleDataDirectoryPath(moduleId);
         try
         {
-            _storageService.EnsureDirectory(Path.Combine(moduleId.ToString(), "data"), writableForContainers: true);
+            _storageService.EnsureDirectory(Path.Combine("modules", moduleId.ToString(), "data"), writableForContainers: true);
         }
         catch (Exception ex)
         {
@@ -215,10 +198,7 @@ public class ModuleStorageService : IModuleStorageService
         return dataPath;
     }
 
-    /// <summary>
-    /// Deletes the persistent data directory for the specified module.
-    /// </summary>
-    /// <param name="moduleId">The unique identifier of the module.</param>
+    /// <inheritdoc />
     public void DeleteModuleDataDirectory(Guid moduleId)
     {
         var dataPath = GetModuleDataDirectoryPath(moduleId);

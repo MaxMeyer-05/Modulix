@@ -15,6 +15,7 @@ public class ModuleStorageServiceTests : IDisposable
 {
     private readonly string _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_Directory_Tests_" + Guid.NewGuid().ToString("N"));
     private readonly ModuleSettings _options;
+    private readonly string _moduleStoragePath;
     private readonly ModuleStorageService _sut;
 
     #region Setup & Teardown
@@ -22,8 +23,11 @@ public class ModuleStorageServiceTests : IDisposable
     public ModuleStorageServiceTests()
     {
         Directory.CreateDirectory(_testRootDirectory);
-        _options = new ModuleSettings { StorageBasePath = Path.Combine(_testRootDirectory, "modules") };
-        var storage = new StorageService(Options.Create(_options), NullLogger<StorageService>.Instance);
+        _options = new ModuleSettings();
+        _moduleStoragePath = Path.Combine(_testRootDirectory, "modules");
+        var storage = new StorageService(
+            Options.Create(new StorageSettings { StorageBasePath = _testRootDirectory }),
+            NullLogger<StorageService>.Instance);
         _sut = new ModuleStorageService(NullLogger<ModuleStorageService>.Instance, Options.Create(_options), storage);
     }
 
@@ -67,10 +71,10 @@ public class ModuleStorageServiceTests : IDisposable
     public async Task CreateModuleTargetPathAsync_ValidArchive_ExtractsContentsAndReplacesOnlyTargetModule()
     {
         var moduleId = Guid.NewGuid();
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", "v1.0.0");
+        var targetPath = Path.Combine(_moduleStoragePath, moduleId.ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(targetPath);
         await File.WriteAllTextAsync(Path.Combine(targetPath, "obsolete.dll"), "old");
-        var otherModulePath = Path.Combine(_options.StorageBasePath, Guid.NewGuid().ToString(), "versions", "v1.0.0");
+        var otherModulePath = Path.Combine(_moduleStoragePath, Guid.NewGuid().ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(otherModulePath);
         var otherModuleFile = Path.Combine(otherModulePath, "keep.dll");
         await File.WriteAllTextAsync(otherModuleFile, "keep");
@@ -91,6 +95,7 @@ public class ModuleStorageServiceTests : IDisposable
     {
         var moduleId = Guid.NewGuid();
         var dataDir = _sut.EnsureModuleDataDirectory(moduleId);
+        Assert.Equal(Path.Combine(_moduleStoragePath, moduleId.ToString(), "data"), dataDir);
         var dbFile = Path.Combine(dataDir, "app.db");
         await File.WriteAllTextAsync(dbFile, "persistent-sqlite-data");
 
@@ -112,7 +117,7 @@ public class ModuleStorageServiceTests : IDisposable
     public async Task CreateModuleTargetPathAsync_InvalidUpload_PreservesExistingDirectory(string fileName, string payload)
     {
         var moduleId = Guid.NewGuid();
-        var targetPath = Path.Combine(_options.StorageBasePath, moduleId.ToString(), "versions", "v1.0.0");
+        var targetPath = Path.Combine(_moduleStoragePath, moduleId.ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(targetPath);
         var existingFile = Path.Combine(targetPath, "keep.dll");
         await File.WriteAllTextAsync(existingFile, "keep");
@@ -139,22 +144,22 @@ public class ModuleStorageServiceTests : IDisposable
         await Assert.ThrowsAsync<ArgumentException>(() =>
             _sut.CreateModuleTargetPathAsync(moduleId, version, CreateFormFile(contents)));
 
-        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.False(Directory.Exists(Path.Combine(_moduleStoragePath, moduleId.ToString())));
         Assert.False(File.Exists(Path.Combine(_testRootDirectory, "outside", "module.dll")));
     }
 
     [Fact]
     public async Task CreateModuleTargetPathAsync_StoragePathIsFile_PropagatesFailureAndPreservesExistingFile()
     {
-        await File.WriteAllTextAsync(_options.StorageBasePath, "existing file");
+        await File.WriteAllTextAsync(_moduleStoragePath, "existing file");
         var moduleId = Guid.NewGuid();
         using var contents = CreateArchive(("module.dll", "assembly"));
 
         await Assert.ThrowsAnyAsync<IOException>(() =>
             _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
-        Assert.Equal("existing file", await File.ReadAllTextAsync(_options.StorageBasePath));
-        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.Equal("existing file", await File.ReadAllTextAsync(_moduleStoragePath));
+        Assert.False(Directory.Exists(Path.Combine(_moduleStoragePath, moduleId.ToString())));
     }
 
     [Fact]
@@ -166,7 +171,7 @@ public class ModuleStorageServiceTests : IDisposable
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
-        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.False(Directory.Exists(Path.Combine(_moduleStoragePath, moduleId.ToString())));
     }
 
     [Fact]
@@ -179,7 +184,7 @@ public class ModuleStorageServiceTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
-        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.False(Directory.Exists(Path.Combine(_moduleStoragePath, moduleId.ToString())));
     }
 
     [Fact]
@@ -210,8 +215,8 @@ public class ModuleStorageServiceTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() =>
             _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents)));
 
-        Assert.False(File.Exists(Path.Combine(_options.StorageBasePath, "escaped.dll")));
-        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.False(File.Exists(Path.Combine(_moduleStoragePath, "escaped.dll")));
+        Assert.False(Directory.Exists(Path.Combine(_moduleStoragePath, moduleId.ToString())));
     }
 
     [Fact]
@@ -224,7 +229,7 @@ public class ModuleStorageServiceTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             _sut.CreateModuleTargetPathAsync(moduleId, "v1.0.0", CreateFormFile(contents), cancellationToken));
 
-        Assert.False(Directory.Exists(Path.Combine(_options.StorageBasePath, moduleId.ToString())));
+        Assert.False(Directory.Exists(Path.Combine(_moduleStoragePath, moduleId.ToString())));
     }
 
     #endregion
@@ -234,10 +239,10 @@ public class ModuleStorageServiceTests : IDisposable
     [Fact]
     public void DeleteDirectory_NestedOrMissingDirectory_IsIdempotentAndPreservesSiblingDirectories()
     {
-        var targetPath = Path.Combine(_options.StorageBasePath, "module", "versions", "v1.0.0");
+        var targetPath = Path.Combine(_moduleStoragePath, "module", "versions", "v1.0.0");
         Directory.CreateDirectory(Path.Combine(targetPath, "nested"));
         File.WriteAllText(Path.Combine(targetPath, "nested", "module.dll"), "module");
-        var siblingPath = Path.Combine(_options.StorageBasePath, "another-module");
+        var siblingPath = Path.Combine(_moduleStoragePath, "another-module");
         Directory.CreateDirectory(siblingPath);
 
         _sut.DeleteDirectory(targetPath, Guid.NewGuid());

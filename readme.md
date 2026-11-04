@@ -26,7 +26,7 @@ Use [./src/Modulix/appsettings.Template.json](./src/Modulix/appsettings.Template
 | Setting | Template value | Purpose |
 | --- | --- | --- |
 | `ConnectionStrings:ServerDatabase` | `Data Source=modulix.db` | SQLite database connection string. |
-| `Module:StorageBasePath` | `storage/modules` | Directory for extracted module artifacts (relative paths resolve against the content root). |
+| `Storage:StorageBasePath` | `storage` | Shared storage root (relative paths resolve against the content root). Module artifacts and persistent data live under `modules/`; uploaded Dockerfile templates live under `dockerfile-templates/`. |
 | `Module:MaximumArchiveEntryCount` | `1000` | Maximum number of entries allowed in an uploaded ZIP archive. |
 | `Module:MaximumArchiveUncompressedBytes` | `536870912` | Maximum total uncompressed size of an archive (512 MiB). |
 | `Module:MaxRetainedVersionsPerModule` | `5` | Maximum number of stored versions retained per module (`0` for unlimited); older inactive versions are automatically cleaned up when a new version is activated. |
@@ -125,7 +125,7 @@ dotnet test Modulix.slnx
 
 ### Module Artifacts, Versioning, and Upload Validation
 
-A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, an allocated host port, a `CurrentVersion`, discovered sub-endpoints (linked to the `ModuleVersion` in which they were discovered), and a `ModuleStatus`. Version artifacts are stored per version under `<StorageBasePath>/<moduleId>/versions/<version>` so previous versions remain available for instant rollbacks without rescanning (automatically pruning the oldest inactive versions beyond `Module:MaxRetainedVersionsPerModule`), while a version-independent directory `<StorageBasePath>/<moduleId>/data` persists runtime data (such as local SQLite databases or generated files) across version updates and rollbacks.
+A module is a published .NET web application packaged as a ZIP archive (containing the entry `.dll`, `.runtimeconfig.json`, and dependencies). Each module is assigned a unique `Guid`, a unique `BaseUrlPath` prefix, an allocated host port, a `CurrentVersion`, discovered sub-endpoints (linked to the `ModuleVersion` in which they were discovered), and a `ModuleStatus`. Version artifacts are stored per version under `<StorageBasePath>/modules/<moduleId>/versions/<version>` so previous versions remain available for instant rollbacks without rescanning (automatically pruning the oldest inactive versions beyond `Module:MaxRetainedVersionsPerModule`), while a version-independent directory `<StorageBasePath>/modules/<moduleId>/data` persists runtime data (such as local SQLite databases or generated files) across version updates and rollbacks.
 
 To protect the host during extraction, uploads are capped at 50 MiB and validated against path traversal (ZipSlip), maximum entry counts (`MaximumArchiveEntryCount`), and maximum uncompressed size (`MaximumArchiveUncompressedBytes`).
 
@@ -144,7 +144,7 @@ Concurrent scanner containers are bounded by `Docker:MaxConcurrentScans`. When a
 
 ### Container Lifecycle and Version Rollback
 
-When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage` (preparing `/app/data` with write permissions for `$APP_UID`), builds a dedicated image for the active `ModuleVersion`, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, mounts `<StorageBasePath>/<moduleId>/data` into `/app/data`, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
+When a module is ready to start, `Modulix.Docker` generates a `Dockerfile` based on `Docker:BaseImage` (preparing `/app/data` with write permissions for `$APP_UID`), builds a dedicated image for the active `ModuleVersion`, attaches the container to `Docker:NetworkName` with an `UnlessStopped` restart policy, mounts `<StorageBasePath>/modules/<moduleId>/data` into `/app/data`, and binds the container's HTTP port to an ephemeral host port on `127.0.0.1`.
 
 Modules support:
 - **Start / Stop & Live Metrics:** Starting and stopping module containers (`POST /api/v1/modules/{moduleId}/start` and `/stop`), as well as inspecting live container CPU %, memory usage/limit, uptime, and exit code (`GET /api/v1/modules/{moduleId}/stats`).
@@ -239,11 +239,6 @@ The controller, service, and DTOs are scaffolding only; template CRUD and servic
 | `Id` | Auto-generated `int`, primary key | Stable template identifier. |
 | `Name` | Required string, max. 100 characters | Display name, independent of the file name. |
 | `Description` | Optional string, max. 500 characters | Usage notes for template selection. |
-| `StoragePath` | Required string, max. 500 characters, unique index | Relative file path, e.g. `dockerfiles/<template-id>/Dockerfile`. |
-| `IsBuiltIn` | `bool` | Distinguishes supplied templates from custom templates; does not enforce deletion rules. |
+| `StoragePath` | Required string, max. 500 characters, unique index | Relative file path, e.g. `dockerfile-templates/<template-id>/Dockerfile`. |
 | `CreatedAtUtc` | `DateTime` | Creation time in UTC. |
 | `UpdatedAtUtc` | `DateTime` | Last update time in UTC; future CRUD must maintain it. |
-
-Only metadata belongs in the database; template content, including placeholders, stays under `<StorageBasePath>/dockerfiles/`. Relative paths allow moving the storage root without rewriting database rows. Path validation and length validation must also be enforced by future CRUD; SQLite does not enforce the model's maximum string lengths.
-
-No migration, built-in template seeding, module/version relationship, or template selection/build integration is included yet. Existing DTO payload fields and API parameter types are unchanged by the rename; mapping them to this model remains part of future CRUD implementation.

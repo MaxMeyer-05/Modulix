@@ -19,7 +19,7 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
 
     public DockerfileTemplateServiceTests()
     {
-        var storage = new StorageService(_moduleOptions, NullLogger<StorageService>.Instance);
+        var storage = new StorageService(_storageOptions, NullLogger<StorageService>.Instance);
         _sut = new DockerfileTemplateService(
             NullLogger<DockerfileTemplateService>.Instance,
             _context,
@@ -39,6 +39,11 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         Assert.Equal("initial description", stored.Description);
         Assert.StartsWith("dockerfile-templates/", stored.StoragePath);
         Assert.Equal("Dockerfile", Path.GetFileName(stored.StoragePath));
+        var templateId = Path.GetFileName(Path.GetDirectoryName(filePath));
+        Assert.NotNull(templateId);
+        Assert.True(Guid.TryParseExact(templateId, "N", out _));
+        Assert.Equal(Path.Combine(_storageOptions.Value.StorageBasePath, "dockerfile-templates", templateId, "Dockerfile"), filePath);
+        Assert.False(Directory.Exists(Path.Combine(ModuleStoragePath, "dockerfile-templates")));
         Assert.Equal(dockerfileContents, await File.ReadAllTextAsync(filePath));
     }
 
@@ -48,7 +53,7 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         string? savedFilePath = null;
         _saveInterceptor.BeforeSave = () =>
         {
-            savedFilePath = Assert.Single(Directory.GetFiles(_moduleOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories));
+            savedFilePath = Assert.Single(Directory.GetFiles(_storageOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories));
             Assert.Equal("contents before database save", File.ReadAllText(savedFilePath));
         };
         _saveInterceptor.ExceptionToThrow = new InvalidOperationException("Database save failed.");
@@ -98,7 +103,7 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         _saveInterceptor.BeforeSave = () =>
         {
             updatedPath = Assert.Single(
-                Directory.GetFiles(_moduleOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories),
+                Directory.GetFiles(_storageOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories),
                 path => !string.Equals(path, originalPath, StringComparison.Ordinal));
             Assert.Equal("replacement Dockerfile", File.ReadAllText(updatedPath));
             Assert.True(File.Exists(originalPath));
@@ -123,7 +128,7 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
         Assert.Equal("original Dockerfile", await File.ReadAllTextAsync(originalPath));
         Assert.NotNull(updatedPath);
         Assert.False(File.Exists(updatedPath));
-        Assert.Single(Directory.GetFiles(_moduleOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories));
+        Assert.Single(Directory.GetFiles(_storageOptions.Value.StorageBasePath, "Dockerfile", SearchOption.AllDirectories));
     }
 
     [Fact]
@@ -159,15 +164,15 @@ public sealed class DockerfileTemplateServiceTests : ServiceTestBase
     }
 
     private string GetStoredFilePath(string storagePath) =>
-        Path.Combine(_moduleOptions.Value.StorageBasePath, storagePath.Replace('/', Path.DirectorySeparatorChar));
+        Path.Combine(_storageOptions.Value.StorageBasePath, storagePath.Replace('/', Path.DirectorySeparatorChar));
 
     private void AssertNoTemplateStorageFiles()
     {
-        if (!Directory.Exists(_moduleOptions.Value.StorageBasePath))
+        if (!Directory.Exists(_storageOptions.Value.StorageBasePath))
             return;
 
-        Assert.Empty(Directory.GetFiles(_moduleOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories));
-        Assert.Empty(Directory.GetDirectories(_moduleOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetDirectories(_storageOptions.Value.StorageBasePath, "*", SearchOption.AllDirectories));
     }
 
     private static CreateDockerfileTemplateDto CreateDto(string fileName, string contents) => new()

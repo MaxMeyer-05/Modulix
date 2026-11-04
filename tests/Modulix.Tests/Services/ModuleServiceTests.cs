@@ -45,7 +45,7 @@ public partial class ModuleServiceTests : ServiceTestBase
         _sut = new ModuleService(
             _context,
             NullLogger<ModuleService>.Instance,
-            _moduleOptions,
+            _storageOptions,
             _dockerService,
             _endpointScanner,
             _directoryExtension,

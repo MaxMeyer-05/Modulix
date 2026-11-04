@@ -4,18 +4,25 @@ using Modulix.Services.Storage.Interfaces;
 
 namespace Modulix.Services.Storage;
 
-/// <summary>
-/// Implements storage-root path validation and common file-system operations.
-/// </summary>
+/// <inheritdoc cref="IStorageService"/>
 public sealed class StorageService : IStorageService
 {
+    /// <summary>
+    /// The base path of the storage directory.
+    /// </summary>
     private readonly string _storageBasePath;
+
+    /// <summary>
+    /// The logger.
+    /// </summary>
     private readonly ILogger<StorageService> _logger;
 
     /// <summary>
     /// Initializes a storage service using the configured storage root.
     /// </summary>
-    public StorageService(IOptions<ModuleSettings> options, ILogger<StorageService> logger)
+    /// <param name="options">The shared storage settings containing the storage base path.</param>
+    /// <param name="logger">The logger.</param>
+    public StorageService(IOptions<StorageSettings> options, ILogger<StorageService> logger)
     {
         _storageBasePath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(options.Value.StorageBasePath));
         _logger = logger;
@@ -143,6 +150,12 @@ public sealed class StorageService : IStorageService
         }
     }
 
+    /// <summary>
+    /// Resolve a storage-relative path to an absolute path within the storage directory.
+    /// </summary>
+    /// <param name="relativePath">The storage-relative path to resolve.</param>
+    /// <returns>The absolute path within the storage directory.</returns>
+    /// <exception cref="ArgumentException">Thrown if the path is not a storage-relative path or is outside the storage directory.</exception>
     private string ResolveRelativePath(string relativePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
@@ -161,12 +174,21 @@ public sealed class StorageService : IStorageService
         return fullPath;
     }
 
+    /// <summary>
+    /// Ensure that the storage root directory exists.
+    /// </summary>
+    /// <returns>The absolute path to the storage root directory.</returns>
     private string EnsureStorageRoot()
     {
         Directory.CreateDirectory(_storageBasePath);
         return _storageBasePath;
     }
 
+    /// <summary>
+    /// Check if a given full path is within the storage directory.
+    /// </summary>
+    /// <param name="fullPath">The full path to check.</param>
+    /// <returns>True if the path is within the storage directory, false otherwise.</returns>
     private bool IsWithinStorage(string fullPath)
     {
         var comparison = OperatingSystem.IsWindows()
@@ -179,6 +201,10 @@ public sealed class StorageService : IStorageService
             fullPath.StartsWith(storagePrefix, comparison);
     }
 
+    /// <summary>
+    /// Delete empty directories starting from the specified path and moving up the directory tree.
+    /// </summary>
+    /// <param name="directoryPath">The starting directory path.</param>
     private void DeleteEmptyDirectories(string? directoryPath)
     {
         while (!string.IsNullOrEmpty(directoryPath) && IsWithinStorage(directoryPath))

@@ -89,7 +89,7 @@ public partial class ModuleServiceTests
     {
         var module = CreateTestModuleEntity("To Delete", "api/v1/delete", 8009);
         var moduleDir = Path.Combine(
-            _moduleOptions.Value.StorageBasePath,
+            ModuleStoragePath,
             module.Id.ToString(),
             "versions",
             module.Versions.Single().Version);
@@ -99,6 +99,10 @@ public partial class ModuleServiceTests
         var dataDir = _directoryExtension.EnsureModuleDataDirectory(module.Id);
         File.WriteAllText(Path.Combine(dataDir, "app.db"), "sqlite-bytes");
         module.ContainerId = hasContainer ? "existing-container" : null;
+        var templateDirectory = Path.Combine(_storageOptions.Value.StorageBasePath, "dockerfile-templates", "keep");
+        Directory.CreateDirectory(templateDirectory);
+        var templatePath = Path.Combine(templateDirectory, "Dockerfile");
+        await File.WriteAllTextAsync(templatePath, "FROM alpine");
 
         var endpoint = new ModuleEndpoint
         {
@@ -118,6 +122,7 @@ public partial class ModuleServiceTests
 
         Assert.False(Directory.Exists(moduleDir));
         Assert.False(Directory.Exists(dataDir));
+        Assert.Equal("FROM alpine", await File.ReadAllTextAsync(templatePath));
         Assert.Null(await _context.Modules.FindAsync(module.Id));
         Assert.Null(await _context.ModuleEndpoints.FindAsync(endpoint.Id));
         Assert.Equal(hasContainer ? ["existing-container"] : Array.Empty<string>(), _dockerService.RemovedContainerIds);
@@ -129,7 +134,7 @@ public partial class ModuleServiceTests
     {
         var module = CreateTestModuleEntity("Queued Delete", "api/v1/queued-delete", 8010);
         var moduleDir = Path.Combine(
-            _moduleOptions.Value.StorageBasePath,
+            ModuleStoragePath,
             module.Id.ToString(),
             "versions",
             module.Versions.Single().Version);

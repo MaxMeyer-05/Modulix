@@ -21,7 +21,7 @@ public sealed class StorageServiceTests : IDisposable
         _storageRootPath = Path.Combine(_testRootPath, "storage");
         Directory.CreateDirectory(_testRootPath);
         _sut = new StorageService(
-            Options.Create(new ModuleSettings { StorageBasePath = _storageRootPath }),
+            Options.Create(new StorageSettings { StorageBasePath = _storageRootPath }),
             NullLogger<StorageService>.Instance);
     }
 
@@ -31,6 +31,15 @@ public sealed class StorageServiceTests : IDisposable
             Directory.Delete(_testRootPath, recursive: true);
 
         GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public void StorageSettings_DefaultsToSharedStorageRoot()
+    {
+        var settings = new StorageSettings();
+
+        Assert.Equal("storage", settings.StorageBasePath);
+        Assert.Equal("Storage", StorageSettings.SectionName);
     }
 
     [Fact]

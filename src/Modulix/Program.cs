@@ -38,6 +38,11 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 builder.Services.AddOptions<ModuleSettings>()
     .Bind(builder.Configuration.GetSection(ModuleSettings.SectionName))
     .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddOptions<StorageSettings>()
+    .Bind(builder.Configuration.GetSection(StorageSettings.SectionName))
+    .ValidateDataAnnotations()
     .PostConfigure<IHostEnvironment>((options, env) =>
     {
         if (!string.IsNullOrWhiteSpace(options.StorageBasePath))

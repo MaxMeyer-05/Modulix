@@ -45,9 +45,9 @@ public class ModuleService : IModuleService
     private readonly IModuleDockerService _dockerService;
 
     /// <summary>
-    /// The shared module settings.
+    /// The shared storage settings.
     /// </summary>
-    private readonly ModuleSettings _options;
+    private readonly StorageSettings _options;
 
     /// <summary>
     /// The module-specific storage service.
@@ -69,7 +69,7 @@ public class ModuleService : IModuleService
     /// </summary>
     /// <param name="context">The database context used by the service.</param>
     /// <param name="logger">The logger.</param>
-    /// <param name="options">The shared module settings.</param>
+    /// <param name="options">The shared storage settings.</param>
     /// <param name="dockerService">The Docker service.</param>
     /// <param name="endpointScanner">The module endpoint scanner.</param>
     /// <param name="moduleStorage">The module-specific storage service.</param>
@@ -78,7 +78,7 @@ public class ModuleService : IModuleService
     public ModuleService(
         ServerContext context, 
         ILogger<ModuleService> logger,
-        IOptions<ModuleSettings> options,
+        IOptions<StorageSettings> options,
         IModuleDockerService dockerService,
         IModuleEndpointScanner endpointScanner,
         IModuleStorageService moduleStorage,
@@ -397,7 +397,7 @@ public class ModuleService : IModuleService
 
         _moduleStorage.DeleteModuleDataDirectory(moduleId);
 
-        var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, moduleId.ToString());
+        var moduleBaseDirectory = Path.Combine(_options.StorageBasePath, "modules", moduleId.ToString());
         _moduleStorage.DeleteDirectory(moduleBaseDirectory, moduleId);
 
         _context.Modules.Remove(module);

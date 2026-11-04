@@ -38,6 +38,8 @@ public abstract class ServiceTestBase : IDisposable
     protected readonly ModuleEndpointExtension _moduleEndpointExtension;
     protected readonly ModuleVersionExtension _moduleVersionExtension;
     protected readonly IOptions<ModuleSettings> _moduleOptions;
+    protected readonly IOptions<StorageSettings> _storageOptions;
+    protected string ModuleStoragePath => Path.Combine(_storageOptions.Value.StorageBasePath, "modules");
 
     protected ServiceTestBase()
     {
@@ -55,15 +57,16 @@ public abstract class ServiceTestBase : IDisposable
         _testRootDirectory = Path.Combine(Path.GetTempPath(), "Modulix_Tests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_testRootDirectory);
 
-        _moduleOptions = Options.Create(new ModuleSettings
+        _moduleOptions = Options.Create(new ModuleSettings());
+        _storageOptions = Options.Create(new StorageSettings
         {
-            StorageBasePath = Path.Combine(_testRootDirectory, "storage", "modules")
+            StorageBasePath = Path.Combine(_testRootDirectory, "storage")
         });
 
         _endpointScanner = new FakeModuleEndpointScanner();
         _dockerService = new FakeDockerService();
         _reverseProxyService = new ReverseProxyService(NullLogger<ReverseProxyService>.Instance);
-        var storageService = new StorageService(_moduleOptions, NullLogger<StorageService>.Instance);
+        var storageService = new StorageService(_storageOptions, NullLogger<StorageService>.Instance);
         _directoryExtension = new ModuleStorageService(NullLogger<ModuleStorageService>.Instance, _moduleOptions, storageService);
         _moduleVersionExtension = new ModuleVersionExtension(_moduleOptions, _context, NullLogger<ModuleVersionExtension>.Instance);
         _moduleEndpointExtension = new ModuleEndpointExtension(
@@ -161,9 +164,7 @@ public abstract class ServiceTestBase : IDisposable
 
     protected void AssertNoStoredModuleDirectories()
     {
-        var modulesStorageDirectory = Path.Combine(_testRootDirectory, "storage", "modules");
-        Assert.True(Directory.Exists(modulesStorageDirectory));
-        Assert.Empty(Directory.EnumerateDirectories(modulesStorageDirectory));
+        Assert.False(Directory.Exists(ModuleStoragePath));
     }
 
     private static int FindCentralDirectoryOffset(byte[] archiveBytes)

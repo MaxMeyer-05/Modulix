@@ -518,7 +518,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
         var v1 = module.Versions.Single();
         v1.Version = "v1.0.0";
         v1.ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-20);
-        v1.StoragePath = Path.Combine(_moduleOptions.Value.StorageBasePath, module.Id.ToString(), "versions", "v1.0.0");
+        v1.StoragePath = Path.Combine(ModuleStoragePath, module.Id.ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(v1.StoragePath);
         await File.WriteAllTextAsync(Path.Combine(v1.StoragePath, "v1.dll"), "v1");
 
@@ -527,7 +527,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
             ModuleId = module.Id,
             Version = "v1.1.0",
             ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-10),
-            StoragePath = Path.Combine(_moduleOptions.Value.StorageBasePath, module.Id.ToString(), "versions", "v1.1.0"),
+            StoragePath = Path.Combine(ModuleStoragePath, module.Id.ToString(), "versions", "v1.1.0"),
             ModuleEntryAssemblyFileName = "v2.dll"
         };
         Directory.CreateDirectory(v2.StoragePath);
@@ -564,7 +564,7 @@ public class ModuleVersionServiceTests : ServiceTestBase
         var v1 = module.Versions.Single();
         v1.Version = "v1.0.0";
         v1.ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-20);
-        v1.StoragePath = Path.Combine(_moduleOptions.Value.StorageBasePath, module.Id.ToString(), "versions", "v1.0.0");
+        v1.StoragePath = Path.Combine(ModuleStoragePath, module.Id.ToString(), "versions", "v1.0.0");
         Directory.CreateDirectory(v1.StoragePath);
 
         module.CurrentVersion = "v1.0.0";

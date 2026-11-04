@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Modulix;
 
 /// <summary>
-/// Defines shared settings for module storage and archive limits.
+/// Defines module archive limits and version retention settings.
 /// </summary>
 public sealed class ModuleSettings
 {
@@ -11,12 +11,6 @@ public sealed class ModuleSettings
     /// The configuration section containing the shared settings.
     /// </summary>
     public const string SectionName = "Module";
-
-    /// <summary>
-    /// The storage root for module data and uploaded files, absolute or relative to the application's content root.
-    /// </summary>
-    [Required]
-    public string StorageBasePath { get; set; } = Path.Combine("storage", "modules");
 
     /// <summary>
     /// The maximum number of entries allowed in a module archive.
