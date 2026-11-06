@@ -169,9 +169,11 @@ public partial class DetailModel
 
         if (!ModelState.IsValid)
         {
+            FormFieldErrors = FormValidationErrors.FromModelState(ModelState);
             var errors = ModelState.Values.SelectMany(value => value.Errors)
                 .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                    ? "A form field has an invalid value." : error.ErrorMessage);
+                    ? "A form field has an invalid value." : error.ErrorMessage)
+                .ToArray();
             ModelState.Clear();
             EditInput = input;
             EditError = Failure(400, string.Join(" ", errors));
@@ -199,8 +201,9 @@ public partial class DetailModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                FormFieldErrors = error.FieldErrors;
                 EditInput = input;
-                EditError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                EditError = new ActionError(error.StatusCode, error.Title, FormValidationErrors.Describe(error));
                 await LoadModuleAsync(id);
                 return Page();
             }
@@ -242,13 +245,44 @@ public partial class DetailModel
     /// Deletes the module, its container, storage directory, and registered endpoints.
     /// </summary>
     /// <param name="id">The ID of the module to delete.</param>
-    /// <param name="moduleName">The display name of the module being deleted.</param>
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm] string? moduleName)
+    /// <param name="confirmationName">The module name entered to confirm deletion.</param>
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm] string? confirmationName)
     {
         ModelState.Clear();
+        DeleteConfirmationName = confirmationName;
 
         try
         {
+            using var moduleResponse = await _modulixApiClient.ModuleManagement.GetModuleByIdAsync(
+                id,
+                ct: HttpContext.RequestAborted);
+
+            if (!moduleResponse.IsSuccessStatusCode)
+            {
+                var error = await moduleResponse.ReadApiErrorAsync(HttpContext.RequestAborted);
+                DeleteError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
+            var moduleToDelete = await moduleResponse.Content.ReadFromJsonAsync<ModuleDetailDto>(
+                cancellationToken: HttpContext.RequestAborted);
+            if (moduleToDelete is null || moduleToDelete.Id != id || string.IsNullOrWhiteSpace(moduleToDelete.ModuleName))
+            {
+                _logger.LogError("Invalid module details returned while confirming deletion of {ModuleId}.", id);
+                ModelState.AddModelError(string.Empty, "The API returned invalid module details. Deletion was not performed.");
+                return Page();
+            }
+
+            if (!string.Equals(confirmationName, moduleToDelete.ModuleName, StringComparison.Ordinal))
+            {
+                const string message = "Enter the module name exactly as shown to confirm deletion.";
+                FormFieldErrors = FormValidationErrors.ForField(nameof(confirmationName), message);
+                DeleteError = Failure(400, message);
+                await LoadModuleAsync(id);
+                return Page();
+            }
+
             _logger.LogInformation("Deleting module {ModuleId}.", id);
 
             using var response = await _modulixApiClient.ModuleManagement.DeleteModuleAsync(
@@ -264,7 +298,7 @@ public partial class DetailModel
             }
 
             _endpointDiscrepancyService?.ClearReport(id);
-            var targetName = !string.IsNullOrWhiteSpace(moduleName) ? moduleName.Trim() : id.ToString();
+            var targetName = moduleToDelete.ModuleName;
             _userActivityService.Record(
                 User,
                 "Deleted",
@@ -290,6 +324,12 @@ public partial class DetailModel
         {
             _logger.LogError(exception, "Deleting module {ModuleId} timed out.", id);
             DeleteError = Failure(504, "The API did not respond in time. Please try again.");
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogError(exception, "Invalid module details while confirming deletion of {ModuleId}.", id);
+            ModelState.AddModelError(string.Empty, "The API returned invalid module details. Deletion was not performed.");
+            return Page();
         }
 
         await LoadModuleAsync(id);

@@ -121,6 +121,17 @@ public partial class DetailModel
     public ActionError? DeleteError { get; private set; }
 
     /// <summary>
+    /// Gets the entered module name from a failed deletion attempt.
+    /// </summary>
+    public string? DeleteConfirmationName { get; private set; }
+
+    /// <summary>
+    /// Gets field-level errors for the dialog reopened after a failed action.
+    /// </summary>
+    public IReadOnlyDictionary<string, string[]> FormFieldErrors { get; private set; } =
+        new Dictionary<string, string[]>();
+
+    /// <summary>
     /// Gets the original version string targeted by a failed version edit attempt.
     /// </summary>
     public string? EditVersionTarget { get; private set; }

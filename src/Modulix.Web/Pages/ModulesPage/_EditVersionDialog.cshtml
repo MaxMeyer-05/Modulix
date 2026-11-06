@@ -6,7 +6,7 @@
 }
 <dialog class="dialog dialog--md" id="edit-version-dialog" data-open-on-load="@(Model.ReopenEditVersion ? "true" : "false")" data-dialog-return-focus="@(editVersionId.HasValue ? $"edit-version-{editVersionId}" : null)" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId">
     <partial name="_DialogHeader" model="dialogHeader" />
-    <form class="dialog-layout" id="edit-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="EditVersion" asp-route-id="@module.Id">
+    <form class="dialog-layout" id="edit-version-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="EditVersion" asp-route-id="@module.Id" data-field-errors="@(Model.ReopenEditVersion ? System.Text.Json.JsonSerializer.Serialize(Model.FormFieldErrors) : "{}")">
         <div class="dialog-body">
             @if (Model.EditVersionError is { } editVersionError)
             {

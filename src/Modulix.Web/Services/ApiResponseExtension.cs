@@ -14,6 +14,12 @@ namespace Modulix.Web.Services;
 public sealed record ApiError(int StatusCode, string Title, string Detail)
 {
     /// <summary>
+    /// Gets validation messages associated with individual request fields.
+    /// </summary>
+    public IReadOnlyDictionary<string, string[]> FieldErrors { get; init; } =
+        new Dictionary<string, string[]>();
+
+    /// <summary>
     /// Formats the status code, title, and detail into a single display message for page alerts.
     /// </summary>
     public string DisplayMessage =>
@@ -45,6 +51,7 @@ public static class ApiResponseExtension
 
         var title = defaultTitle;
         var detail = defaultTitle;
+        IReadOnlyDictionary<string, string[]> fieldErrors = new Dictionary<string, string[]>();
 
         var content = await response.Content.ReadAsStringAsync(ct);
         if (!string.IsNullOrWhiteSpace(content))
@@ -54,6 +61,28 @@ public static class ApiResponseExtension
                 var problem = JsonSerializer.Deserialize<ValidationProblemDetails>(content, JsonSerializerOptions.Web);
                 if (problem is not null)
                 {
+                    if (problem.Errors is { Count: > 0 })
+                    {
+                        var messagesByField = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var (field, messages) in problem.Errors)
+                        {
+                            if (messages is null || messages.Length == 0 || messages.Any(string.IsNullOrWhiteSpace))
+                                throw new JsonException("The API returned an invalid field validation message.");
+
+                            if (!messagesByField.TryGetValue(field, out var existingMessages))
+                            {
+                                existingMessages = [];
+                                messagesByField[field] = existingMessages;
+                            }
+                            existingMessages.AddRange(messages);
+                        }
+
+                        fieldErrors = messagesByField.ToDictionary(
+                            entry => entry.Key,
+                            entry => entry.Value.ToArray(),
+                            StringComparer.OrdinalIgnoreCase);
+                    }
+
                     if (!string.IsNullOrWhiteSpace(problem.Title))
                         title = problem.Title;
 
@@ -61,9 +90,9 @@ public static class ApiResponseExtension
                     {
                         detail = problem.Detail;
                     }
-                    else if (problem.Errors.Count > 0)
+                    else if (fieldErrors.Count > 0)
                     {
-                        detail = string.Join(" ", problem.Errors.Values.SelectMany(messages => messages));
+                        detail = string.Join(" ", fieldErrors.Values.SelectMany(messages => messages));
                     }
                     else if (!string.IsNullOrWhiteSpace(problem.Title))
                     {
@@ -77,6 +106,6 @@ public static class ApiResponseExtension
             }
         }
 
-        return new ApiError(statusCode, title, detail);
+        return new ApiError(statusCode, title, detail) { FieldErrors = fieldErrors };
     }
 }

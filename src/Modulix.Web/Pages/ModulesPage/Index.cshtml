@@ -176,7 +176,7 @@
             </div>
             <button class="ui-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
         </div>
-        <form class="dialog-layout" id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data">
+        <form class="dialog-layout" id="add-module-form" method="post" asp-page="/ModulesPage/Index" enctype="multipart/form-data" data-submit-label="Uploading..." data-field-errors="@System.Text.Json.JsonSerializer.Serialize(Model.CreationFieldErrors)">
             <div class="dialog-body">
                 @if (Model.CreationError is { } error)
                 {
@@ -231,11 +231,17 @@
                         </div>
                     </div>
                     <span class="module-field-label">Module archive <span class="required-mark">*</span></span>
-                    <label class="module-upload" id="module-upload-area" for="module-archive">
+                    <label class="module-upload" id="module-upload-area" for="module-archive" data-file-upload>
                         <i data-lucide="upload" aria-hidden="true"></i>
                         <strong>Choose a ZIP archive</strong>
+                        <span class="module-field-hint">Or drag and drop one ZIP archive here.</span>
+                        <span class="module-upload-file" data-file-details role="status">No file selected</span>
                         <input id="module-archive" name="ModuleFile" type="file" accept=".zip,application/zip" aria-label="Module archive" required />
                     </label>
+                    @if (Model.CreationError is not null)
+                    {
+                        <p class="module-field-hint">For security, select the archive again after a failed submission.</p>
+                    }
                 </fieldset>
             </div>
             <div class="dialog-footer">

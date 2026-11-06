@@ -115,13 +115,17 @@
 .module-subendpoints-list { display: flex; flex-direction: column; gap: 8px; }
 .module-subendpoints-list:empty { display: none; }
 .module-subendpoint-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) 32px; align-items: center; gap: 8px; }
+.module-subendpoint-row .form-field-error { grid-column: 1 / -1; }
 .module-subendpoint-remove { color: var(--color-text-muted); }
 .module-subendpoint-remove:hover:not(:disabled) { color: var(--color-danger); background: #34212a; }
 .module-upload { align-items: center; padding: 24px 16px; border: 1px dashed #486171; border-radius: 6px; text-align: center; cursor: pointer; }
 .module-upload svg { width: 24px; height: 24px; color: var(--color-accent); }
 .module-upload strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.module-upload.is-dragging { border-color: var(--color-accent); background: var(--color-surface-hover); }
+.module-upload-file { color: var(--color-text); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .module-upload input { width: 100%; max-width: 100%; margin-top: 8px; padding: 20px 8px; cursor: pointer; color: var(--color-text-muted); font-size: 12px; }
 .module-upload input::file-selector-button { padding: 6px 10px; margin-right: 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-hover); color: var(--color-text); }
+.module-delete-confirmation { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; color: #d3dbe6; font-size: 13px; }
 .module-form-error { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--color-danger-fill); border-radius: 6px; background: #34212a; color: #ffb7bc; line-height: 1.5; }
 .module-form-error p { margin: 6px 0 0; overflow-wrap: anywhere; white-space: pre-line; }
 .module-result-code { color: var(--color-text-muted); }

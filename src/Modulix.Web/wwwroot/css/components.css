@@ -111,6 +111,13 @@
   outline-offset: 3px;
 }
 
+.form-field-error { color: var(--color-danger); font-size: var(--font-size-sm); line-height: 1.4; overflow-wrap: anywhere; }
+.dialog :is(input, select, textarea)[aria-invalid="true"] { border-color: var(--color-danger); }
+.form-submit-progress { display: inline-flex; align-items: center; gap: var(--space-2); }
+.form-submit-spinner { width: 14px; height: 14px; flex-shrink: 0; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: form-submit-spin .7s linear infinite; }
+@keyframes form-submit-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .form-submit-spinner { animation: none; } }
+
 .module-search-field, .log-date-field, .log-search {
   display: flex;
   align-items: center;

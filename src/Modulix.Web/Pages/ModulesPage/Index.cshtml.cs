@@ -127,6 +127,12 @@ public class IndexModel : PageModel
     public CreationResult? CreationError { get; private set; }
 
     /// <summary>
+    /// Gets field-level errors from the most recent module creation attempt.
+    /// </summary>
+    public IReadOnlyDictionary<string, string[]> CreationFieldErrors { get; private set; } =
+        new Dictionary<string, string[]>();
+
+    /// <summary>
     /// The outcome of an accepted module creation.
     /// </summary>
     public CreationResult? CreationSuccess { get; private set; }
@@ -207,15 +213,20 @@ public class IndexModel : PageModel
     {
         if (!ModelState.IsValid)
         {
+            CreationFieldErrors = FormValidationErrors.FromModelState(ModelState);
             var errors = ModelState.Values.SelectMany(value => value.Errors)
                 .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                    ? "A form field has an invalid value." : error.ErrorMessage);
+                    ? "A form field has an invalid value." : error.ErrorMessage)
+                .ToArray();
             ModelState.Clear();
             return Failure(400, string.Join(" ", errors));
         }
 
-        if (!input.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        if (input.ModuleFile is null || !input.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            CreationFieldErrors = FormValidationErrors.ForField(nameof(input.ModuleFile), "Choose a ZIP archive.");
             return Failure(400, "Choose a ZIP archive.");
+        }
 
         if (input.InitialEndpoints is not null)
         {
@@ -251,7 +262,8 @@ public class IndexModel : PageModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
-                return new CreationResult(error.StatusCode, error.Title, error.Detail, null);
+                CreationFieldErrors = error.FieldErrors;
+                return new CreationResult(error.StatusCode, error.Title, FormValidationErrors.Describe(error), null);
             }
 
             var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(

@@ -121,6 +121,10 @@ document.querySelectorAll("[data-delete-version]").forEach(button => {
     };
 
     const isEditingFilter = () => {
+        if (document.querySelector('form[aria-busy="true"]')) {
+            return true;
+        }
+
         const openDialog = document.querySelector("dialog[open]");
         if (openDialog) {
             return true;

@@ -5,7 +5,7 @@
 }
 <dialog class="dialog dialog--md" id="edit-module-dialog" data-open-on-load="@(Model.ReopenEdit ? "true" : "false")" data-dialog-return-focus="module-actions-toggle" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId">
     <partial name="_DialogHeader" model="dialogHeader" />
-    <form class="dialog-layout" id="edit-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Edit" asp-route-id="@module.Id">
+    <form class="dialog-layout" id="edit-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Edit" asp-route-id="@module.Id" data-field-errors="@(Model.ReopenEdit ? System.Text.Json.JsonSerializer.Serialize(Model.FormFieldErrors) : "{}")">
         <div class="dialog-body">
             @if (Model.EditError is { } editError)
             {

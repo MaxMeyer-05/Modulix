@@ -24,9 +24,11 @@ public partial class DetailModel
     {
         if (!ModelState.IsValid)
         {
+            FormFieldErrors = FormValidationErrors.FromModelState(ModelState);
             var errors = ModelState.Values.SelectMany(value => value.Errors)
                 .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                    ? "A form field has an invalid value." : error.ErrorMessage);
+                    ? "A form field has an invalid value." : error.ErrorMessage)
+                .ToArray();
             ModelState.Clear();
             UpdateFilesInput = input;
             UpdateFilesError = Failure(400, string.Join(" ", errors));
@@ -36,6 +38,7 @@ public partial class DetailModel
 
         if (input.ModuleFile is null || !input.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
+            FormFieldErrors = FormValidationErrors.ForField(nameof(input.ModuleFile), "Choose a ZIP archive.");
             UpdateFilesInput = input;
             UpdateFilesError = Failure(400, "Choose a ZIP archive.");
             await LoadModuleAsync(id);
@@ -54,8 +57,9 @@ public partial class DetailModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                FormFieldErrors = error.FieldErrors;
                 UpdateFilesInput = input;
-                UpdateFilesError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                UpdateFilesError = new ActionError(error.StatusCode, error.Title, FormValidationErrors.Describe(error));
                 await LoadModuleAsync(id);
                 return Page();
             }
@@ -160,6 +164,7 @@ public partial class DetailModel
 
         if (string.IsNullOrWhiteSpace(version))
         {
+            FormFieldErrors = FormValidationErrors.ForField(nameof(version), "Select a target version to roll back to.");
             RollbackError = Failure(400, "Select a target version to roll back to.");
             await LoadModuleAsync(id);
             return Page();
@@ -181,7 +186,8 @@ public partial class DetailModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
-                RollbackError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                FormFieldErrors = error.FieldErrors;
+                RollbackError = new ActionError(error.StatusCode, error.Title, FormValidationErrors.Describe(error));
                 await LoadModuleAsync(id);
                 return Page();
             }
@@ -306,7 +312,7 @@ public partial class DetailModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
-                ConfirmEndpointsError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                ConfirmEndpointsError = new ActionError(error.StatusCode, error.Title, FormValidationErrors.Describe(error));
                 await LoadModuleAsync(id);
                 return Page();
             }
@@ -405,9 +411,11 @@ public partial class DetailModel
 
         if (!ModelState.IsValid)
         {
+            FormFieldErrors = FormValidationErrors.FromModelState(ModelState);
             var errors = ModelState.Values.SelectMany(value => value.Errors)
                 .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                    ? "A form field has an invalid value." : error.ErrorMessage);
+                    ? "A form field has an invalid value." : error.ErrorMessage)
+                .ToArray();
             ModelState.Clear();
             EditVersionInput = input;
             EditVersionError = Failure(400, string.Join(" ", errors));
@@ -437,8 +445,9 @@ public partial class DetailModel
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                FormFieldErrors = error.FieldErrors;
                 EditVersionInput = input;
-                EditVersionError = new ActionError(error.StatusCode, error.Title, error.Detail);
+                EditVersionError = new ActionError(error.StatusCode, error.Title, FormValidationErrors.Describe(error));
                 await LoadModuleAsync(id);
                 return Page();
             }
