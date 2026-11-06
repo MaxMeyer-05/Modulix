@@ -1,0 +1,10 @@
+@model PageAutoRefreshModel
+<div class="page-toolbar-actions">
+    <span class="auto-refresh-status" aria-live="off">
+        <span class="auto-refresh-dot" aria-hidden="true"></span>
+        <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
+    </span>
+    <a class="ui-button" data-auto-refresh-link href="@Model.Url">
+        <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
+    </a>
+</div>

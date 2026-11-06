@@ -4,9 +4,10 @@ using System.Security.Cryptography.X509Certificates;
 using Serilog;
 
 using Modulix.Web;
-using Modulix.Web.Services;
 using Modulix.Client;
 
+using Modulix.Web.Services;
+using Modulix.Web.Services.Interfaces;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;

@@ -1,0 +1,29 @@
+@model DetailModel
+@{
+    var module = Model.Module!;
+    var dialogHeader = new DialogHeaderModel("delete-module-heading", "Delete module?", "trash-2");
+}
+<dialog class="dialog dialog--sm dialog--danger" id="delete-module-dialog" data-open-on-load="@(Model.ReopenDelete ? "true" : "false")" data-dialog-return-focus="module-actions-toggle" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId" aria-describedby="delete-module-description">
+    <partial name="_DialogHeader" model="dialogHeader" />
+    <form class="dialog-layout" id="delete-module-form" method="post" asp-page="/Modules/Detail" asp-page-handler="Delete" asp-route-id="@module.Id" data-field-errors="@(Model.ReopenDelete ? System.Text.Json.JsonSerializer.Serialize(Model.FormFieldErrors) : "{}")">
+        <div class="dialog-body">
+            @if (Model.DeleteError is { } deleteError)
+            {
+                <div class="module-form-error" role="alert" data-validation-summary="@(Model.FormFieldErrors.Count > 0 ? "true" : null)">
+                    <strong>@deleteError.Title</strong> <span class="module-code">HTTP @deleteError.StatusCode</span>
+                    <p>@deleteError.Description</p>
+                </div>
+            }
+            <p class="dialog-description" id="delete-module-description">Permanently delete <strong>@module.ModuleName</strong> (<span class="module-code">@module.BaseUrlPath</span>)? This will stop and remove its container, delete its extracted files, and unregister all endpoints. This cannot be undone.</p>
+            <label class="module-delete-confirmation">
+                <span>Type the module name to confirm <span class="required-mark">*</span></span>
+                <input class="ui-input" id="delete-module-confirmation" name="confirmationName" value="@Model.DeleteConfirmationName" data-confirm-module-name="@module.ModuleName" aria-describedby="delete-module-confirmation-hint" autocomplete="off" spellcheck="false" maxlength="100" required autofocus />
+                <span class="module-field-hint" id="delete-module-confirmation-hint">The name must match exactly, including capitalization.</span>
+            </label>
+        </div>
+        <div class="dialog-footer">
+            <partial name="_DialogCancelButton" />
+            <button class="ui-button ui-button-danger" type="submit" data-confirm-delete disabled><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
+        </div>
+    </form>
+</dialog>

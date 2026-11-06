@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
 
 using Modulix.Client.Models.Dtos;
+using Modulix.Web.Services.Interfaces;
 
 namespace Modulix.Web.Services;
 

@@ -1,0 +1,432 @@
+using System.Globalization;
+using System.Text.Json;
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.WebUtilities;
+
+using Modulix.Client;
+using Modulix.Client.Models.Dtos;
+using Modulix.Client.Models.Enums;
+using Modulix.Client.Models.Dtos.Query;
+using Modulix.Web.Models;
+using Modulix.Web.Extensions;
+using Modulix.Web.Helpers;
+using Modulix.Web.Services.Interfaces;
+
+
+namespace Modulix.Web.Pages.Modules;
+
+/// <summary>
+/// Handles the display and management of the modules index page.
+/// </summary>
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+public class IndexModel : PageModel
+{
+    /// <summary>
+    /// The key used to store the result of a module creation in TempData.
+    /// </summary>
+    private const string ResultKey = "ModuleCreationResult";
+
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// The Modulix API client.
+    /// </summary>
+    private readonly IModulixApi _modulixApiClient;
+
+    /// <summary>
+    /// The user session activity service.
+    /// </summary>
+    private readonly IUserActivityService _userActivityService;
+
+    /// <summary>
+    /// The endpoint discrepancy report service.
+    /// </summary>
+    private readonly IEndpointDiscrepancyService? _endpointDiscrepancyService;
+
+    /// <summary>
+    /// The logger instance.
+    /// </summary>
+    private readonly ILogger<IndexModel> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="IndexModel"/> class.
+    /// </summary>
+    /// <param name="modulixApiClient">The Modulix API client.</param>
+    /// <param name="userActivityService">The user session activity service.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="endpointDiscrepancyService">The endpoint discrepancy report service.</param>
+    public IndexModel(
+        IModulixApi modulixApiClient,
+        IUserActivityService userActivityService,
+        ILogger<IndexModel> logger,
+        IEndpointDiscrepancyService? endpointDiscrepancyService = null)
+    {
+        _modulixApiClient = modulixApiClient;
+        _userActivityService = userActivityService;
+        _logger = logger;
+        _endpointDiscrepancyService = endpointDiscrepancyService;
+    }
+
+    /// <summary>
+    /// The list of modules that match the current search and filters.
+    /// </summary>
+    public List<ModuleDto> Modules { get; private set; } = [];
+
+    /// <summary>
+    /// The total number of modules before filtering.
+    /// </summary>
+    public int TotalModules { get; private set; }
+
+    /// <summary>
+    /// The current search query.
+    /// </summary>
+    public string Query { get; private set; } = "";
+
+    /// <summary>
+    /// The current status filter.
+    /// </summary>
+    public string StatusFilter { get; private set; } = "";
+
+    /// <summary>
+    /// Allowed page size options for the modules list.
+    /// </summary>
+    public static readonly int[] AllowedPageSizes = [5, 10, 20, 50];
+
+    /// <summary>
+    /// The current 1-based page number.
+    /// </summary>
+    public int CurrentPage { get; private set; } = PaginationQueryDto.DefaultPage;
+
+    /// <summary>
+    /// The number of modules displayed per page.
+    /// </summary>
+    public int PageSize { get; private set; } = PaginationQueryDto.DefaultPageSize;
+
+    /// <summary>
+    /// The total number of pages available.
+    /// </summary>
+    public int TotalPages { get; private set; } = 1;
+
+    /// <summary>
+    /// Indicates whether there is a previous page.
+    /// </summary>
+    public bool HasPreviousPage { get; private set; }
+
+    /// <summary>
+    /// Indicates whether there is a next page.
+    /// </summary>
+    public bool HasNextPage { get; private set; }
+
+    /// <summary>
+    /// The submitted form values when the creation failed, so the form can be shown again.
+    /// </summary>
+    public CreateModuleDto? Input { get; private set; }
+
+    /// <summary>
+    /// The outcome of a rejected module creation.
+    /// </summary>
+    public CreationResult? CreationError { get; private set; }
+
+    /// <summary>
+    /// Gets field-level errors from the most recent module creation attempt.
+    /// </summary>
+    public IReadOnlyDictionary<string, string[]> CreationFieldErrors { get; private set; } =
+        new Dictionary<string, string[]>();
+
+    /// <summary>
+    /// The outcome of an accepted module creation.
+    /// </summary>
+    public CreationResult? CreationSuccess { get; private set; }
+
+    /// <summary>
+    /// Feedback from a completed module action (such as deleting a module).
+    /// </summary>
+    public DetailModel.ActionFeedback? Feedback { get; private set; }
+
+    /// <summary>
+    /// Handles the GET request for the index page.
+    /// </summary>
+    /// <param name="q">The search text.</param>
+    /// <param name="status">The status to filter by.</param>
+    /// <param name="pageNumber">The 1-based page number.</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    /// <returns>An <see cref="IActionResult"/> representing the result of the request.</returns>
+    public async Task<IActionResult> OnGetAsync(
+        string? q,
+        string? status,
+        [FromQuery(Name = "page")] int pageNumber = PaginationQueryDto.DefaultPage,
+        [FromQuery(Name = "pageSize")] int pageSize = PaginationQueryDto.DefaultPageSize)
+    {
+        if (TempData[ResultKey] is string json)
+            CreationSuccess = JsonSerializer.Deserialize<CreationResult>(json, WebJsonOptions);
+
+        if (TempData[DetailModel.FeedbackKey] is string feedbackJson)
+            Feedback = JsonSerializer.Deserialize<DetailModel.ActionFeedback>(feedbackJson);
+
+        await LoadModulesAsync(q, status, pageNumber, pageSize);
+        return Page();
+    }
+
+    /// <summary>
+    /// Builds a URL for the modules page preserving current filter and pagination parameters.
+    /// </summary>
+    public string GetPageUrl(int targetPage)
+    {
+        var baseUrl = Url.Page("/Modules/Index") ?? "/modules";
+        var queryParams = new Dictionary<string, string?>();
+
+        if (!string.IsNullOrWhiteSpace(Query))
+            queryParams["q"] = Query;
+        if (!string.IsNullOrWhiteSpace(StatusFilter))
+            queryParams["status"] = StatusFilter;
+        if (targetPage > 1)
+            queryParams["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
+        if (PageSize != PaginationQueryDto.DefaultPageSize)
+            queryParams["pageSize"] = PageSize.ToString(CultureInfo.InvariantCulture);
+
+        return QueryHelpers.AddQueryString(baseUrl, queryParams);
+    }
+
+    /// <summary>
+    /// Loads the modules based on the current search and filter criteria.
+    /// </summary>
+    /// <param name="input">The input data for the new module.</param>
+    public async Task<IActionResult> OnPostAsync([FromForm] CreateModuleDto input)
+    {
+        var result = await CreateAsync(input);
+        if (result.IsSuccess)
+        {
+            if (result.DiscrepancyReport is { HasDiscrepancy: true })
+            {
+                TempData[ResultKey] = JsonSerializer.Serialize(result, WebJsonOptions);
+            }
+            else
+            {
+                var accepted = result.StatusCode == 202;
+                TempData.AddToast(new ToastMessage(
+                    accepted ? "Module scan queued" : "Module created",
+                    result.Description,
+                    accepted ? ToastVariant.Info : ToastVariant.Success,
+                    result.ModuleUrl,
+                    result.ModuleUrl is null ? null : "Go to module"));
+            }
+
+            return RedirectToPage();
+        }
+
+        Input = input;
+        CreationError = result;
+        await LoadModulesAsync(null, null, PaginationQueryDto.DefaultPage, PaginationQueryDto.DefaultPageSize);
+        return Page();
+    }
+
+    /// <summary>
+    /// Creates a new module using the provided input.
+    /// </summary>
+    /// <param name="input">The input data for the new module.</param>
+    private async Task<CreationResult> CreateAsync(CreateModuleDto input)
+    {
+        if (!ModelState.IsValid)
+        {
+            CreationFieldErrors = FormValidationErrors.FromModelState(ModelState);
+            var errors = ModelState.Values.SelectMany(value => value.Errors)
+                .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? "A form field has an invalid value." : error.ErrorMessage)
+                .ToArray();
+            ModelState.Clear();
+            return Failure(400, string.Join(" ", errors));
+        }
+
+        if (input.ModuleFile is null || !input.ModuleFile.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            CreationFieldErrors = FormValidationErrors.ForField(nameof(input.ModuleFile), "Choose a ZIP archive.");
+            return Failure(400, "Choose a ZIP archive.");
+        }
+
+        if (input.InitialEndpoints is not null)
+        {
+            var normalizedEndpoints = input.InitialEndpoints
+                .Where(ep => !string.IsNullOrWhiteSpace(ep.HttpMethod) && !string.IsNullOrWhiteSpace(ep.EndpointPath))
+                .Select(ep =>
+                {
+                    var path = ep.EndpointPath.Trim();
+                    if (!path.StartsWith('/'))
+                        path = "/" + path;
+
+                    return new CreateModuleSubEndpointDto
+                    {
+                        HttpMethod = ep.HttpMethod.Trim().ToUpperInvariant(),
+                        EndpointPath = path
+                    };
+                })
+                .ToList();
+
+            input.InitialEndpoints = normalizedEndpoints.Count > 0 ? normalizedEndpoints : null;
+        }
+
+        try
+        {
+            var sanitizedModuleName = input.ModuleName
+                .Replace("\r", string.Empty)
+                .Replace("\n", string.Empty);
+            _logger.LogDebug("Creating a new module with name {ModuleName}.", sanitizedModuleName);
+
+            using var response = await _modulixApiClient.ModuleManagement.CreateModuleAsync(
+                input, ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                CreationFieldErrors = error.FieldErrors;
+                return new CreationResult(error.StatusCode, error.Title, FormValidationErrors.Describe(error), null);
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ModuleCreationResultDto>(
+                cancellationToken: HttpContext.RequestAborted)
+                ?? throw new JsonException("The API returned an empty response.");
+
+            var module = result.Module;
+            _endpointDiscrepancyService?.SaveReport(module.Id, result.DiscrepancyReport);
+
+            var statusCode = (int)response.StatusCode;
+            var moduleUrl = statusCode is 201 or 202
+                ? Url.Page("/Modules/Detail", new { id = module.Id }) : null;
+            var hasDiscrepancy = result.DiscrepancyReport?.HasDiscrepancy == true;
+            var title = hasDiscrepancy
+                ? "Endpoints require confirmation"
+                : ReasonPhrases.GetReasonPhrase(statusCode);
+            var description = !string.IsNullOrWhiteSpace(result.Message)
+                ? result.Message
+                : ReasonPhrases.GetReasonPhrase(statusCode);
+
+            _logger.LogInformation("Module creation returned HTTP {StatusCode} for {ModuleId}.", statusCode, module.Id);
+
+            if (statusCode is 201 or 202)
+            {
+                var action = hasDiscrepancy
+                    ? "Added (pending confirmation)"
+                    : statusCode == 202 ? "Queued module scan for" : "Added";
+                var tone = hasDiscrepancy
+                    ? UserActivityTone.Warning
+                    : statusCode == 202 ? UserActivityTone.Update : UserActivityTone.Success;
+                _userActivityService.Record(User, action, module.ModuleName, "plus", tone, moduleUrl);
+            }
+
+            return new CreationResult(statusCode, title, description, moduleUrl, result.DiscrepancyReport);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "Error creating module.");
+            return Failure(503, "The API could not be reached. Please try again later.");
+        }
+        catch (OperationCanceledException exception) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogError(exception, "Module creation timed out.");
+            return Failure(504, "The API did not respond in time. Check the module list before retrying.");
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogError(exception, "Invalid module creation response.");
+            return Failure(502, "The API returned an invalid response. Check the module list before retrying.");
+        }
+    }
+
+    /// <summary>
+    /// Creates a failure result for a module creation attempt.
+    /// </summary>
+    /// <param name="statusCode">The HTTP status code of the failure.</param>
+    /// <param name="description">The description of the failure.</param>
+    /// <returns>A <see cref="CreationResult"/> representing the failure.</returns>
+    private static CreationResult Failure(int statusCode, string description) =>
+        new(statusCode, ReasonPhrases.GetReasonPhrase(statusCode), description, null);
+
+    /// <summary>
+    /// Loads the modules based on the current search, filter, and pagination criteria.
+    /// </summary>
+    /// <param name="q">The search text.</param>
+    /// <param name="status">The status to filter by.</param>
+    /// <param name="pageNumber">The 1-based page number.</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    private async Task LoadModulesAsync(string? q, string? status, int pageNumber, int pageSize)
+    {
+        Query = q?.Trim() ?? "";
+        StatusFilter = status ?? "";
+        CurrentPage = pageNumber < 1 ? PaginationQueryDto.DefaultPage : pageNumber;
+        PageSize = pageSize < 1
+            ? PaginationQueryDto.DefaultPageSize
+            : Math.Min(pageSize, PaginationQueryDto.MaxPageSize);
+
+        try
+        {
+            var moduleQuery = new ModuleQueryDto
+            {
+                Status = Enum.TryParse<ModuleStatus>(StatusFilter, ignoreCase: true, out var parsedStatus)
+                    ? parsedStatus
+                    : null
+            };
+
+            using var response = await _modulixApiClient.ModuleManagement.GetAllModulesAsync(
+                query: moduleQuery,
+                pagination: new PaginationQueryDto { Page = CurrentPage, PageSize = PageSize },
+                ct: HttpContext.RequestAborted);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.ReadApiErrorAsync(HttpContext.RequestAborted);
+                ModelState.AddModelError(string.Empty, error.DisplayMessage);
+                return;
+            }
+
+            var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleDto>>(
+                cancellationToken: HttpContext.RequestAborted) ?? new PagedResultDto<ModuleDto>
+            {
+                Page = CurrentPage,
+                PageSize = PageSize
+            };
+
+            var modules = pagedResult.Items;
+            _logger.LogDebug("Successfully loaded {ModuleCount} of {TotalCount} modules (page {Page}).", modules.Count, pagedResult.TotalCount, pagedResult.Page);
+
+            TotalModules = pagedResult.TotalCount;
+            CurrentPage = pagedResult.Page > 0 ? pagedResult.Page : CurrentPage;
+            PageSize = pagedResult.PageSize > 0 ? pagedResult.PageSize : PageSize;
+            TotalPages = Math.Max(1, pagedResult.TotalPages);
+            HasPreviousPage = pagedResult.HasPreviousPage;
+            HasNextPage = pagedResult.HasNextPage;
+
+            var filtered = modules.Where(module =>
+                $"{module.ModuleName} {module.Description} {module.BaseUrlPath} {module.Id}"
+                    .Contains(Query, StringComparison.OrdinalIgnoreCase));
+
+            Modules = filtered.ToList();
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(exception, "ERROR loading modules.");
+            ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
+        }
+    }
+
+    /// <summary>
+    /// Represents the result of a module creation attempt.
+    /// </summary>
+    public sealed record CreationResult(
+        int StatusCode,
+        string Title,
+        string Description,
+        string? ModuleUrl,
+        SubEndpointDiscrepancyReportDto? DiscrepancyReport = null)
+    {
+        /// <summary>
+        /// Indicates whether the creation attempt was successful.
+        /// </summary>
+        public bool IsSuccess => StatusCode is 201 or 202;
+
+        /// <summary>
+        /// Gets the kind of the creation result, which can be "accepted", "success", or "error".
+        /// </summary>
+        public string Kind => StatusCode == 202 ? "accepted" : IsSuccess ? "success" : "error";
+    }
+}

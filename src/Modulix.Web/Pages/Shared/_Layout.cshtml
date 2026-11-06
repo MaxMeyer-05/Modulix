@@ -1,10 +1,25 @@
-﻿@{
+@using Modulix.Web.Models
+@{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
     var isModulesPage = currentPage.StartsWith("/Modules", StringComparison.OrdinalIgnoreCase);
     var isScanQueuePage = currentPage.StartsWith("/ScanQueue", StringComparison.OrdinalIgnoreCase);
     var isEndpointsPage = currentPage.StartsWith("/Endpoints", StringComparison.OrdinalIgnoreCase);
-    var isDashboardPage = currentPage == "/Index";
+    var isDashboardPage = currentPage == "/Dashboard/Index";
     var isLogsPage = currentPage.StartsWith("/Logs", StringComparison.OrdinalIgnoreCase);
+    var pageTitle = ViewData["Title"]?.ToString();
+
+    (string Label, string Page)? section =
+        isModulesPage ? ("Modules", "/Modules/Index")
+        : isScanQueuePage ? ("Scan queue", "/ScanQueue/Index")
+        : isEndpointsPage ? ("API endpoints", "/Endpoints/Index")
+        : isLogsPage ? ("Logs", "/Logs/Index")
+        : isDashboardPage ? ("Dashboard", "/Dashboard/Index")
+        : null;
+    var isSectionRoot = section is { } root && string.Equals(currentPage, root.Page, StringComparison.OrdinalIgnoreCase);
+    var currentCrumb = isSectionRoot ? section!.Value.Label : pageTitle ?? section?.Label ?? "Modulix";
+
+    var userIdentity = UserDisplayIdentity.FromPrincipal(User);
+    var userDisplayName = userIdentity.FullName ?? "Signed-in user";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -14,7 +29,9 @@
     <title>@ViewData["Title"] - Modulix.Web</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Modulix.Web.styles.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
@@ -22,7 +39,7 @@
     <div class="app-shell" id="app-shell">
         <aside class="sidebar" aria-label="Main navigation">
             <div class="sidebar-header">
-                <a class="sidebar-brand" asp-page="/Index" title="Modulix Dashboard" aria-label="Modulix Dashboard">
+                <a class="sidebar-brand" asp-page="/Dashboard/Index" title="Modulix Dashboard" aria-label="Modulix Dashboard">
                     <i data-lucide="box" aria-hidden="true"></i>
                     <span class="sidebar-label">MODULIX</span>
                 </a>
@@ -33,44 +50,69 @@
                 </button>
             </div>
             <nav class="sidebar-navigation" id="sidebar-navigation" aria-label="Sections">
-                <a class="sidebar-link @(isDashboardPage ? "active" : "")" asp-page="/Index" aria-current="@(isDashboardPage ? "page" : null)" title="Dashboard">
+                <a class="sidebar-link @(isDashboardPage ? "active" : "")" asp-page="/Dashboard/Index" aria-current="@(isDashboardPage ? "page" : null)" title="Dashboard">
                     <i data-lucide="house" aria-hidden="true"></i>
                     <span class="sidebar-label">Dashboard</span>
                 </a>
-                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/ModulesPage/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
+                <a class="sidebar-link @(isModulesPage ? "active" : "")" asp-page="/Modules/Index" aria-current="@(isModulesPage ? "page" : null)" title="Modules">
                     <i data-lucide="layout-grid" aria-hidden="true"></i>
                     <span class="sidebar-label">Modules</span>
                 </a>
-                <a class="sidebar-link @(isScanQueuePage ? "active" : "")" asp-page="/ScanQueuePage/Index" aria-current="@(isScanQueuePage ? "page" : null)" title="Scan queue">
+                <a class="sidebar-link @(isScanQueuePage ? "active" : "")" asp-page="/ScanQueue/Index" aria-current="@(isScanQueuePage ? "page" : null)" title="Scan queue">
                     <i data-lucide="list-checks" aria-hidden="true"></i>
                     <span class="sidebar-label">Scan queue</span>
                 </a>
-                <a class="sidebar-link @(isEndpointsPage ? "active" : "")" asp-page="/EndpointsPage/Index" aria-current="@(isEndpointsPage ? "page" : null)" title="API endpoints">
+                <a class="sidebar-link @(isEndpointsPage ? "active" : "")" asp-page="/Endpoints/Index" aria-current="@(isEndpointsPage ? "page" : null)" title="API endpoints">
                     <i data-lucide="link" aria-hidden="true"></i>
                     <span class="sidebar-label">API endpoints</span>
                 </a>
-                <a class="sidebar-link @(isLogsPage ? "active" : "")" asp-page="/LogsPage/Index" aria-current="@(isLogsPage ? "page" : null)" title="Logs">
+                <a class="sidebar-link @(isLogsPage ? "active" : "")" asp-page="/Logs/Index" aria-current="@(isLogsPage ? "page" : null)" title="Logs">
                     <i data-lucide="logs" aria-hidden="true"></i>
                     <span class="sidebar-label">Logs</span>
                 </a>
-                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: not yet available">
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: coming soon">
                     <i data-lucide="settings" aria-hidden="true"></i>
                     <span class="sidebar-label">Settings</span>
+                    <span class="sidebar-badge sidebar-label">Soon</span>
                 </span>
             </nav>
         </aside>
-        <div class="app-workspace">
+        <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+        <div class="app-workspace" id="app-workspace">
             <header class="topbar" aria-label="Workspace toolbar">
+                <button class="topbar-icon nav-drawer-toggle" id="nav-drawer-toggle" type="button"
+                        aria-controls="sidebar-navigation" aria-expanded="false"
+                        aria-label="Open menu" title="Open menu">
+                    <i data-lucide="menu" aria-hidden="true"></i>
+                </button>
+                <nav class="topbar-breadcrumb" aria-label="Breadcrumb">
+                    <ol>
+                        @if (section is { } crumb && !isSectionRoot)
+                        {
+                            <li><a asp-page="@crumb.Page">@crumb.Label</a></li>
+                        }
+                        <li><span aria-current="page" title="@currentCrumb">@currentCrumb</span></li>
+                    </ol>
+                </nav>
                 <div class="topbar-actions">
                     <div class="user-menu">
-                        <button class="topbar-icon" id="user-menu-toggle" type="button"
-                                aria-label="User menu" title="User menu" aria-haspopup="menu"
+                        <button class="user-menu-toggle" id="user-menu-toggle" type="button"
+                                aria-label="@userDisplayName, user menu" title="User menu" aria-haspopup="menu"
                                 aria-controls="user-menu-panel" aria-expanded="false">
-                            <i data-lucide="user-round" aria-hidden="true"></i>
+                            <span class="user-avatar" aria-hidden="true">@userIdentity.Initials</span>
+                            <span class="user-menu-name">@userDisplayName</span>
+                            <i data-lucide="chevron-down" aria-hidden="true"></i>
                         </button>
                         <div class="topbar-panel user-menu-panel" id="user-menu-panel" role="menu"
                              aria-label="User menu" hidden>
-                            <form method="post" asp-page="/Logout" role="none">
+                            <div class="user-menu-header" role="none">
+                                <strong title="@userDisplayName">@userDisplayName</strong>
+                                @if (userIdentity.UserName is not null)
+                                {
+                                    <span title="@userIdentity.UserName">@userIdentity.UserName</span>
+                                }
+                            </div>
+                            <form method="post" asp-page="/Account/Logout" role="none">
                                 <button class="sign-out-button" id="sign-out-button" type="submit" role="menuitem">
                                     <i data-lucide="log-out" aria-hidden="true"></i>
                                     <span>Sign out</span>
@@ -86,10 +128,14 @@
         </div>
     </div>
 
+    <partial name="_ToastRegion" />
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/lucide.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/form-feedback.js" asp-append-version="true"></script>
+    <script src="~/js/toasts.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>
