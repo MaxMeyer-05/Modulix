@@ -12,7 +12,7 @@
             {
                 var variant = toast.Variant == ToastVariant.Info ? "info" : "success";
                 var icon = toast.Variant == ToastVariant.Info ? "info" : "circle-check";
-                <div class="toast toast--@variant" data-toast>
+                <div class="toast show toast--@variant" data-toast>
                     <i data-lucide="@icon" aria-hidden="true"></i>
                     <div class="toast-content">
                         <strong class="toast-title">@toast.Title</strong>
