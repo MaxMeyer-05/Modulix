@@ -9,6 +9,14 @@
     status.setAttribute("role", "status");
     document.body.appendChild(status);
 
+    document.querySelectorAll("dialog").forEach(dialog => {
+        const dialogStatus = document.createElement("span");
+        dialogStatus.className = "visually-hidden";
+        dialogStatus.setAttribute("role", "status");
+        dialogStatus.dataset.formFeedbackStatus = "";
+        dialog.appendChild(dialogStatus);
+    });
+
     const isField = element => element instanceof HTMLInputElement
         || element instanceof HTMLSelectElement
         || element instanceof HTMLTextAreaElement;
@@ -279,6 +287,9 @@
         }
         pendingForms.delete(form);
         confirmationUpdates.get(form)?.();
+        if (state.announcement !== status) {
+            state.announcement.textContent = "";
+        }
         if (pendingForms.size === 0) {
             status.textContent = "";
         }
@@ -305,6 +316,7 @@
             .map(button => ({ button, disabled: button.disabled }));
         const active = submitter || buttons.find(item => !item.disabled)?.button;
         const message = form.dataset.submitLabel || "Working...";
+        const announcement = form.closest("dialog")?.querySelector("[data-form-feedback-status]") || status;
         const progress = document.createElement("span");
         progress.className = "form-submit-progress";
         const spinner = document.createElement("span");
@@ -321,7 +333,8 @@
             value: active instanceof HTMLInputElement ? active.value : "",
             label: active?.getAttribute("aria-label") ?? null,
             busy: form.getAttribute("aria-busy"),
-            progress
+            progress,
+            announcement
         };
         pendingForms.set(form, state);
         form.setAttribute("aria-busy", "true");
@@ -331,7 +344,7 @@
             active.insertAdjacentElement("afterend", progress);
         }
         active?.setAttribute("aria-label", message);
-        status.textContent = message;
+        announcement.textContent = message;
 
         window.setTimeout(() => {
             if (pendingForms.get(form) !== state) {
