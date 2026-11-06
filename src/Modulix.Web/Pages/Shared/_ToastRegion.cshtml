@@ -1,0 +1,33 @@
+@using Modulix.Web.Models
+@using Modulix.Web.Extensions
+@{
+    var toasts = TempData.TakeToasts();
+}
+<div class="toast-region" id="toast-region" role="region" aria-label="Notifications">
+    <div class="toast-list" aria-live="polite" aria-relevant="additions" data-toast-list></div>
+    @if (toasts.Count > 0)
+    {
+        <template data-toast-source>
+            @foreach (var toast in toasts)
+            {
+                var variant = toast.Variant == ToastVariant.Info ? "info" : "success";
+                var icon = toast.Variant == ToastVariant.Info ? "info" : "circle-check";
+                <div class="toast show toast--@variant" data-toast>
+                    <i data-lucide="@icon" aria-hidden="true"></i>
+                    <div class="toast-content">
+                        <strong class="toast-title">@toast.Title</strong>
+                        @if (!string.IsNullOrWhiteSpace(toast.Description))
+                        {
+                            <p class="toast-description">@toast.Description</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(toast.LinkUrl))
+                        {
+                            <a class="toast-link" href="@toast.LinkUrl">@(toast.LinkText ?? "Open")</a>
+                        }
+                    </div>
+                    <button class="ui-icon-button toast-close" type="button" data-toast-close aria-label="Dismiss notification" title="Dismiss"><i data-lucide="x" aria-hidden="true"></i></button>
+                </div>
+            }
+        </template>
+    }
+</div>

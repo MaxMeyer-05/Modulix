@@ -1,0 +1,12 @@
+@model DialogHeaderModel
+<div class="dialog-header">
+    <span class="dialog-icon" aria-hidden="true"><i data-lucide="@Model.Icon"></i></span>
+    <div class="dialog-heading">
+        <h2 class="dialog-title" id="@Model.HeadingId">@Model.Title</h2>
+        @if (Model.Subtitle is { Length: > 0 } subtitle)
+        {
+            <p class="dialog-subtitle">@subtitle</p>
+        }
+    </div>
+    <button class="ui-icon-button" type="button" data-dialog-close aria-label="Close" title="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+</div>

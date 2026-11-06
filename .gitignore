@@ -68,6 +68,8 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+# Razor Pages folder for the log viewer, not log output
+!src/Modulix.Web/Pages/Logs/
 
 # Build results on 'Bin' directories
 **/[Bb]in/*

@@ -1,0 +1,24 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model PageErrorStateModel
+<div class="page-error" id="@Model.Id" role="alert">
+    <span class="page-error-icon" aria-hidden="true"><i data-lucide="@Model.Icon"></i></span>
+    <div class="page-error-content">
+        <strong id="@Model.TitleId">@Model.Title</strong>
+        @if (!string.IsNullOrWhiteSpace(Model.Description))
+        {
+            <p id="@Model.DescriptionId">@Model.Description</p>
+        }
+        @if (Model.ValidationSummary != ValidationSummary.None)
+        {
+            <div asp-validation-summary="@Model.ValidationSummary"></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ActionText))
+        {
+            if (string.IsNullOrWhiteSpace(Model.ActionUrl))
+            {
+                throw new InvalidOperationException("An error state action requires a URL.");
+            }
+            <a class="ui-button ui-button-compact" href="@Model.ActionUrl">@Model.ActionText</a>
+        }
+    </div>
+</div>

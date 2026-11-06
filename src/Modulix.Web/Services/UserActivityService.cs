@@ -1,6 +1,8 @@
 using System.Security.Claims;
 
 using Microsoft.Extensions.Caching.Memory;
+using Modulix.Web.Models;
+using Modulix.Web.Services.Interfaces;
 
 namespace Modulix.Web.Services;
 
