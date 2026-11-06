@@ -32,22 +32,9 @@
         <partial name="_ErrorState" model='new PageErrorStateModel("Scan queue request failed") { ValidationSummary = ValidationSummary.All }' />
     }
 
-    @if (Model.Feedback is { } feedback)
+    @if (Model.Feedback is { IsSuccess: false } feedback)
     {
-        @if (feedback.IsSuccess)
-        {
-            <div class="queue-feedback queue-feedback-success" role="status">
-                <i data-lucide="check-circle-2" aria-hidden="true"></i>
-                <div>
-                    <strong>@feedback.Title</strong>
-                    <p>@feedback.Description</p>
-                </div>
-            </div>
-        }
-        else
-        {
-            <partial name="_ErrorState" model='new PageErrorStateModel(feedback.Title) { Description = feedback.Description }' />
-        }
+        <partial name="_ErrorState" model='new PageErrorStateModel(feedback.Title) { Description = feedback.Description }' />
     }
 
     @if (ViewData.ModelState.IsValid)

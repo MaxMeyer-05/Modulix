@@ -119,11 +119,9 @@ public class IndexModel : PageModel
                     UserActivityTone.Warning,
                     Url.Page("/ScanQueuePage/Index"));
 
-                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                    (int)response.StatusCode,
+                TempData.AddToast(new ToastMessage(
                     "Scan cancelled",
-                    $"Cancelled the queued scan for module {targetName}.",
-                    IsSuccess: true));
+                    $"Cancelled the queued scan for module {targetName}."));
             }
         }
         catch (HttpRequestException exception)

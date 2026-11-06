@@ -195,7 +195,21 @@ public class IndexModel : PageModel
         var result = await CreateAsync(input);
         if (result.IsSuccess)
         {
-            TempData[ResultKey] = JsonSerializer.Serialize(result, WebJsonOptions);
+            if (result.DiscrepancyReport is { HasDiscrepancy: true })
+            {
+                TempData[ResultKey] = JsonSerializer.Serialize(result, WebJsonOptions);
+            }
+            else
+            {
+                var accepted = result.StatusCode == 202;
+                TempData.AddToast(new ToastMessage(
+                    accepted ? "Module scan queued" : "Module created",
+                    result.Description,
+                    accepted ? ToastVariant.Info : ToastVariant.Success,
+                    result.ModuleUrl,
+                    result.ModuleUrl is null ? null : "Go to module"));
+            }
+
             return RedirectToPage();
         }
 

@@ -121,11 +121,23 @@ public partial class DetailModel
 
             _userActivityService.Record(User, action, updatedModule.ModuleName, icon, tone, detailUrl);
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                statusCode,
-                title,
-                description,
-                IsSuccess: isSuccess));
+            if (isSuccess)
+            {
+                TempData.AddToast(new ToastMessage(
+                    title,
+                    description,
+                    updatedModule.Status is ModuleStatus.QueuedForScan or ModuleStatus.PendingConfirmation
+                        ? ToastVariant.Info
+                        : ToastVariant.Success));
+            }
+            else
+            {
+                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
+                    statusCode,
+                    title,
+                    description,
+                    IsSuccess: false));
+            }
 
             return RedirectToPage(new { id });
         }
@@ -211,11 +223,9 @@ public partial class DetailModel
             else
             {
                 _userActivityService.Record(User, "Rolled back", $"{targetName} to {resolvedVersion}", "rotate-ccw", UserActivityTone.Update, detailUrl);
-                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                    (int)response.StatusCode,
+                TempData.AddToast(new ToastMessage(
                     "Module rolled back",
-                    $"Rolled back {targetName} to version {resolvedVersion}.",
-                    IsSuccess: true));
+                    $"Rolled back {targetName} to version {resolvedVersion}."));
             }
 
             return RedirectToPage(new { id });
@@ -343,20 +353,16 @@ public partial class DetailModel
             else if (updatedModule?.Status == ModuleStatus.PendingConfirmation)
             {
                 _userActivityService.Record(User, "Updated pending endpoints for", targetName, "check-circle-2", UserActivityTone.Update, detailUrl);
-                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                    (int)response.StatusCode,
+                TempData.AddToast(new ToastMessage(
                     "Endpoint decision saved",
-                    $"Updated endpoint status for {targetName}. Confirm remaining pending endpoints to start the module.",
-                    IsSuccess: true));
+                    $"Updated endpoint status for {targetName}. Confirm remaining pending endpoints to start the module."));
             }
             else
             {
                 _userActivityService.Record(User, "Confirmed endpoints for", targetName, "check-circle-2", UserActivityTone.Success, detailUrl);
-                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                    (int)response.StatusCode,
+                TempData.AddToast(new ToastMessage(
                     "Endpoints confirmed",
-                    $"Confirmed endpoints and activated module {targetName}.",
-                    IsSuccess: true));
+                    $"Confirmed endpoints and activated module {targetName}."));
             }
 
             return RedirectToPage(new { id });
@@ -461,11 +467,9 @@ public partial class DetailModel
                 UserActivityTone.Update,
                 Url.Page("/ModulesPage/Detail", new { id }));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 "Version updated",
-                $"Saved updated metadata for version {trimmedNewVersion}.",
-                IsSuccess: true));
+                $"Saved updated metadata for version {trimmedNewVersion}."));
 
             return RedirectToPage(new { id });
         }
@@ -536,11 +540,9 @@ public partial class DetailModel
                 UserActivityTone.Danger,
                 Url.Page("/ModulesPage/Detail", new { id }));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 "Version deleted",
-                $"Deleted version {trimmedVersion} and removed its stored files.",
-                IsSuccess: true));
+                $"Deleted version {trimmedVersion} and removed its stored files."));
 
             return RedirectToPage(new { id });
         }
@@ -623,13 +625,11 @@ public partial class DetailModel
                 isActivated ? UserActivityTone.Success : UserActivityTone.Warning,
                 Url.Page("/ModulesPage/Detail", new { id }));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 isActivated ? "Endpoint activated" : "Endpoint deactivated",
                 isActivated
                     ? $"Activated endpoint {targetRoute} on {targetModuleName}."
-                    : $"Deactivated endpoint {targetRoute} on {targetModuleName}.",
-                IsSuccess: true));
+                    : $"Deactivated endpoint {targetRoute} on {targetModuleName}."));
         }
         catch (HttpRequestException exception)
         {
@@ -709,11 +709,9 @@ public partial class DetailModel
                 UserActivityTone.Danger,
                 Url.Page("/ModulesPage/Detail", new { id }));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 "Endpoint deleted",
-                $"Deleted endpoint {targetRoute} from {targetModuleName}.",
-                IsSuccess: true));
+                $"Deleted endpoint {targetRoute} from {targetModuleName}."));
         }
         catch (HttpRequestException exception)
         {

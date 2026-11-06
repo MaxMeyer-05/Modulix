@@ -95,7 +95,6 @@
 .log-text-button:hover { color: #b0f4f6; }
 .log-archive > :is(.page-state, .page-error) { flex: 1; margin: 8px; }
 .log-content > :is(.page-state, .page-error) { margin: 16px; }
-.log-delete-feedback { margin: 12px 0 0; color: var(--color-text-muted); font-size: 12px; overflow-wrap: anywhere; }
 .log-content { scroll-behavior: smooth; }
 .log-archive-filters .log-apply-button { grid-column: 1 / -1; }
 

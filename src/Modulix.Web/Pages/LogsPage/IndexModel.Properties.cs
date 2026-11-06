@@ -49,12 +49,6 @@ public partial class IndexModel
     public bool Wrap { get; set; } = true;
 
     /// <summary>
-    /// The feedback message to display to the user.
-    /// </summary>
-    [TempData]
-    public string? Feedback { get; set; }
-
-    /// <summary>
     /// The error feedback message to display to the user.
     /// </summary>
     [TempData]

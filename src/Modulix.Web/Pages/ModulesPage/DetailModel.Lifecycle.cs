@@ -60,11 +60,9 @@ public partial class DetailModel
             else
             {
                 _userActivityService.Record(User, "Started", targetName, "play", UserActivityTone.Success, detailUrl);
-                TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                    (int)response.StatusCode,
+                TempData.AddToast(new ToastMessage(
                     "Module started",
-                    $"Started module {targetName}.",
-                    IsSuccess: true));
+                    $"Started module {targetName}."));
             }
         }
         catch (HttpRequestException exception)
@@ -129,11 +127,9 @@ public partial class DetailModel
                 UserActivityTone.Warning,
                 Url.Page("/ModulesPage/Detail", new { id }));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 "Module stopped",
-                $"Stopped module {targetName}.",
-                IsSuccess: true));
+                $"Stopped module {targetName}."));
         }
         catch (HttpRequestException exception)
         {
@@ -216,11 +212,9 @@ public partial class DetailModel
                 UserActivityTone.Update,
                 Url.Page("/ModulesPage/Detail", new { id }));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 "Module details updated",
-                $"Saved updated details for {trimmedName}.",
-                IsSuccess: true));
+                $"Saved updated details for {trimmedName}."));
 
             return RedirectToPage(new { id });
         }
@@ -307,11 +301,9 @@ public partial class DetailModel
                 UserActivityTone.Danger,
                 Url.Page("/ModulesPage/Index"));
 
-            TempData[FeedbackKey] = JsonSerializer.Serialize(new ActionFeedback(
-                (int)response.StatusCode,
+            TempData.AddToast(new ToastMessage(
                 "Module deleted",
-                $"Deleted module {targetName} and removed its container and files.",
-                IsSuccess: true));
+                $"Deleted module {targetName} and removed its container and files."));
 
             return RedirectToPage("/ModulesPage/Index");
         }

@@ -230,10 +230,6 @@
         </section>
     </div>
 
-    @if (Model.Feedback is not null)
-    {
-        <p class="log-delete-feedback" role="status">@Model.Feedback</p>
-    }
     @if (Model.FeedbackError is not null)
     {
         <partial name="_ErrorState" model='new PageErrorStateModel("Log operation failed") { Description = Model.FeedbackError }' />

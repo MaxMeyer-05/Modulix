@@ -89,13 +89,14 @@ public partial class IndexModel : PageModel
             var file = Resolve(name, out var status);
             if (file is null)
             {
-                if (status == 404) Feedback = $"{name} no longer exists.";
+                if (status == 404)
+                    TempData.AddToast(new ToastMessage("Log file already removed", $"{name} no longer exists.", ToastVariant.Info));
                 else FeedbackError = "Could not delete the file. Reload the page and try again.";
             }
             else
             {
                 file.Delete();
-                Feedback = $"{file.Name} deleted.";
+                TempData.AddToast(new ToastMessage("Log file deleted", $"{file.Name} deleted."));
                 _userActivityService.Record(
                     User,
                     "Deleted log file",
