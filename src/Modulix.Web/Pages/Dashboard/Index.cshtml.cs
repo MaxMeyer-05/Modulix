@@ -244,13 +244,8 @@ public class IndexModel : PageModel
     {
         try
         {
-<<<<<<< HEAD:src/Modulix.Web/Pages/Index.cshtml.cs
             using var response = await _modulixApiClient.Scanner.GetScanQueueAsync(ct: ct);
-            if (response.IsSuccessStatusCode)
-=======
-            using var response = await _modulixApiClient.ScannerManagement.GetScanQueueAsync(ct: ct);
             if (!response.IsSuccessStatusCode)
->>>>>>> develop:src/Modulix.Web/Pages/Dashboard/Index.cshtml.cs
             {
                 var error = await response.ReadApiErrorAsync(ct);
                 _logger.LogWarning("Loading the scan queue for the dashboard returned HTTP {StatusCode}.", error.StatusCode);
