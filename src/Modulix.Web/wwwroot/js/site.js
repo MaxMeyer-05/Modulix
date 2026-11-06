@@ -16,19 +16,59 @@
 
 	const storageKey = "modulix.sidebar.collapsed";
 	const compactViewport = window.matchMedia("(max-width: 640px)");
-	let initialCollapsed = compactViewport.matches;
+	const workspace = document.getElementById("app-workspace");
+	const drawerToggle = document.getElementById("nav-drawer-toggle");
+	const backdrop = document.getElementById("nav-backdrop");
+	const sidebar = shell.querySelector(".sidebar");
 
-	try {
-		const storedState = window.localStorage.getItem(storageKey);
-		if (storedState === "true" || storedState === "false") {
-			initialCollapsed = storedState === "true";
+	const readStoredCollapsed = () => {
+		try {
+			return window.localStorage.getItem(storageKey) === "true";
+		} catch {
+			return false;
 		}
-	} catch {
-		initialCollapsed = compactViewport.matches;
-	}
+	};
 
-	setCollapsed(initialCollapsed);
+	const setDrawerOpen = (open, { returnFocus = true } = {}) => {
+		const wasOpen = shell.classList.contains("nav-open");
+		shell.classList.toggle("nav-open", open);
+		document.body.classList.toggle("nav-drawer-open", open);
+		drawerToggle?.setAttribute("aria-expanded", String(open));
+		if (backdrop) {
+			backdrop.hidden = !open;
+		}
+		if (workspace) {
+			workspace.inert = open;
+		}
+
+		if (open) {
+			sidebar?.querySelector("a.sidebar-link, .sidebar-brand")?.focus();
+		} else if (wasOpen && returnFocus) {
+			drawerToggle?.focus();
+		}
+	};
+
+	const applyViewport = () => {
+		setDrawerOpen(false, { returnFocus: false });
+		if (compactViewport.matches) {
+			shell.classList.remove("sidebar-collapsed");
+			toggle.setAttribute("aria-expanded", "true");
+			toggle.setAttribute("aria-label", "Close menu");
+			toggle.title = "Close menu";
+		} else {
+			setCollapsed(readStoredCollapsed());
+		}
+	};
+
+	applyViewport();
+	compactViewport.addEventListener("change", applyViewport);
+
 	toggle.addEventListener("click", () => {
+		if (compactViewport.matches) {
+			setDrawerOpen(false);
+			return;
+		}
+
 		const collapsed = !shell.classList.contains("sidebar-collapsed");
 		setCollapsed(collapsed);
 
@@ -36,6 +76,14 @@
 			window.localStorage.setItem(storageKey, String(collapsed));
 		} catch {
 			return;
+		}
+	});
+
+	drawerToggle?.addEventListener("click", () => setDrawerOpen(true));
+	backdrop?.addEventListener("click", () => setDrawerOpen(false));
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape" && shell.classList.contains("nav-open")) {
+			setDrawerOpen(false);
 		}
 	});
 

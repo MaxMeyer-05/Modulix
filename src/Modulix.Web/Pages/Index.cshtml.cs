@@ -180,41 +180,11 @@ public class IndexModel : PageModel
 
     private void ResolveUserIdentity()
     {
-        GivenName = (User.FindFirstValue(ClaimTypes.GivenName)
-            ?? User.FindFirstValue("given_name"))?.Trim();
-
-        FamilyName = (User.FindFirstValue(ClaimTypes.Surname)
-            ?? User.FindFirstValue("family_name"))?.Trim();
-
-        var combinedName = string.Join(
-            " ",
-            new[] { GivenName, FamilyName }.Where(part => !string.IsNullOrWhiteSpace(part)));
-
-        if (!string.IsNullOrWhiteSpace(combinedName))
-        {
-            UserFullName = combinedName;
-        }
-        else
-        {
-            var fallback = (User.FindFirstValue("name")
-                ?? User.FindFirstValue(ClaimTypes.Name)
-                ?? User.FindFirstValue("preferred_username")
-                ?? User.Identity?.Name)?.Trim();
-
-            UserFullName = string.IsNullOrWhiteSpace(fallback) ? null : fallback;
-        }
-
-        if (!string.IsNullOrWhiteSpace(GivenName) && !string.IsNullOrWhiteSpace(FamilyName))
-        {
-            UserInitials = $"{char.ToUpperInvariant(GivenName[0])}{char.ToUpperInvariant(FamilyName[0])}";
-        }
-        else if (!string.IsNullOrWhiteSpace(UserFullName))
-        {
-            var parts = UserFullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            UserInitials = parts.Length >= 2
-                ? $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}"
-                : char.ToUpperInvariant(parts[0][0]).ToString();
-        }
+        var identity = UserDisplayIdentity.FromPrincipal(User);
+        GivenName = identity.GivenName;
+        FamilyName = identity.FamilyName;
+        UserFullName = identity.FullName;
+        UserInitials = identity.Initials;
     }
 
     private async Task LoadModulesAsync(CancellationToken ct)

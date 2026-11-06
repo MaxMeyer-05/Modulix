@@ -1,10 +1,25 @@
-﻿@{
+@using Modulix.Web.Services
+@{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
     var isModulesPage = currentPage.StartsWith("/Modules", StringComparison.OrdinalIgnoreCase);
     var isScanQueuePage = currentPage.StartsWith("/ScanQueue", StringComparison.OrdinalIgnoreCase);
     var isEndpointsPage = currentPage.StartsWith("/Endpoints", StringComparison.OrdinalIgnoreCase);
     var isDashboardPage = currentPage == "/Index";
     var isLogsPage = currentPage.StartsWith("/Logs", StringComparison.OrdinalIgnoreCase);
+    var pageTitle = ViewData["Title"]?.ToString();
+
+    (string Label, string Page)? section =
+        isModulesPage ? ("Modules", "/ModulesPage/Index")
+        : isScanQueuePage ? ("Scan queue", "/ScanQueuePage/Index")
+        : isEndpointsPage ? ("API endpoints", "/EndpointsPage/Index")
+        : isLogsPage ? ("Logs", "/LogsPage/Index")
+        : isDashboardPage ? ("Dashboard", "/Index")
+        : null;
+    var isSectionRoot = section is { } root && string.Equals(currentPage, root.Page, StringComparison.OrdinalIgnoreCase);
+    var currentCrumb = isSectionRoot ? section!.Value.Label : pageTitle ?? section?.Label ?? "Modulix";
+
+    var userIdentity = UserDisplayIdentity.FromPrincipal(User);
+    var userDisplayName = userIdentity.FullName ?? "Signed-in user";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -55,23 +70,48 @@
                     <i data-lucide="logs" aria-hidden="true"></i>
                     <span class="sidebar-label">Logs</span>
                 </a>
-                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: not yet available">
+                <span class="sidebar-link is-unavailable" aria-disabled="true" title="Settings: coming soon">
                     <i data-lucide="settings" aria-hidden="true"></i>
                     <span class="sidebar-label">Settings</span>
+                    <span class="sidebar-badge sidebar-label">Soon</span>
                 </span>
             </nav>
         </aside>
-        <div class="app-workspace">
+        <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+        <div class="app-workspace" id="app-workspace">
             <header class="topbar" aria-label="Workspace toolbar">
+                <button class="topbar-icon nav-drawer-toggle" id="nav-drawer-toggle" type="button"
+                        aria-controls="sidebar-navigation" aria-expanded="false"
+                        aria-label="Open menu" title="Open menu">
+                    <i data-lucide="menu" aria-hidden="true"></i>
+                </button>
+                <nav class="topbar-breadcrumb" aria-label="Breadcrumb">
+                    <ol>
+                        @if (section is { } crumb && !isSectionRoot)
+                        {
+                            <li><a asp-page="@crumb.Page">@crumb.Label</a></li>
+                        }
+                        <li><span aria-current="page" title="@currentCrumb">@currentCrumb</span></li>
+                    </ol>
+                </nav>
                 <div class="topbar-actions">
                     <div class="user-menu">
-                        <button class="topbar-icon" id="user-menu-toggle" type="button"
-                                aria-label="User menu" title="User menu" aria-haspopup="menu"
+                        <button class="user-menu-toggle" id="user-menu-toggle" type="button"
+                                aria-label="@userDisplayName, user menu" title="User menu" aria-haspopup="menu"
                                 aria-controls="user-menu-panel" aria-expanded="false">
-                            <i data-lucide="user-round" aria-hidden="true"></i>
+                            <span class="user-avatar" aria-hidden="true">@userIdentity.Initials</span>
+                            <span class="user-menu-name">@userDisplayName</span>
+                            <i data-lucide="chevron-down" aria-hidden="true"></i>
                         </button>
                         <div class="topbar-panel user-menu-panel" id="user-menu-panel" role="menu"
                              aria-label="User menu" hidden>
+                            <div class="user-menu-header" role="none">
+                                <strong title="@userDisplayName">@userDisplayName</strong>
+                                @if (userIdentity.UserName is not null)
+                                {
+                                    <span title="@userIdentity.UserName">@userIdentity.UserName</span>
+                                }
+                            </div>
                             <form method="post" asp-page="/Logout" role="none">
                                 <button class="sign-out-button" id="sign-out-button" type="submit" role="menuitem">
                                     <i data-lucide="log-out" aria-hidden="true"></i>
