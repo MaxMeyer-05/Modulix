@@ -10,26 +10,78 @@
 }
 <div class="page modules-page">
     <header class="page-header">
-        <div class="page-header-main module-detail-title">
-            @if (module is not null)
-            {
-                <span class="module-symbol module-symbol-large"><i data-lucide="box" aria-hidden="true"></i></span>
-            }
-            <div>
-                <h1 class="page-title">@(module?.ModuleName ?? "Module details")</h1>
-                <p class="page-description">@(string.IsNullOrWhiteSpace(module?.Description) ? "View module information, endpoints, and runtime details." : module.Description)</p>
+        <div class="page-header-main">
+            <a class="module-back-link" asp-page="/ModulesPage/Index"><i data-lucide="arrow-left" aria-hidden="true"></i><span>All modules</span></a>
+            <div class="module-detail-title">
+                @if (module is not null)
+                {
+                    <span class="module-symbol module-symbol-large"><i data-lucide="box" aria-hidden="true"></i></span>
+                }
+                <div>
+                    <div class="module-detail-name">
+                        <h1 class="page-title" title="@module?.ModuleName">@(module?.ModuleName ?? "Module details")</h1>
+                        @if (module is not null)
+                        {
+                            <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
+                        }
+                    </div>
+                    @if (module is null)
+                    {
+                        <p class="page-description">View module information, endpoints, and runtime details.</p>
+                    }
+                </div>
             </div>
         </div>
         @if (module is not null)
         {
-            <div class="page-header-actions">
-                <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
+            <div class="page-header-actions module-detail-header-actions">
+                @if (Model.CanStart)
+                {
+                    <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
+                        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                        <button class="module-button module-button-primary" type="submit" id="start-module-button" title="Start the module container"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
+                    </form>
+                }
+                @if (Model.CanStop)
+                {
+                    <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
+                        <input type="hidden" name="moduleName" value="@module.ModuleName" />
+                        <button class="module-button" type="submit" id="stop-module-button" title="Stop the module container"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
+                    </form>
+                }
+                @if (Model.CanConfirmEndpoints)
+                {
+                    <button class="module-button module-button-primary" type="button" id="confirm-endpoints-button" data-dialog-open="confirm-endpoints-dialog" title="Review and confirm @Model.PendingEndpoints.Count pending endpoint(s)"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
+                }
+                <button class="module-button" type="button" id="update-files-button" data-dialog-open="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
+                <details class="module-action-menu" id="module-action-menu">
+                    <summary class="module-button module-action-menu-toggle" id="module-actions-toggle">
+                        <i data-lucide="ellipsis" aria-hidden="true"></i><span>More actions</span><i data-lucide="chevron-down" aria-hidden="true"></i>
+                    </summary>
+                    <div class="module-action-menu-panel">
+                        <button class="module-action-menu-item" type="button" id="edit-module-button" data-dialog-open="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
+                        @if (Model.CanRollback)
+                        {
+                            <button class="module-action-menu-item" type="button" id="rollback-module-button" data-dialog-open="rollback-module-dialog" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
+                        }
+                        <div class="module-action-menu-danger">
+                            <span class="module-action-menu-label">Danger zone</span>
+                            <button class="module-action-menu-item module-action-menu-item-danger" type="button" id="delete-module-button" data-dialog-open="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
+                        </div>
+                    </div>
+                </details>
             </div>
         }
     </header>
 
-    <nav class="page-toolbar" aria-label="Module navigation">
-        <a class="module-back-link" asp-page="/ModulesPage/Index"><i data-lucide="arrow-left" aria-hidden="true"></i><span>All modules</span></a>
+    <nav class="page-toolbar module-detail-navigation" aria-label="Module sections" hidden="@(module is null)">
+        @if (module is not null)
+        {
+            <a href="#module-overview">Overview</a>
+            <a href="#module-endpoints">Endpoints</a>
+            <a href="#module-version-history">Versions</a>
+            <a href="#module-runtime">Runtime</a>
+        }
     </nav>
 
     <div class="page-content">
@@ -74,7 +126,7 @@
         }
         @if (Model.HasPendingEndpoints)
         {
-            <section class="module-discrepancy-banner" id="module-discrepancy-report" role="status" aria-labelledby="discrepancy-report-heading">
+            <section class="module-discrepancy-banner" id="module-discrepancy-report" role="alert" aria-labelledby="discrepancy-report-heading">
                 <div class="module-discrepancy-banner-header">
                     <div class="module-discrepancy-banner-title">
                         <i data-lucide="clock-3" aria-hidden="true"></i>
@@ -180,9 +232,11 @@
         }
         <div class="module-detail-layout">
             <div class="module-detail-main">
-                <section class="module-info-section" aria-labelledby="module-info-heading">
-                    <h2 id="module-info-heading">Module information</h2>
+                <section class="module-info-section" id="module-overview" aria-labelledby="module-info-heading">
+                    <h2 id="module-info-heading">Overview</h2>
+                    <p class="module-overview-description">@(string.IsNullOrWhiteSpace(module.Description) ? "No description provided." : module.Description)</p>
                     <dl class="module-detail-facts">
+                        <div class="module-fact-wide"><dt>Module name</dt><dd>@module.ModuleName</dd></div>
                         <div class="module-fact-wide"><dt>Module ID</dt><dd class="module-copy-value"><span class="module-code">@module.Id</span><button class="module-icon-button" type="button" data-copy="@module.Id" aria-label="Copy module ID" title="Copy module ID"><i data-lucide="copy" aria-hidden="true"></i></button></dd></div>
                         <div><dt>Base path</dt><dd class="module-code">@module.BaseUrlPath</dd></div>
                         <div><dt>Container port</dt><dd>@module.ContainerPort</dd></div>
@@ -194,7 +248,7 @@
                 <partial name="_DetailVersions" model="Model" />
             </div>
             <aside class="module-detail-aside">
-                <section class="module-info-section" aria-labelledby="module-runtime-heading">
+                <section class="module-info-section" id="module-runtime" aria-labelledby="module-runtime-heading">
                     <h2 id="module-runtime-heading">Runtime &amp; storage</h2>
                     <dl class="module-runtime-facts">
                         <div><dt>Container ID</dt><dd class="module-code">@(module.ContainerId ?? "Not assigned")</dd></div>
@@ -210,36 +264,6 @@
                             <div><dt>Last exit code</dt><dd class="module-code" data-stat="exit-code">@stoppedStats.ExitCode</dd></div>
                         }
                     </dl>
-                </section>
-                <section class="module-info-section" aria-labelledby="module-actions-heading">
-                    <h2 id="module-actions-heading">Module actions</h2>
-                    <div class="module-detail-actions">
-                        @if (Model.CanStart)
-                        {
-                            <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Start" asp-route-id="@module.Id">
-                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
-                                <button class="module-button" type="submit" id="start-module-button" title="Start the module container"><i data-lucide="play" aria-hidden="true"></i><span>Start module</span></button>
-                            </form>
-                        }
-                        @if (Model.CanStop)
-                        {
-                            <form method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Stop" asp-route-id="@module.Id">
-                                <input type="hidden" name="moduleName" value="@module.ModuleName" />
-                                <button class="module-button" type="submit" id="stop-module-button" title="Stop the module container"><i data-lucide="square" aria-hidden="true"></i><span>Stop module</span></button>
-                            </form>
-                        }
-                        @if (Model.CanConfirmEndpoints)
-                        {
-                            <button class="module-button module-button-primary" type="button" id="confirm-endpoints-button" data-dialog-open="confirm-endpoints-dialog" title="Review and confirm @Model.PendingEndpoints.Count pending endpoint(s)"><i data-lucide="check-circle-2" aria-hidden="true"></i><span>Confirm endpoints</span></button>
-                        }
-                        <button class="module-button" type="button" id="edit-module-button" data-dialog-open="edit-module-dialog" title="Edit the module name and description"><i data-lucide="pencil" aria-hidden="true"></i><span>Edit details</span></button>
-                        <button class="module-button" type="button" id="update-files-button" data-dialog-open="update-files-dialog" title="Upload a new ZIP archive to patch this module"><i data-lucide="upload" aria-hidden="true"></i><span>Update files</span></button>
-                        @if (Model.CanRollback)
-                        {
-                            <button class="module-button" type="button" id="rollback-module-button" data-dialog-open="rollback-module-dialog" title="@Model.RollbackTitle"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Rollback</span></button>
-                        }
-                        <button class="module-button module-button-danger" type="button" id="delete-module-button" data-dialog-open="delete-module-dialog" title="Delete this module and remove its container and files"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete module</span></button>
-                    </div>
                 </section>
             </aside>
         </div>

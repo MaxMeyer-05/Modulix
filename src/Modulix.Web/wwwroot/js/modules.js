@@ -60,6 +60,36 @@ document.querySelectorAll("[data-delete-version]").forEach(button => {
 });
 
 (() => {
+    const menu = document.getElementById("module-action-menu");
+    const toggle = document.getElementById("module-actions-toggle");
+    if (!menu || !toggle) {
+        return;
+    }
+
+    menu.addEventListener("keydown", event => {
+        if (event.key === "Escape" && menu.open) {
+            event.preventDefault();
+            event.stopPropagation();
+            menu.open = false;
+            toggle.focus();
+        }
+    });
+
+    menu.addEventListener("focusout", event => {
+        if (!menu.contains(event.relatedTarget) && !document.querySelector("dialog[open]")) {
+            menu.open = false;
+        }
+    });
+
+    document.addEventListener("click", event => {
+        if (menu.open && event.target instanceof Element
+            && !menu.contains(event.target) && !event.target.closest("dialog")) {
+            menu.open = false;
+        }
+    });
+})();
+
+(() => {
     const container = document.querySelector("[data-auto-refresh]");
     if (!container) {
         return;

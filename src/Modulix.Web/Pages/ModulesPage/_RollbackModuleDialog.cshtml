@@ -5,7 +5,7 @@
     var rollbackVersions = Model.RollbackVersions;
     var dialogHeader = new DialogHeaderModel("rollback-module-heading", "Rollback module version", "rotate-ccw");
 }
-<dialog class="dialog dialog--md dialog--info" id="rollback-module-dialog" data-open-on-load="@(Model.ReopenRollback ? "true" : "false")" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId" aria-describedby="rollback-module-description">
+<dialog class="dialog dialog--md dialog--info" id="rollback-module-dialog" data-open-on-load="@(Model.ReopenRollback ? "true" : "false")" data-dialog-return-focus="module-actions-toggle" closedby="closerequest" aria-labelledby="@dialogHeader.HeadingId" aria-describedby="rollback-module-description">
     <partial name="_DialogHeader" model="dialogHeader" />
     <form class="dialog-layout" id="rollback-module-form" method="post" asp-page="/ModulesPage/Detail" asp-page-handler="Rollback" asp-route-id="@module.Id">
         <div class="dialog-body">

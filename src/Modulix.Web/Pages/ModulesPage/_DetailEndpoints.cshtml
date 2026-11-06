@@ -3,9 +3,10 @@
 @using Modulix.Web.Services
 @{
     var module = Model.Module!;
-    var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id });
+    var detailUrl = Url.Page("/ModulesPage/Detail", new { id = module.Id })
+        ?? throw new InvalidOperationException("Could not generate the module detail URL.");
 }
-<section class="module-info-section" aria-labelledby="module-endpoints-heading">
+<section class="module-info-section" id="module-endpoints" aria-labelledby="module-endpoints-heading">
     <div class="module-section-heading">
         <h2 id="module-endpoints-heading">Registered endpoints</h2>
         <div class="module-section-heading-actions">
@@ -132,7 +133,7 @@
         var endPage = Math.Min(Model.TotalPages, startPage + 4);
         startPage = Math.Max(1, endPage - 4);
         <div class="module-pagination-bar module-pagination-bar-inline" aria-label="Module endpoints pagination">
-            <form class="module-pagination-size" method="get" action="@detailUrl">
+            <form class="module-pagination-size" method="get" action="@(detailUrl + "#module-endpoints")">
                 <input type="hidden" name="page" value="1" />
                 <label class="module-pagination-size-label" for="detail-endpoints-page-size">
                     <span>Rows per page</span>
@@ -148,7 +149,7 @@
             <nav class="module-pagination-controls" aria-label="Module endpoints page navigation">
                 @if (Model.HasPreviousPage)
                 {
-                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, Model.CurrentPage - 1)" aria-label="Previous page">
+                    <a class="module-button module-button-compact" href="@(Model.GetPageUrl(module.Id, Model.CurrentPage - 1) + "#module-endpoints")" aria-label="Previous page">
                         <i data-lucide="chevron-left" aria-hidden="true"></i><span>Previous</span>
                     </a>
                 }
@@ -160,12 +161,12 @@
                     }
                     else
                     {
-                        <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, p)" aria-label="Page @p">@p</a>
+                        <a class="module-button module-button-compact" href="@(Model.GetPageUrl(module.Id, p) + "#module-endpoints")" aria-label="Page @p">@p</a>
                     }
                 }
                 @if (Model.HasNextPage)
                 {
-                    <a class="module-button module-button-compact" href="@Model.GetPageUrl(module.Id, Model.CurrentPage + 1)" aria-label="Next page">
+                    <a class="module-button module-button-compact" href="@(Model.GetPageUrl(module.Id, Model.CurrentPage + 1) + "#module-endpoints")" aria-label="Next page">
                         <span>Next</span><i data-lucide="chevron-right" aria-hidden="true"></i>
                     </a>
                 }
