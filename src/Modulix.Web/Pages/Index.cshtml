@@ -5,15 +5,18 @@
 @using Modulix.Web.Pages.ModulesPage
 @{
     ViewData["Title"] = "Dashboard";
+    var refreshUrl = Url.Page("/Index") ?? throw new InvalidOperationException("Could not generate the dashboard URL.");
+    var autoRefresh = new PageAutoRefreshModel(refreshUrl);
+    var hasIncompleteWorkspaceData = !ViewData.ModelState.IsValid || Model.ScanQueueError is not null || Model.EndpointsError is not null;
 }
 
-<div class="dashboard" data-auto-refresh="300">
-    <header class="dashboard-hero">
-        <div class="welcome-block">
+<div class="page dashboard" data-auto-refresh="300">
+    <header class="page-header">
+        <div class="page-header-main welcome-block">
             <div class="welcome-avatar" aria-hidden="true">@Model.UserInitials</div>
             <div class="welcome-copy">
                 <span class="welcome-eyebrow">Workspace overview</span>
-                <h1>
+                <h1 class="page-title">
                     @if (!string.IsNullOrWhiteSpace(Model.UserFullName))
                     {
                         <text>Welcome back, <span class="welcome-name">@Model.UserFullName</span>!</text>
@@ -23,10 +26,10 @@
                         <text>Welcome back!</text>
                     }
                 </h1>
-                <p class="welcome-subtitle">
-                    @if (!ViewData.ModelState.IsValid)
+                <p class="page-description">
+                    @if (hasIncompleteWorkspaceData)
                     {
-                        <text>The Modulix API could not be reached right now. Check the connection details below.</text>
+                        <text>Some workspace data could not be loaded. Check the details below.</text>
                     }
                     else if (Model.AttentionCount > 0)
                     {
@@ -43,15 +46,7 @@
                 </p>
             </div>
         </div>
-        <div class="dashboard-hero-actions">
-            <span class="auto-refresh-status" aria-live="off">
-                <span class="auto-refresh-dot" aria-hidden="true"></span>
-                <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
-            </span>
-            <a class="dashboard-button" data-auto-refresh-link asp-page="/Index">
-                <i data-lucide="refresh-cw" aria-hidden="true"></i>
-                <span>Refresh</span>
-            </a>
+        <div class="page-header-actions">
             <a class="dashboard-button dashboard-button-primary" asp-page="/ModulesPage/Index">
                 <i data-lucide="layout-grid" aria-hidden="true"></i>
                 <span>Manage modules</span>
@@ -59,15 +54,22 @@
         </div>
     </header>
 
+    <div class="page-toolbar">
+        <partial name="_AutoRefresh" model="autoRefresh" />
+    </div>
+
+    <div class="page-content">
     @if (!ViewData.ModelState.IsValid)
     {
-        <div class="dashboard-error" role="alert">
-            <i data-lucide="circle-alert" aria-hidden="true"></i>
-            <div>
-                <strong>Modules unavailable</strong>
-                <div asp-validation-summary="ModelOnly"></div>
-            </div>
-        </div>
+        <partial name="_ErrorState" model='new PageErrorStateModel("Modules unavailable") { ValidationSummary = ValidationSummary.ModelOnly }' />
+    }
+    @if (Model.ScanQueueError is { } queueError)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Scan queue unavailable") { Description = queueError }' />
+    }
+    @if (Model.EndpointsError is { } endpointsError)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Endpoints unavailable") { Description = endpointsError }' />
     }
 
     <section class="quick-actions-section" aria-label="Quick actions">
@@ -76,7 +78,7 @@
                 <span class="quick-action-icon icon-cyan"><i data-lucide="layout-grid" aria-hidden="true"></i></span>
                 <div class="quick-action-body">
                     <h2>Modules</h2>
-                    <p>@Model.Modules.Count registered · @Model.RunningModulesCount running</p>
+                    <p>@(!ViewData.ModelState.IsValid ? "Module data unavailable" : $"{Model.Modules.Count} registered · {Model.RunningModulesCount} running")</p>
                 </div>
                 <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
             </a>
@@ -84,7 +86,7 @@
                 <span class="quick-action-icon icon-amber"><i data-lucide="list-checks" aria-hidden="true"></i></span>
                 <div class="quick-action-body">
                     <h2>Scan queue</h2>
-                    <p>@(Model.ScanQueue.Count == 0 ? "Queue is clear" : $"{Model.ScanQueue.Count} queued · {Model.RunningScansCount} running")</p>
+                    <p>@(Model.ScanQueueError is not null ? "Queue data unavailable" : Model.ScanQueue.Count == 0 ? "Queue is clear" : $"{Model.ScanQueue.Count} queued · {Model.RunningScansCount} running")</p>
                 </div>
                 <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
             </a>
@@ -92,7 +94,7 @@
                 <span class="quick-action-icon icon-emerald"><i data-lucide="link" aria-hidden="true"></i></span>
                 <div class="quick-action-body">
                     <h2>API endpoints</h2>
-                    <p>@Model.Endpoints.Count total · @Model.ActiveEndpointsCount active</p>
+                    <p>@(Model.EndpointsError is not null ? "Endpoint data unavailable" : $"{Model.Endpoints.Count} total · {Model.ActiveEndpointsCount} active")</p>
                 </div>
                 <i class="quick-action-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i>
             </a>
@@ -115,7 +117,11 @@
                         <i data-lucide="bell-ring" aria-hidden="true"></i>
                         <h2 id="attention-heading">Needs attention</h2>
                     </div>
-                    @if (Model.AttentionCount > 0)
+                    @if (hasIncompleteWorkspaceData)
+                    {
+                        <span class="panel-badge badge-failed"><span class="status-dot" aria-hidden="true"></span>Unavailable</span>
+                    }
+                    else if (Model.AttentionCount > 0)
                     {
                         <span class="panel-badge badge-warning">
                             <span class="status-dot" aria-hidden="true"></span>
@@ -131,15 +137,16 @@
                     }
                 </header>
 
-                @if (Model.AttentionCount == 0)
+                @if (hasIncompleteWorkspaceData && Model.AttentionCount == 0)
                 {
-                    <div class="attention-empty">
-                        <span class="attention-empty-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span>
-                        <div>
-                            <h3>Everything looks healthy</h3>
-                            <p>No failed modules, pending endpoint confirmations, or waiting scans require your attention right now.</p>
-                        </div>
-                    </div>
+                    <partial name="_ErrorState" model='new PageErrorStateModel("Attention status unavailable") { Description = "One or more workspace data sources could not be loaded." }' />
+                }
+                else if (Model.AttentionCount == 0)
+                {
+                    <partial name="_EmptyState" model='new PageEmptyStateModel("Everything looks healthy", "check-circle-2") {
+                        Description = "No failed modules, pending endpoint confirmations, or waiting scans require your attention right now.",
+                        InSection = true
+                    }' />
                 }
                 else
                 {
@@ -207,7 +214,7 @@
                         <h2 id="modules-heading">Recent modules</h2>
                     </div>
                     <div class="section-heading-actions">
-                        <span class="section-count">@Model.Modules.Count total</span>
+                        <span class="section-count">@(!ViewData.ModelState.IsValid ? "Unavailable" : $"{Model.Modules.Count} total")</span>
                         <a class="section-link" asp-page="/ModulesPage/Index">
                             <span>View all</span>
                             <i data-lucide="arrow-right" aria-hidden="true"></i>
@@ -215,16 +222,19 @@
                     </div>
                 </header>
 
-                @if (Model.RecentModules.Count == 0)
+                @if (!ViewData.ModelState.IsValid)
                 {
-                    <div class="modules-empty">
-                        <span class="modules-empty-icon" aria-hidden="true"><i data-lucide="box"></i></span>
-                        <p>No modules have been added yet.</p>
-                        <a class="dashboard-button dashboard-button-primary" asp-page="/ModulesPage/Index">
-                            <i data-lucide="plus" aria-hidden="true"></i>
-                            <span>Add your first module</span>
-                        </a>
-                    </div>
+                    <partial name="_ErrorState" model='new PageErrorStateModel("Modules unavailable") { Description = "Module data could not be loaded." }' />
+                }
+                else if (Model.RecentModules.Count == 0)
+                {
+                    <partial name="_EmptyState" model='new PageEmptyStateModel("No modules have been added yet", "box") {
+                        InSection = true,
+                        ActionText = "Add your first module",
+                        ActionUrl = Url.Page("/ModulesPage/Index"),
+                        ActionIcon = "plus",
+                        PrimaryAction = true
+                    }' />
                 }
                 else
                 {
@@ -274,19 +284,11 @@
             </header>
             @if (Model.Activities.Count == 0)
             {
-                <div class="activity-empty">
-                    <div class="activity-empty-card">
-                        <span class="activity-empty-icon" aria-hidden="true">
-                            <i data-lucide="activity"></i>
-                        </span>
-                        <h3>No activity yet</h3>
-                        <p>Actions you perform—such as adding modules, confirming endpoints, or cancelling scans—will appear here in real time.</p>
-                        <span class="activity-empty-hint">
-                            <i data-lucide="shield-check" aria-hidden="true"></i>
-                            <span>Stored only until you sign out</span>
-                        </span>
-                    </div>
-                </div>
+                <partial name="_EmptyState" model='new PageEmptyStateModel("No activity yet", "activity") {
+                    InSection = true,
+                    Description = "Actions you perform—such as adding modules, confirming endpoints, or cancelling scans—will appear here in real time.",
+                    Hint = "Stored only until you sign out"
+                }' />
             }
             else
             {
@@ -317,6 +319,7 @@
                 </ol>
             }
         </section>
+    </div>
     </div>
 </div>
 

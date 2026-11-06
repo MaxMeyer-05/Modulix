@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -99,9 +100,19 @@ public class IndexModel : PageModel
     public List<ModuleScanQueueItemDto> ScanQueue { get; private set; } = [];
 
     /// <summary>
+    /// Gets the error encountered while loading the scan queue, if any.
+    /// </summary>
+    public string? ScanQueueError { get; private set; }
+
+    /// <summary>
     /// Gets all registered endpoints across modules.
     /// </summary>
     public List<ModuleSubEndpointsDetailDto> Endpoints { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the error encountered while loading endpoints, if any.
+    /// </summary>
+    public string? EndpointsError { get; private set; }
 
     /// <summary>
     /// Gets the number of running modules.
@@ -223,7 +234,20 @@ public class IndexModel : PageModel
             }
 
             var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleDto>>(cancellationToken: ct);
-            Modules = pagedResult?.Items.ToList() ?? [];
+            if (pagedResult is null)
+            {
+                _logger.LogWarning("The API returned an empty module response for the dashboard.");
+                ModelState.AddModelError(string.Empty, "The API returned an empty module response.");
+                return;
+            }
+            if (pagedResult.Items is null)
+            {
+                _logger.LogWarning("The API returned a module response without items for the dashboard.");
+                ModelState.AddModelError(string.Empty, "The API returned an invalid module response.");
+                return;
+            }
+
+            Modules = pagedResult.Items.ToList();
 
             _logger.LogDebug("Successfully loaded {ModuleCount} modules.", Modules.Count);
         }
@@ -232,6 +256,16 @@ public class IndexModel : PageModel
             _logger.LogError(exception, "ERROR loading modules.");
             ModelState.AddModelError(string.Empty, "The API could not be reached. Please try again later.");
         }
+        catch (JsonException exception)
+        {
+            _logger.LogWarning(exception, "The API returned an invalid module response for the dashboard.");
+            ModelState.AddModelError(string.Empty, "The API returned an invalid module response.");
+        }
+        catch (OperationCanceledException exception) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Loading modules for the dashboard timed out.");
+            ModelState.AddModelError(string.Empty, "The API did not respond in time.");
+        }
     }
 
     private async Task LoadScanQueueAsync(CancellationToken ct)
@@ -239,14 +273,38 @@ public class IndexModel : PageModel
         try
         {
             using var response = await _modulixApiClient.ScannerManagement.GetScanQueueAsync(ct: ct);
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                ScanQueue = await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(cancellationToken: ct) ?? [];
+                var error = await response.ReadApiErrorAsync(ct);
+                _logger.LogWarning("Loading the scan queue for the dashboard returned HTTP {StatusCode}.", error.StatusCode);
+                ScanQueueError = error.DisplayMessage;
+                return;
             }
+
+            var queue = await response.Content.ReadFromJsonAsync<List<ModuleScanQueueItemDto>>(cancellationToken: ct);
+            if (queue is null)
+            {
+                _logger.LogWarning("The API returned an empty scan queue response for the dashboard.");
+                ScanQueueError = "The API returned an empty scan queue response.";
+                return;
+            }
+
+            ScanQueue = queue;
         }
         catch (HttpRequestException exception)
         {
             _logger.LogWarning(exception, "Could not load scan queue for dashboard.");
+            ScanQueueError = "The API could not be reached. Please try again later.";
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogWarning(exception, "The API returned an invalid scan queue response for the dashboard.");
+            ScanQueueError = "The API returned an invalid scan queue response.";
+        }
+        catch (OperationCanceledException exception) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Loading the scan queue for the dashboard timed out.");
+            ScanQueueError = "The API did not respond in time.";
         }
     }
 
@@ -257,15 +315,44 @@ public class IndexModel : PageModel
             using var response = await _modulixApiClient.SubEndpointManagement.GetAllEndpointsDetailAsync(
                 pagination: new PaginationQueryDto { Page = 1, PageSize = PaginationQueryDto.MaxPageSize },
                 ct: ct);
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleSubEndpointsDetailDto>>(cancellationToken: ct);
-                Endpoints = pagedResult?.Items.ToList() ?? [];
+                var error = await response.ReadApiErrorAsync(ct);
+                _logger.LogWarning("Loading endpoints for the dashboard returned HTTP {StatusCode}.", error.StatusCode);
+                EndpointsError = error.DisplayMessage;
+                return;
             }
+
+            var pagedResult = await response.Content.ReadFromJsonAsync<PagedResultDto<ModuleSubEndpointsDetailDto>>(cancellationToken: ct);
+            if (pagedResult is null)
+            {
+                _logger.LogWarning("The API returned an empty endpoint response for the dashboard.");
+                EndpointsError = "The API returned an empty endpoint response.";
+                return;
+            }
+            if (pagedResult.Items is null)
+            {
+                _logger.LogWarning("The API returned an endpoint response without items for the dashboard.");
+                EndpointsError = "The API returned an invalid endpoint response.";
+                return;
+            }
+
+            Endpoints = pagedResult.Items.ToList();
         }
         catch (HttpRequestException exception)
         {
             _logger.LogWarning(exception, "Could not load endpoints for dashboard.");
+            EndpointsError = "The API could not be reached. Please try again later.";
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogWarning(exception, "The API returned an invalid endpoint response for the dashboard.");
+            EndpointsError = "The API returned an invalid endpoint response.";
+        }
+        catch (OperationCanceledException exception) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(exception, "Loading endpoints for the dashboard timed out.");
+            EndpointsError = "The API did not respond in time.";
         }
     }
 }

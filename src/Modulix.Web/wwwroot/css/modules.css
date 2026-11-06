@@ -29,12 +29,11 @@
 .module-card-footer > span:first-child { flex-shrink: 0; }
 .module-card-footer .module-code { font-size: 11px; line-height: 1.3; text-align: right; }
 
-.module-back-link { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 28px; color: var(--color-text-muted); font-size: 13px; text-decoration: none; }
+.module-back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--color-text-muted); font-size: 13px; text-decoration: none; }
 .module-back-link:hover { color: var(--color-accent); }
-.module-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 28px; border-bottom: 1px solid var(--color-border); }
 .module-detail-title { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
 .module-detail-title > div { min-width: 0; }
-.module-detail-title p { margin: 10px 0 0; max-width: 600px; color: #b8c3d0; line-height: 1.6; }
+.module-detail-title p { max-width: 600px; }
 .module-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 40px; }
 .module-detail-main, .module-detail-aside { min-width: 0; }
 .module-info-section { padding: 26px 0; border-bottom: 1px solid var(--color-border); }
@@ -186,26 +185,6 @@
   font-size: 11.5px;
 }
 
-.module-failed-banner {
-  align-items: center;
-}
-.module-failed-banner p {
-  margin: 4px 0 0;
-  font-size: 13px;
-}
-.module-failed-banner-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex: 1;
-  flex-wrap: wrap;
-}
-.module-failed-banner-content a.module-button {
-  text-decoration: none;
-  flex-shrink: 0;
-}
-
 .module-section-heading-actions a.module-button {
   text-decoration: none;
 }
@@ -218,7 +197,6 @@
   .module-card { padding: 14px; }
   .module-card-footer { flex-direction: column; align-items: flex-start; gap: 4px; }
   .module-card-footer .module-code { text-align: left; }
-  .module-detail-header { flex-direction: column; }
   .module-detail-title { flex-direction: column; gap: 12px; }
   .module-detail-aside { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .module-detail-facts { grid-template-columns: minmax(0, 1fr); }

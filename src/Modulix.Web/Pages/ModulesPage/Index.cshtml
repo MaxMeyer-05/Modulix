@@ -17,51 +17,26 @@
         ("Failed", "Failed")
     };
     var closeUrl = Url.Page("/ModulesPage/Index");
+    var autoRefresh = new PageAutoRefreshModel(Model.GetPageUrl(Model.CurrentPage));
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
 }
 
-<div class="modules-page" data-auto-refresh="300">
-    <header class="modules-header">
-        <div class="modules-title"><h1>Modules</h1></div>
-        <div class="modules-header-actions">
-            <span class="auto-refresh-status" aria-live="off">
-                <span class="auto-refresh-dot" aria-hidden="true"></span>
-                <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
-            </span>
-            <a class="module-button" data-auto-refresh-link href="@Model.GetPageUrl(Model.CurrentPage)">
-                <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
-            </a>
+<div class="page modules-page" data-auto-refresh="300">
+    <header class="page-header">
+        <div class="page-header-main">
+            <h1 class="page-title">Modules</h1>
+            <p class="page-description">Browse and manage registered modules.</p>
+        </div>
+        <div class="page-header-actions">
             <button class="module-button module-button-primary" type="button" id="add-module-button" data-dialog-open="add-module-dialog">
                 <i data-lucide="plus" aria-hidden="true"></i><span>Add module</span>
             </button>
         </div>
     </header>
 
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="modules-error" role="alert">
-            <i data-lucide="circle-alert" aria-hidden="true"></i>
-            <div>
-                <strong>Module request failed</strong>
-                <div asp-validation-summary="All"></div>
-            </div>
-        </div>
-    }
-
-    @if (Model.Feedback is { } feedback)
-    {
-        <div class="queue-feedback @(feedback.IsSuccess ? "queue-feedback-success" : "modules-error")" role="status">
-            <i data-lucide="@(feedback.IsSuccess ? "check-circle-2" : "circle-alert")" aria-hidden="true"></i>
-            <div>
-                <strong>@feedback.Title</strong>
-                <p>@feedback.Description</p>
-            </div>
-        </div>
-    }
-
-    <form class="modules-toolbar" method="get" action="@closeUrl">
+    <form class="page-toolbar" method="get" action="@closeUrl">
         <input type="hidden" name="pageSize" value="@Model.PageSize" />
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
@@ -76,8 +51,37 @@
             </select>
         </label>
         <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
+        <partial name="_AutoRefresh" model="autoRefresh" />
     </form>
-    <p class="module-result-count" id="module-result-count" role="status">@(modules.Count == Model.TotalModules ? $"{modules.Count} modules" : $"{modules.Count} of {Model.TotalModules} modules (page {Model.CurrentPage} of {Model.TotalPages})")</p>
+
+    <div class="page-content">
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Module request failed") { ValidationSummary = ValidationSummary.All }' />
+    }
+
+    @if (Model.Feedback is { } feedback)
+    {
+        @if (feedback.IsSuccess)
+        {
+            <div class="queue-feedback queue-feedback-success" role="status">
+                <i data-lucide="check-circle-2" aria-hidden="true"></i>
+                <div>
+                    <strong>@feedback.Title</strong>
+                    <p>@feedback.Description</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <partial name="_ErrorState" model='new PageErrorStateModel(feedback.Title) { Description = feedback.Description }' />
+        }
+    }
+
+    @if (ViewData.ModelState.IsValid)
+    {
+        <p class="module-result-count" id="module-result-count" role="status">@(modules.Count == Model.TotalModules ? $"{modules.Count} modules" : $"{modules.Count} of {Model.TotalModules} modules (page {Model.CurrentPage} of {Model.TotalPages})")</p>
+    }
     <div class="module-card-grid" id="module-card-grid">
         @foreach (var module in modules)
         {
@@ -98,13 +102,15 @@
             </a>
         }
     </div>
-    @if (modules.Count == 0)
+    @if (modules.Count == 0 && ViewData.ModelState.IsValid)
     {
-        <div class="module-empty-state" id="module-no-results">
-            <i data-lucide="search-x" aria-hidden="true"></i>
-            <h2>No modules found</h2><p>No modules match your search and filters.</p>
-            <a class="module-button" href="@closeUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
-        </div>
+        <partial name="_EmptyState" model='new PageEmptyStateModel("No modules found", "search-x") {
+            Id = "module-no-results",
+            Description = "No modules match your search and filters.",
+            ActionText = "Reset filters",
+            ActionUrl = closeUrl,
+            ActionIcon = "rotate-ccw"
+        }' />
     }
     @if (Model.TotalModules > 0)
     {
@@ -332,6 +338,7 @@
             </form>
         </dialog>
     }
+    </div>
 </div>
 
 @section Scripts {

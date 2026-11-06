@@ -97,7 +97,7 @@ document.querySelectorAll("[data-delete-version]").forEach(button => {
         }
 
         const active = document.activeElement;
-        return Boolean(active && active.closest(".modules-toolbar, .dialog") && active.matches("input, select, textarea"));
+        return Boolean(active && active.closest(".page-toolbar, .dialog") && active.matches("input, select, textarea"));
     };
 
     window.setInterval(() => {

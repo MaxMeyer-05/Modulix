@@ -1,0 +1,34 @@
+@model PageEmptyStateModel
+<div class="page-state" id="@Model.Id" role="status">
+    <span class="page-state-icon" aria-hidden="true"><i data-lucide="@Model.Icon"></i></span>
+    @if (Model.InSection)
+    {
+        <h3 class="page-state-title" id="@Model.TitleId">@Model.Title</h3>
+    }
+    else
+    {
+        <h2 class="page-state-title" id="@Model.TitleId">@Model.Title</h2>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <p>@Model.Description</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ActionText))
+    {
+        if (string.IsNullOrWhiteSpace(Model.ActionUrl))
+        {
+            throw new InvalidOperationException("An empty state action requires a URL.");
+        }
+        <a class="ui-button @(Model.PrimaryAction ? "ui-button-primary" : "")" href="@Model.ActionUrl">
+            @if (!string.IsNullOrWhiteSpace(Model.ActionIcon))
+            {
+                <i data-lucide="@Model.ActionIcon" aria-hidden="true"></i>
+            }
+            <span>@Model.ActionText</span>
+        </a>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.Hint))
+    {
+        <p class="page-state-hint">@Model.Hint</p>
+    }
+</div>

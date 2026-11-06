@@ -8,50 +8,69 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/modules.css" asp-append-version="true" />
 }
-<div class="modules-page">
-    <a class="module-back-link" asp-page="/ModulesPage/Index"><i data-lucide="arrow-left" aria-hidden="true"></i><span>All modules</span></a>
-
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="modules-error" role="alert">
-            <i data-lucide="circle-alert" aria-hidden="true"></i>
+<div class="page modules-page">
+    <header class="page-header">
+        <div class="page-header-main module-detail-title">
+            @if (module is not null)
+            {
+                <span class="module-symbol module-symbol-large"><i data-lucide="box" aria-hidden="true"></i></span>
+            }
             <div>
-                <strong>Module request failed</strong>
-                <div asp-validation-summary="All"></div>
+                <h1 class="page-title">@(module?.ModuleName ?? "Module details")</h1>
+                <p class="page-description">@(string.IsNullOrWhiteSpace(module?.Description) ? "View module information, endpoints, and runtime details." : module.Description)</p>
             </div>
         </div>
+        @if (module is not null)
+        {
+            <div class="page-header-actions">
+                <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
+            </div>
+        }
+    </header>
+
+    <nav class="page-toolbar" aria-label="Module navigation">
+        <a class="module-back-link" asp-page="/ModulesPage/Index"><i data-lucide="arrow-left" aria-hidden="true"></i><span>All modules</span></a>
+    </nav>
+
+    <div class="page-content">
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Module request failed") { ValidationSummary = ValidationSummary.All }' />
     }
 
     @if (Model.Feedback is { } feedback)
     {
-        <div class="queue-feedback @(feedback.IsSuccess ? "queue-feedback-success" : "modules-error")" role="status">
-            <i data-lucide="@(feedback.IsSuccess ? "check-circle-2" : "circle-alert")" aria-hidden="true"></i>
-            <div>
-                <strong>@feedback.Title</strong>
-                <p>@feedback.Description</p>
+        @if (feedback.IsSuccess)
+        {
+            <div class="queue-feedback queue-feedback-success" role="status">
+                <i data-lucide="check-circle-2" aria-hidden="true"></i>
+                <div>
+                    <strong>@feedback.Title</strong>
+                    <p>@feedback.Description</p>
+                </div>
             </div>
-        </div>
+        }
+        else
+        {
+            <partial name="_ErrorState" model='new PageErrorStateModel(feedback.Title) { Description = feedback.Description }' />
+        }
     }
 
     @if (module is null)
     {
-        <div class="module-empty-state">
-            <i data-lucide="box" aria-hidden="true"></i><h1>Module not found</h1>
-        </div>
+        @if (ViewData.ModelState.IsValid)
+        {
+            <partial name="_EmptyState" model='new PageEmptyStateModel("Module not found", "box")' />
+        }
     }
     else
     {
         @if (module.Status == Modulix.Client.Models.Enums.ModuleStatus.Failed)
         {
-            <div class="modules-error module-failed-banner" role="alert">
-                <i data-lucide="triangle-alert" aria-hidden="true"></i>
-                <div class="module-failed-banner-content">
-                    <div>
-                        <strong>Module container failed</strong>
-                        <p>The container for <strong>@module.ModuleName</strong> failed to start or exited unexpectedly. Restart the module or upload a patched archive.</p>
-                    </div>
-                </div>
-            </div>
+            <partial name="_ErrorState" model='new PageErrorStateModel("Module container failed") {
+                Icon = "triangle-alert",
+                Description = $"The container for {module.ModuleName} failed to start or exited unexpectedly. Restart the module or upload a patched archive."
+            }' />
         }
         @if (Model.HasPendingEndpoints)
         {
@@ -159,13 +178,6 @@
                 }
             </section>
         }
-        <header class="module-detail-header">
-            <div class="module-detail-title">
-                <span class="module-symbol module-symbol-large"><i data-lucide="box" aria-hidden="true"></i></span>
-                <div><div class="modules-title"><h1>@module.ModuleName</h1></div><p>@module.Description</p></div>
-            </div>
-            <span class="module-badge badge-@ModuleStatusDisplay.StatusClass(module.Status)"><span aria-hidden="true"></span>@ModuleStatusDisplay.StatusLabel(module.Status)</span>
-        </header>
         <div class="module-detail-layout">
             <div class="module-detail-main">
                 <section class="module-info-section" aria-labelledby="module-info-heading">
@@ -236,6 +248,7 @@
 
         <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
     }
+    </div>
 </div>
 @section Scripts {
     <script src="~/js/modules.js" asp-append-version="true"></script>

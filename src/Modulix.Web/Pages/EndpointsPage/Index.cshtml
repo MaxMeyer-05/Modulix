@@ -22,35 +22,17 @@
         (nameof(ModuleEndpointsStatus.Inactive), "Inactive")
     };
     var resetUrl = Url.Page("/EndpointsPage/Index");
+    var autoRefresh = new PageAutoRefreshModel(Model.GetPageUrl(Model.CurrentPage));
 }
-<div class="modules-page" data-auto-refresh="300">
-    <header class="modules-header">
-        <div class="modules-title">
-            <h1>API endpoints</h1>
-        </div>
-        <div class="modules-header-actions">
-            <span class="auto-refresh-status" aria-live="off">
-                <span class="auto-refresh-dot" aria-hidden="true"></span>
-                <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
-            </span>
-            <a class="module-button" data-auto-refresh-link href="@Model.GetPageUrl(Model.CurrentPage)">
-                <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
-            </a>
+<div class="page modules-page" data-auto-refresh="300">
+    <header class="page-header">
+        <div class="page-header-main">
+            <h1 class="page-title">API endpoints</h1>
+            <p class="page-description">Inspect endpoints registered by your modules.</p>
         </div>
     </header>
 
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="modules-error" role="alert">
-            <i data-lucide="circle-alert" aria-hidden="true"></i>
-            <div>
-                <strong>Endpoints request failed</strong>
-                <div asp-validation-summary="All"></div>
-            </div>
-        </div>
-    }
-
-    <form class="modules-toolbar" method="get" action="@resetUrl">
+    <form class="page-toolbar" method="get" action="@resetUrl">
         <input type="hidden" name="pageSize" value="@Model.PageSize" />
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
@@ -73,11 +55,21 @@
             </select>
         </label>
         <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
+        <partial name="_AutoRefresh" model="autoRefresh" />
     </form>
 
+    <div class="page-content">
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Endpoints request failed") { ValidationSummary = ValidationSummary.All }' />
+    }
+
+    @if (ViewData.ModelState.IsValid)
+    {
     <p class="module-result-count" id="endpoint-result-count" role="status">
         @(endpoints.Count == Model.TotalEndpoints ? $"{endpoints.Count} endpoints" : $"{endpoints.Count} of {Model.TotalEndpoints} endpoints (page {Model.CurrentPage} of {Model.TotalPages})")
     </p>
+    }
 
     @if (endpoints.Count > 0)
     {
@@ -149,22 +141,25 @@
             </table>
         </div>
     }
-    else
+    else if (ViewData.ModelState.IsValid)
     {
-        <div class="module-empty-state" id="endpoints-empty-state">
-            <i data-lucide="link" aria-hidden="true"></i>
-            @if (Model.TotalEndpoints == 0)
-            {
-                <h2>No API endpoints registered</h2>
-                <p>Upload and scan a module to discover and register its HTTP endpoints.</p>
-            }
-            else
-            {
-                <h2>No endpoints found</h2>
-                <p>No endpoints match your search and filter criteria.</p>
-                <a class="module-button" href="@resetUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
-            }
-        </div>
+        @if (Model.TotalEndpoints == 0)
+        {
+            <partial name="_EmptyState" model='new PageEmptyStateModel("No API endpoints registered", "link") {
+                Id = "endpoints-empty-state",
+                Description = "Upload and scan a module to discover and register its HTTP endpoints."
+            }' />
+        }
+        else
+        {
+            <partial name="_EmptyState" model='new PageEmptyStateModel("No endpoints found", "link") {
+                Id = "endpoints-empty-state",
+                Description = "No endpoints match your search and filter criteria.",
+                ActionText = "Reset filters",
+                ActionUrl = resetUrl,
+                ActionIcon = "rotate-ccw"
+            }' />
+        }
     }
     @if (Model.TotalEndpoints > 0)
     {
@@ -225,6 +220,7 @@
         </footer>
     }
     <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
+    </div>
 </div>
 
 @section Scripts {

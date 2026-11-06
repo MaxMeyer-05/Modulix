@@ -18,24 +18,48 @@
     <link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
 }
 
-<div class="logs-page">
-    <header class="logs-header">
-        <h1>Logs</h1>
-        <span class="logs-preview"><span aria-hidden="true"></span>Modulix.Web</span>
+<div class="page logs-page">
+    <header class="page-header">
+        <div class="page-header-main">
+            <h1 class="page-title">Logs</h1>
+            <p class="page-description">Browse and filter application logs.</p>
+        </div>
+        <div class="page-header-actions">
+            <span class="logs-preview"><span aria-hidden="true"></span>Modulix.Web</span>
+        </div>
     </header>
 
-    <form id="log-filters" method="get" action="@Url.Page("/LogsPage/Index")">
+    <form class="page-toolbar log-toolbar" id="log-filters" method="get" action="@Url.Page("/LogsPage/Index")">
         @if (selectedName is not null)
         {
             <input type="hidden" name="file" value="@selectedName" />
         }
+        <div class="log-search">
+            <i data-lucide="search" aria-hidden="true"></i>
+            <input id="log-search" name="q" type="search" value="@Model.Query" placeholder="Search entries..." aria-label="Search log entries" autocomplete="off" />
+        </div>
+        <select id="log-level" name="level" aria-label="Log level">
+            @foreach (var (value, label) in levels)
+            {
+                <option value="@value" selected="@(Model.Level == value)">@label</option>
+            }
+        </select>
+        <label class="log-wrap"><input id="log-wrap" name="wrap" type="checkbox" value="true" checked="@Model.Wrap" />Wrap lines</label>
+        <input type="hidden" name="wrap" value="false" />
+        <button class="ui-button" type="submit">Apply</button>
     </form>
+
+    <div class="page-content">
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Invalid log filters") { ValidationSummary = ValidationSummary.All }' />
+    }
 
     <div class="logs-workspace">
         <aside class="log-archive" aria-labelledby="log-files-heading">
             <header class="log-archive-heading">
                 <h2 id="log-files-heading"><i data-lucide="folder-open" aria-hidden="true"></i>Log files</h2>
-                <span id="log-file-count">@Model.Matches.Count files</span>
+                <span id="log-file-count">@(Model.ArchiveError is null ? $"{Model.Matches.Count} files" : "Unavailable")</span>
             </header>
             <div class="log-archive-filters">
                 <label class="log-field" for="log-service">Application
@@ -80,20 +104,29 @@
             }
             else
             {
-                <div class="log-archive-empty" id="log-archive-empty">
-                    <i data-lucide="folder-search" aria-hidden="true"></i>
-                    <p id="log-archive-message" role="status">@(Model.ArchiveError ?? "No files for this selection.")</p>
-                    @if (Model.ArchiveError is not null)
-                    {
-                        <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(null))">Retry</a>
-                    }
-                    else
-                    {
-                        <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(null, includeArchiveFilter: false))">Reset filters</a>
-                    }
-                </div>
+                @if (Model.ArchiveError is { } archiveError)
+                {
+                    <partial name="_ErrorState" model='new PageErrorStateModel("Log files unavailable") {
+                        Id = "log-archive-empty",
+                        DescriptionId = "log-archive-message",
+                        Description = archiveError,
+                        ActionText = "Retry",
+                        ActionUrl = Url.Page("/LogsPage/Index", Model.PageValues(null))
+                    }' />
+                }
+                else
+                {
+                    <partial name="_EmptyState" model='new PageEmptyStateModel("No files for this selection.", "folder-search") {
+                        Id = "log-archive-empty",
+                        TitleId = "log-archive-message",
+                        InSection = true,
+                        ActionText = "Reset filters",
+                        ActionUrl = Url.Page("/LogsPage/Index", Model.PageValues(null, includeArchiveFilter: false)),
+                        ActionIcon = "rotate-ccw"
+                    }' />
+                }
             }
-            <footer class="log-archive-footer"><i data-lucide="archive" aria-hidden="true"></i><span id="log-archive-range">@(Model.Files.Count > 0 ? $"{IndexModel.FormatDate(Model.Files[^1].Date)} - {IndexModel.FormatDate(Model.Files[0].Date)}" : "No log files")</span></footer>
+            <footer class="log-archive-footer"><i data-lucide="archive" aria-hidden="true"></i><span id="log-archive-range">@(Model.ArchiveError is not null ? "Log files unavailable" : Model.Files.Count > 0 ? $"{IndexModel.FormatDate(Model.Files[^1].Date)} - {IndexModel.FormatDate(Model.Files[0].Date)}" : "No log files")</span></footer>
         </aside>
 
         <section class="log-viewer" aria-labelledby="log-selected-name">
@@ -117,27 +150,18 @@
                 </div>
             </header>
 
-            <div class="log-toolbar">
-                <div class="log-search">
-                    <i data-lucide="search" aria-hidden="true"></i>
-                    <input id="log-search" name="q" form="log-filters" type="search" value="@Model.Query" placeholder="Search entries..." aria-label="Search log entries" autocomplete="off" />
-                </div>
-                <select id="log-level" name="level" form="log-filters" aria-label="Log level">
-                    @foreach (var (value, label) in levels)
-                    {
-                        <option value="@value" selected="@(Model.Level == value)">@label</option>
-                    }
-                </select>
-                <label class="log-wrap"><input id="log-wrap" name="wrap" form="log-filters" type="checkbox" value="true" checked="@Model.Wrap" />Wrap lines</label>
-                <input type="hidden" name="wrap" value="false" form="log-filters" />
-                <button class="ui-button log-apply-button" type="submit" form="log-filters">Apply</button>
-            </div>
-
             <div class="log-summary" aria-label="File summary">
-                <span><strong id="log-total">@Model.TotalEntries</strong> entries</span>
-                <span class="log-summary-error"><span aria-hidden="true"></span><strong id="log-errors">@Model.Errors</strong><span id="log-error-label">@IndexModel.Plural(Model.Errors, "error")</span></span>
-                <span class="log-summary-warning"><span aria-hidden="true"></span><strong id="log-warnings">@Model.Warnings</strong><span id="log-warning-label">@IndexModel.Plural(Model.Warnings, "warning")</span></span>
-                <span class="log-order"><i data-lucide="arrow-down" aria-hidden="true"></i>Oldest first</span>
+                @if (Model.ReadError is not null || Model.ArchiveError is not null)
+                {
+                    <span>Log summary unavailable</span>
+                }
+                else
+                {
+                    <span><strong id="log-total">@Model.TotalEntries</strong> entries</span>
+                    <span class="log-summary-error"><span aria-hidden="true"></span><strong id="log-errors">@Model.Errors</strong><span id="log-error-label">@IndexModel.Plural(Model.Errors, "error")</span></span>
+                    <span class="log-summary-warning"><span aria-hidden="true"></span><strong id="log-warnings">@Model.Warnings</strong><span id="log-warning-label">@IndexModel.Plural(Model.Warnings, "warning")</span></span>
+                    <span class="log-order"><i data-lucide="arrow-down" aria-hidden="true"></i>Oldest first</span>
+                }
             </div>
 
             <div class="log-content" id="log-content" tabindex="0" role="region" aria-label="Log entries">
@@ -162,22 +186,42 @@
                 }
                 else
                 {
-                    <div class="log-empty" id="log-empty">
-                        <i data-lucide="search-x" aria-hidden="true"></i>
-                        <h3 id="log-empty-title">@(Model.ReadError ?? (selected is null ? "No log file selected" : Model.TotalEntries > 0 ? "No matching entries" : "This log file is empty"))</h3>
-                        @if (selected is not null && Model.ReadError is not null)
-                        {
-                            <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(selectedName))">Retry</a>
-                        }
-                        else if (selected is not null && Model.HasEntryFilter)
-                        {
-                            <a class="log-text-button" href="@Url.Page("/LogsPage/Index", Model.PageValues(selectedName, includeEntryFilter: false))">Clear search and level filter</a>
-                        }
-                    </div>
+                    @if (Model.ReadError is { } readError)
+                    {
+                        <partial name="_ErrorState" model='new PageErrorStateModel("Log file unavailable") {
+                            Id = "log-empty",
+                            TitleId = "log-empty-title",
+                            Description = readError,
+                            ActionText = "Retry",
+                            ActionUrl = Url.Page("/LogsPage/Index", Model.PageValues(selectedName))
+                        }' />
+                    }
+                    else if (Model.ArchiveError is not null)
+                    {
+                        <partial name="_ErrorState" model='new PageErrorStateModel("Log file unavailable") {
+                            Id = "log-empty",
+                            TitleId = "log-empty-title",
+                            Description = "The log archive could not be loaded.",
+                            ActionText = "Retry",
+                            ActionUrl = Url.Page("/LogsPage/Index", Model.PageValues(null))
+                        }' />
+                    }
+                    else
+                    {
+                        var title = selected is null ? "No log file selected" : Model.TotalEntries > 0 ? "No matching entries" : "This log file is empty";
+                        var canClearFilter = selected is not null && Model.HasEntryFilter;
+                        <partial name="_EmptyState" model='new PageEmptyStateModel(title, "search-x") {
+                            Id = "log-empty",
+                            TitleId = "log-empty-title",
+                            InSection = true,
+                            ActionText = canClearFilter ? "Clear search and level filter" : null,
+                            ActionUrl = canClearFilter ? Url.Page("/LogsPage/Index", Model.PageValues(selectedName, includeEntryFilter: false)) : null
+                        }' />
+                    }
                 }
             </div>
             <footer class="log-viewer-footer">
-                <span id="log-result-count" role="status" aria-live="polite">@Model.Entries.Count of @Model.TotalEntries entries</span>
+                <span id="log-result-count" role="status" aria-live="polite">@(Model.ReadError is not null || Model.ArchiveError is not null ? "Log entries unavailable" : $"{Model.Entries.Count} of {Model.TotalEntries} entries")</span>
                 @if (Model.Entries.Count > 0)
                 {
                     <a class="log-text-button" href="#log-end"><i data-lucide="arrow-down-to-line" aria-hidden="true"></i>Go to bottom</a>
@@ -192,7 +236,7 @@
     }
     @if (Model.FeedbackError is not null)
     {
-        <p class="log-delete-feedback log-delete-error" role="alert">@Model.FeedbackError</p>
+        <partial name="_ErrorState" model='new PageErrorStateModel("Log operation failed") { Description = Model.FeedbackError }' />
     }
 
     @if (selected is not null)
@@ -232,4 +276,5 @@
             </form>
         </dialog>
     }
+    </div>
 </div>

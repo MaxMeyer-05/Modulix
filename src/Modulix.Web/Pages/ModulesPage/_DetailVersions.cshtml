@@ -13,7 +13,7 @@
     </div>
     @if (versions.Count == 0)
     {
-        <p class="module-section-empty">No versions registered.</p>
+        <partial name="_EmptyState" model='new PageEmptyStateModel("No versions registered", "history") { InSection = true }' />
     }
     else
     {

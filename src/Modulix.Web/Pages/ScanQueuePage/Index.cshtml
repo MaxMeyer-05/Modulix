@@ -5,55 +5,57 @@
     ViewData["Title"] = "Scan queue";
     var entries = Model.QueueEntries;
     var resetUrl = Url.Page("/ScanQueuePage/Index");
+    var refreshUrl = Url.Page("/ScanQueuePage/Index", new { q = Model.Query })
+        ?? throw new InvalidOperationException("Could not generate the scan queue URL.");
+    var autoRefresh = new PageAutoRefreshModel(refreshUrl);
 }
-<div class="modules-page" data-auto-refresh="300">
-    <header class="modules-header">
-        <div class="modules-title">
-            <h1>Scan queue</h1>
-        </div>
-        <div class="modules-header-actions">
-            <span class="auto-refresh-status" aria-live="off">
-                <span class="auto-refresh-dot" aria-hidden="true"></span>
-                <span data-auto-refresh-countdown>Auto-refresh in 5m</span>
-            </span>
-            <a class="module-button" data-auto-refresh-link href="@Url.Page("/ScanQueuePage/Index", new { q = Model.Query })">
-                <i data-lucide="refresh-cw" aria-hidden="true"></i><span>Refresh</span>
-            </a>
+<div class="page modules-page" data-auto-refresh="300">
+    <header class="page-header">
+        <div class="page-header-main">
+            <h1 class="page-title">Scan queue</h1>
+            <p class="page-description">Monitor and manage module scans.</p>
         </div>
     </header>
 
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="modules-error" role="alert">
-            <i data-lucide="circle-alert" aria-hidden="true"></i>
-            <div>
-                <strong>Scan queue request failed</strong>
-                <div asp-validation-summary="All"></div>
-            </div>
-        </div>
-    }
-
-    @if (Model.Feedback is { } feedback)
-    {
-        <div class="queue-feedback @(feedback.IsSuccess ? "queue-feedback-success" : "modules-error")" role="status">
-            <i data-lucide="@(feedback.IsSuccess ? "check-circle-2" : "circle-alert")" aria-hidden="true"></i>
-            <div>
-                <strong>@feedback.Title</strong>
-                <p>@feedback.Description</p>
-            </div>
-        </div>
-    }
-
-    <form class="modules-toolbar" method="get" action="@resetUrl">
+    <form class="page-toolbar" method="get" action="@resetUrl">
         <div class="module-search-field">
             <i data-lucide="search" aria-hidden="true"></i>
             <input id="queue-search" name="q" type="search" value="@Model.Query" placeholder="Search by module name or ID..." aria-label="Search scan queue" autocomplete="off" />
         </div>
+        <button class="module-button" type="submit"><i data-lucide="search" aria-hidden="true"></i><span>Apply</span></button>
+        <partial name="_AutoRefresh" model="autoRefresh" />
     </form>
 
-    <p class="module-result-count" id="queue-result-count" role="status">
-        @(entries.Count == Model.TotalCount ? $"{entries.Count} queued scans" : $"{entries.Count} of {Model.TotalCount} queued scans")
-    </p>
+    <div class="page-content">
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <partial name="_ErrorState" model='new PageErrorStateModel("Scan queue request failed") { ValidationSummary = ValidationSummary.All }' />
+    }
+
+    @if (Model.Feedback is { } feedback)
+    {
+        @if (feedback.IsSuccess)
+        {
+            <div class="queue-feedback queue-feedback-success" role="status">
+                <i data-lucide="check-circle-2" aria-hidden="true"></i>
+                <div>
+                    <strong>@feedback.Title</strong>
+                    <p>@feedback.Description</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <partial name="_ErrorState" model='new PageErrorStateModel(feedback.Title) { Description = feedback.Description }' />
+        }
+    }
+
+    @if (ViewData.ModelState.IsValid)
+    {
+        <p class="module-result-count" id="queue-result-count" role="status">
+            @(entries.Count == Model.TotalCount ? $"{entries.Count} queued scans" : $"{entries.Count} of {Model.TotalCount} queued scans")
+        </p>
+    }
 
     @if (entries.Count > 0)
     {
@@ -120,24 +122,28 @@
             </table>
         </div>
     }
-    else
+    else if (ViewData.ModelState.IsValid)
     {
-        <div class="module-empty-state" id="queue-empty-state">
-            <i data-lucide="list-checks" aria-hidden="true"></i>
-            @if (Model.TotalCount == 0)
-            {
-                <h2>Scan queue is empty</h2>
-                <p>No modules are currently waiting or being scanned in the background.</p>
-            }
-            else
-            {
-                <h2>No matching scans</h2>
-                <p>No queued scans match your search and filter criteria.</p>
-                <a class="module-button" href="@resetUrl"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span>Reset filters</span></a>
-            }
-        </div>
+        @if (Model.TotalCount == 0)
+        {
+            <partial name="_EmptyState" model='new PageEmptyStateModel("Scan queue is empty", "list-checks") {
+                Id = "queue-empty-state",
+                Description = "No modules are currently waiting or being scanned in the background."
+            }' />
+        }
+        else
+        {
+            <partial name="_EmptyState" model='new PageEmptyStateModel("No matching scans", "list-checks") {
+                Id = "queue-empty-state",
+                Description = "No queued scans match your search and filter criteria.",
+                ActionText = "Reset filters",
+                ActionUrl = resetUrl,
+                ActionIcon = "rotate-ccw"
+            }' />
+        }
     }
     <span class="visually-hidden" id="module-copy-feedback" role="status"></span>
+    </div>
 </div>
 
 @section Scripts {

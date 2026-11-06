@@ -20,7 +20,7 @@
     </div>
     @if (Model.Endpoints.Count == 0)
     {
-        <p class="module-section-empty">No endpoints registered.</p>
+        <partial name="_EmptyState" model='new PageEmptyStateModel("No endpoints registered", "link") { InSection = true }' />
     }
     else
     {
